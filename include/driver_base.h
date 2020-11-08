@@ -1,4 +1,5 @@
 #pragma once
+#include <ntddk.h>
 
 namespace winapi::kernel {
 struct DeviceInfo {
@@ -8,4 +9,10 @@ struct DeviceInfo {
       characteristics{0};  //Для некоторых специфических драйверов
   bool exclusive{false};  //Кол-во клиентов драйвера
 };
+
+template <class Driver>
+Driver* ExtractInstance(PDRIVER_OBJECT driver) {
+  return static_cast<std::add_pointer_t<std::decay_t<Driver>>>(
+      driver->DeviceObject->DeviceExtension);
 }
+}  // namespace winapi::kernel

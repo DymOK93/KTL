@@ -1,5 +1,6 @@
 #pragma once
 #include <heap.h>
+#include <memory>
 
 namespace winapi::kernel::mm {
 	
