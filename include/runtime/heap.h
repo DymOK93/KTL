@@ -15,9 +15,8 @@ struct MemoryBlockHeader {
 };
 
 inline void* zero_fill(void* ptr, size_t size) {
-  return RtlSecureZeroMemory(
-      ptr, size);  //Гарантированная очистка неинициализированной памяти во
-                   //избежание утечки системных данных
+  return RtlZeroMemory(ptr, size);  //Очистка неинициализированной памяти во
+                                    //избежание утечки системных данных
 }
 
 template <class KernelAllocFunction>
@@ -63,8 +62,8 @@ inline void deallocate_string(PWCH str, size_t capacity) {
   free(str, capacity);
 }
 
+}  // namespace mm
 }  // namespace kernel
-}  // namespace winapi
 }  // namespace winapi
 
 void* _cdecl operator new(size_t bytes, const std::nothrow_t&) noexcept {
