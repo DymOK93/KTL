@@ -11,7 +11,7 @@ struct DeviceInfo {
 };
 
 template <class Driver>
-Driver* ExtractInstance(PDRIVER_OBJECT driver) {
+Driver* GetDriverFromDeviceExtension(PDRIVER_OBJECT driver) {
   return static_cast<std::add_pointer_t<std::decay_t<Driver>>>(
       driver->DeviceObject->DeviceExtension);
 }
