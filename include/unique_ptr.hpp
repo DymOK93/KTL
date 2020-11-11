@@ -139,7 +139,8 @@ class unique_ptr {
       : m_ptr{ptr}, m_deleter(forward<deleter_type>(other.get_deleter())) {}
 
   template <class Dx = Deleter, enable_if_t<is_move_assignable_v<Dx>, int> = 0>
-  unique_ptr& operator=(unique_ptr&& other) noexcept(is_nothrow_move_assignable_v<Dx>) {
+  unique_ptr& operator=(unique_ptr&& other) noexcept(
+      is_nothrow_move_assignable_v<Dx>) {
     if (addressof(other) != this) {
       reset(other.release());
       m_deleter = forward<deleter_type>(other.get_deleter());
@@ -319,6 +320,11 @@ bool operator>=(const unique_ptr<Ty, Dx>& ptr, nullptr_t null) noexcept {
 template <class Ty, class Dx>
 bool operator>=(nullptr_t null, const unique_ptr<Ty, Dx>& ptr) noexcept {
   return !(null < ptr);
+}
+
+template <class Ty, class... Types>
+unique_ptr<Ty> make_unique(Types&&... args) {
+  return unique_ptr<Ty>(new(nothrow) Ty(forward<Types>(args)...));
 }
 
 }  // namespace winapi::kernel::mm
