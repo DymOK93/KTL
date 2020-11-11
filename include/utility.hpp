@@ -8,6 +8,7 @@ using std::exchange;
 using std::forward;
 using std::move;
 using std::swap;
+using std::addressof;
 }  // namespace winapi::kernel
 
 #else
@@ -45,6 +46,13 @@ constexpr Ty exchange(Ty& target, Other&& new_value) noexcept(
   return old_value;     //In C++17 NRVO is guaranteed
 }
 
+template <class Ty>
+constexpr Ty* addressof(Ty& target) noexcept {
+  return __builtin_addressof(target);
+}
+
+template <class Ty>
+const Ty* addressof(const Ty&&) = delete;
 }  // namespace winapi::kernel
 
 #endif

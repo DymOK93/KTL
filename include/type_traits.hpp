@@ -14,6 +14,8 @@ using std::enable_if;
 using std::enable_if_t;
 using std::conditional;
 using std::conditional_t;
+using std::common_type;
+using std::common_type_t;
 
 using std::remove_reference;
 using std::remove_reference_t;
@@ -167,6 +169,34 @@ struct add_const {
 
 template <class Ty>
 using add_const_t = typename add_const<Ty>::type;
+
+namespace details {
+template <class... Types>
+struct common_type_impl {};
+
+template <class Ty>
+struct common_type_impl<Ty> {
+  using type = Ty;
+};
+
+template <class Ty1, class Ty2>
+struct common_type_impl<Ty1, Ty2> {
+  using type = decltype(true ? declval<Ty1>() : declval<Ty2>());
+};
+
+template <class Ty1, class Ty2, class... Rest>
+struct common_type_impl<Ty1, Ty2, Rest...> {
+  using type = typename common_type_impl<typename common_type_impl<Ty1, Ty2>::type, Rest...>::type;
+};
+}  // namespace details
+
+template <class... Types>
+struct common_type {
+  using type = typename details::common_type_impl<Types...>::type;
+};
+
+template <class... Types>
+using common_type_t = typename common_type<Types...>::type;
 
 template <class From, class To, class = void>
 struct is_convertible : false_type {};
