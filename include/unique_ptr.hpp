@@ -166,11 +166,16 @@ class unique_ptr {
     return *this;
   }
 
+  unique_ptr(const unique_ptr&) = delete;
+  unique_ptr& operator=(const unique_ptr&) = delete;
+
+  ~unique_ptr() { reset(); }
+
   pointer release() noexcept { return exchange(m_ptr, nullptr); }
 
   void reset(pointer ptr = pointer{}) noexcept {
     pointer target{exchange(m_ptr, ptr)};
-    if constexpr (enable_delete_null_v<deleter_type>) {  //Поддерживает
+    if constexpr (details::enable_delete_null_v<deleter_type>) {  //Поддерживает
                                                          //передачу nullptr в
                                                          //качестве аргумента
       get_deleter()(target);
@@ -324,7 +329,7 @@ bool operator>=(nullptr_t null, const unique_ptr<Ty, Dx>& ptr) noexcept {
 
 template <class Ty, class... Types>
 unique_ptr<Ty> make_unique(Types&&... args) {
-  return unique_ptr<Ty>(new(nothrow) Ty(forward<Types>(args)...));
+  return unique_ptr<Ty>(new (nothrow) Ty(forward<Types>(args)...));
 }
 
 }  // namespace winapi::kernel::mm

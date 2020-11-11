@@ -287,7 +287,7 @@ struct is_nothrow_move_constructible {
       is_constructible_v<
           Ty,
           add_rvalue_reference_t<
-              Ty> > && && noexcept(Ty(declval<add_rvalue_reference_t<Ty> >()));
+              Ty> > && noexcept(Ty(declval<add_rvalue_reference_t<Ty> >()));
   ;
 };
 
