@@ -2,6 +2,11 @@
 #include <basic_types.h>
 #include <ntddk.h>
 
+void* _cdecl operator new(size_t bytes_count, void* ptr) {
+  (void)bytes_count;
+  return ptr;
+}
+
 namespace winapi {
 namespace kernel {
 namespace mm {
@@ -66,7 +71,7 @@ inline void deallocate_string(PWCH str, size_t capacity) {
 }  // namespace kernel
 }  // namespace winapi
 
-void* _cdecl operator new(size_t bytes, const std::nothrow_t&) noexcept {
+void* _cdecl operator new(size_t bytes, const nothrow_t&) noexcept {
   return winapi::kernel::mm::alloc_paged(bytes);
 }
 

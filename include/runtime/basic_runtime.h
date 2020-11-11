@@ -35,7 +35,7 @@ void __cdecl doexit(_In_ int /*code*/,
   while (runtime::destructor_stack_head) {
     auto* target{runtime::destructor_stack_head};
     runtime::destructor_stack_head = target->next;
-    target->destructor();                               //Нужен ли здесь этот вызов?
+    target->destructor();  //Нужен ли здесь этот вызов?
     delete target;
   }
 }

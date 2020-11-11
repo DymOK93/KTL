@@ -2,4 +2,6 @@
 ---
 Language: Cpp
 BasedOnStyle: Chromium
+SortIncludes: false
+SortUsingDeclarations: false
 ...

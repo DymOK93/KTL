@@ -34,7 +34,7 @@ class unicode_string_view {
  constexpr unicode_string_view(const wchar_t(&str)[N])
       : m_str{make_unicode_string(str), static_cast<size_type>(N)} {}
   constexpr unicode_string_view(const wchar_t* str)
-      : m_str{make_unicode_string(str), static_cast<size_type>(algo::string::length(str))} {}
+      : m_str{make_unicode_string(str, static_cast<size_type>(algo::string::length(str)))} {}
   constexpr unicode_string_view(const wchar_t* str, size_type length)
       : m_str{make_unicode_string(str, length)} {}
   constexpr unicode_string_view(UNICODE_STRING str) : m_str{str} {}
