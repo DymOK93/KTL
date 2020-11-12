@@ -2,7 +2,7 @@
 
 #ifndef NO_CXX_STANDARD_LIBRARY
 #include <memory>
-namespace winapi::kernel {
+namespace winapi::kernel::mm {
 using std::unique_ptr;
 }  // namespace winapi::kernel
 #else
