@@ -93,8 +93,8 @@ template <class...>
 using void_t = void;
 
 template <class Ty>
-Ty&& declval() noexcept;  //Используется только для SFINAE -
-                          //определение не требуется
+Ty&& declval() noexcept;  //пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ SFINAE -
+                          //пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 
 template <bool enable, class Ty>
 struct enable_if {};
@@ -164,6 +164,11 @@ using add_pointer_t = typename add_pointer<Ty>::type;
 
 template <class Ty>
 struct add_const {
+  using type = const Ty;
+};
+
+template <class Ty>
+struct add_const<const Ty> {
   using type = const Ty;
 };
 
