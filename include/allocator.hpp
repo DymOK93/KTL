@@ -104,6 +104,16 @@ struct allocator_traits {
   using is_always_equal = details::get_always_equal_t<Alloc>;
 
  public:
+  template <class OtherTy>
+  struct rebind_alloc {
+    using other = typename Alloc::template rebind<OtherTy>::other;
+  };
+  template <class OtherTy>
+  struct rebind_traits {
+    using other = allocator_traits<typename rebind_alloc<OtherTy>::other>;
+  };
+
+ public:
   static constexpr pointer allocate(Alloc& alloc, size_type object_count) {
     static_assert(details::has_allocate_v<Alloc, size_type>,
                   "Allocator must provide allocate(size_type) function");
@@ -116,7 +126,7 @@ struct allocator_traits {
     return alloc.allocate();
   }
 
-  static constexpr pointer allocate_bytes(Alloc& alloc, size_type bytes_count) {
+  static constexpr void* allocate_bytes(Alloc& alloc, size_type bytes_count) {
     static_assert(details::has_allocate_v<Alloc, size_type>,
                   "Allocator must provide allocate(size_type) function");
     return alloc.allocate(bytes_count);
@@ -138,12 +148,12 @@ struct allocator_traits {
   }
 
   static constexpr void deallocate_bytes(Alloc& alloc,
-                                         pointer ptr,
+                                         void* ptr,
                                          size_type bytes_count) {
     static_assert(details::has_deallocate_v<Alloc, pointer, size_type>,
                   "Allocator must provide deallocate(pointer ptr, size_type "
                   "bytes_count) function");
-    alloc.deallocate(ptr, bytes_count);
+    alloc.deallocate(static_cast<pointer>(ptr), bytes_count);
   }
 
   template <class... Types>
@@ -166,7 +176,7 @@ struct allocator_traits {
   }
 
  private:
-  template <class Alloc, class... Types>
+  template <class... Types>
   static pointer alloc_construct(Alloc& alloc, pointer ptr, Types&&... args) {
     return alloc.construct(ptr, forward<Types>(args)...);
   }
@@ -176,10 +186,7 @@ struct allocator_traits {
     return construct_at(ptr, forward<Types>(args)...);
   }
 
-  template <class Alloc>
-  static void alloc_destroy(Alloc& alloc, pointer ptr) {
-    alloc.destroy(ptr);
-  }
+  static void alloc_destroy(Alloc& alloc, pointer ptr) { alloc.destroy(ptr); }
 
   static void in_place_destroy(pointer ptr) { destroy_at(ptr); }
 };
