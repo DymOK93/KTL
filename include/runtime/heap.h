@@ -73,16 +73,39 @@ inline wchar_t* allocate_string(size_t length_in_bytes) {
   return static_cast<wchar_t*>(alloc_paged(length_in_bytes));
 }
 
-inline void deallocate_string(PWCH str, size_t capacity) {
+inline void deallocate_string(wchar_t* str, size_t capacity) {
   free(str, capacity);
 }
+
+struct paged_new_tag_t {};
+inline constexpr paged_new_tag_t paged_new;
+
+struct non_paged_new_tag_t {};
+inline constexpr non_paged_new_tag_t non_paged_new;
 
 }  // namespace mm
 }  // namespace kernel
 }  // namespace winapi
 
-void* _cdecl operator new(size_t bytes, const nothrow_t&) noexcept {
+void* _cdecl operator new(size_t bytes,
+                          const nothrow_t&,
+                          winapi::kernel::mm::paged_new_tag_t) noexcept {
   return winapi::kernel::mm::alloc_paged(bytes);
+}
+
+void* _cdecl operator new(size_t bytes,
+                          const nothrow_t&,
+                          winapi::kernel::mm::non_paged_new_tag_t) noexcept {
+  return winapi::kernel::mm::alloc_non_paged(bytes);
+}
+
+void* _cdecl operator new(size_t bytes, const nothrow_t&) noexcept {
+#ifdef FORCE_USING_NON_PAGED_NEW
+  return winapi::kernel::mm::alloc_non_paged(
+      bytes);  //По умолчанию память выделяется в paged-пуле
+#else
+  return winapi::kernel::mm::alloc_paged(bytes);
+#endif
 }
 
 void _cdecl operator delete(void* ptr, size_t bytes_count) {

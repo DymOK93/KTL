@@ -27,14 +27,14 @@ constexpr Ty&& forward(remove_reference_t<Ty>& val) noexcept {
 
 template <class Ty>
 constexpr Ty&& forward(remove_reference_t<Ty>&& val) noexcept {
-  static_assert(!is_lvalue_reference<Ty>, "bad forward call");
+  static_assert(!is_lvalue_reference_v<Ty>, "bad forward call");
   return static_cast<Ty&&>(val);
 }
 
 template <class Ty>
 constexpr void swap(Ty& lhs, Ty& rhs) noexcept(is_nothrow_swappable_v<Ty>) {
   Ty tmp(move(rhs));
-  ths = move(lhs);
+  rhs = move(lhs);
   lhs = move(tmp);
 }
 
@@ -55,5 +55,4 @@ constexpr Ty* addressof(Ty& target) noexcept {
 template <class Ty>
 const Ty* addressof(const Ty&&) = delete;
 }  // namespace winapi::kernel
-
 #endif

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #ifndef NO_CXX_STANDARD_LIBRARY
 #include <type_traits>
@@ -81,6 +81,14 @@ using std::is_same_v;
 }  // namespace winapi::kernel
 #else
 namespace winapi::kernel {
+template <class... Dummy>
+struct always_false {
+  static constexpr bool value = false;
+};
+
+template <class... Dummy>
+inline constexpr bool always_false_v = always_false<Dummy...>::value;
+
 struct false_type {
   static constexpr bool value = false;
 };
@@ -93,8 +101,8 @@ template <class...>
 using void_t = void;
 
 template <class Ty>
-Ty&& declval() noexcept;  //������������ ������ ��� SFINAE -
-                          //����������� �� ���������
+Ty&& declval() noexcept;  //Только для SFINAE -
+                          //определение не требуется
 
 template <bool enable, class Ty>
 struct enable_if {};
@@ -191,7 +199,9 @@ struct common_type_impl<Ty1, Ty2> {
 
 template <class Ty1, class Ty2, class... Rest>
 struct common_type_impl<Ty1, Ty2, Rest...> {
-  using type = typename common_type_impl<typename common_type_impl<Ty1, Ty2>::type, Rest...>::type;
+  using type =
+      typename common_type_impl<typename common_type_impl<Ty1, Ty2>::type,
+                                Rest...>::type;
 };
 }  // namespace details
 
@@ -270,15 +280,14 @@ struct is_nothrow_constructible {
       is_constructible_v<Ty, Types...>&& noexcept(Ty(declval<Types>()...));
 };
 
-template <class, class Ty, class... Types>
+template <class Ty, class... Types>
 inline constexpr bool is_nothrow_constructible_v =
-    is_nothrow_constructible<Ty, Types...>::value;
+    is_nothrow_constructible<void_t<>, Ty, Types...>::value;
 
 template <class Ty>
 struct is_nothrow_copy_constructible {
-  static constexpr bool
-      value = is_constructible_v < Ty,
-      add_const_t<add_lvalue_reference_t<Ty> >&&noexcept(
+  static constexpr bool value =
+      is_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty> > >&& noexcept(
           Ty(declval<add_const_t<add_lvalue_reference_t<Ty> > >()));
 };
 
@@ -289,10 +298,8 @@ inline constexpr bool is_nothrow_copy_constructible_v =
 template <class Ty>
 struct is_nothrow_move_constructible {
   static constexpr bool value =
-      is_constructible_v<
-          Ty,
-          add_rvalue_reference_t<
-              Ty> > && noexcept(Ty(declval<add_rvalue_reference_t<Ty> >()));
+      is_constructible_v<Ty, add_rvalue_reference_t<Ty> >&& noexcept(
+          Ty(declval<add_rvalue_reference_t<Ty> >()));
   ;
 };
 
@@ -324,11 +331,11 @@ inline constexpr bool is_copy_assignable_v = is_copy_assignable<Ty>::value;
 template <class Ty>
 struct is_move_assignable {
   static constexpr bool value =
-      is_assignable_v<Ty, add_rvalue_reference_t<Ty> >;
+      is_assignable_v<Ty, add_rvalue_reference_t<Ty>>;
 };
 
 template <class Ty>
-inline constexpr bool is_move_assignable_v = is_move_assignable_v<Ty>::value;
+inline constexpr bool is_move_assignable_v = is_move_assignable<Ty>::value;
 
 template <class Ty, class Other>
 struct is_nothrow_assignable {
@@ -343,7 +350,7 @@ inline constexpr bool is_nothrow_assignable_v =
 template <class Ty>
 struct is_nothrow_copy_assignable {
   static constexpr bool value = is_copy_assignable_v<Ty>&& noexcept(
-      declval<Ty>() = declval < add_const_t<add_lvalue_reference_t<Ty> >());
+      declval<Ty>() = declval<add_const_t<add_lvalue_reference_t<Ty> > >());
 };
 
 template <class Ty>
@@ -436,5 +443,6 @@ struct is_same<Ty, Ty> : true_type {};
 
 template <class Ty1, class Ty2>
 inline constexpr bool is_same_v = is_same<Ty1, Ty2>::value;
+
 }  // namespace winapi::kernel
 #endif

@@ -26,7 +26,7 @@ struct default_delete {
   default_delete(const default_delete<OtherTy>&) noexcept {}
 
   void operator()(Ty* ptr) const noexcept {
-    static_assert(sizeof(Ty) > 0, "can't delete an incomplete type");
+    static_assert(sizeof(Ty) > 0, "Can't delete an incomplete type");
     delete ptr;
   }
 };
@@ -75,7 +75,8 @@ class unique_ptr {
                         int> = 0>
   constexpr unique_ptr() noexcept : m_ptr{nullptr} {}
 
-  constexpr unique_ptr(nullptr_t) noexcept {}
+  constexpr unique_ptr(nullptr_t) noexcept : m_ptr{nullptr} {}
+
   explicit unique_ptr(pointer ptr) noexcept : m_ptr{ptr} {}
 
   template <class Dx = Deleter,
@@ -105,25 +106,27 @@ class unique_ptr {
       : m_ptr{exchange(other.m_ptr, nullptr)},
         m_deleter(forward<Dx>(other.get_deleter())) {}
 
-  template <class OtherTy,
-            class OtherDeleter,
-            enable_if_t<
-                !is_array_v<OtherTy> &&
-                    is_convertible_v<
-                        typename unique_ptr<OtherTy, OtherDeleter>::pointer,
-                        pointer> &&
-                    conditional_t<is_reference_v<OtherDeleter>,
-                                  is_same<OtherDeleter,
-                                          deleter_type>,  //При хранении
-                                                          //ссылки на deleter
-                                                          //типы OtherDeleter
-                                                          //и deleter_type
-                                                          //должны совпадать
-                                  is_convertible<deleter_type, OtherDeleter> >,
-                int> = 0>
+  template <
+      class OtherTy,
+      class OtherDeleter,
+      enable_if_t<
+          !is_array_v<OtherTy> &&
+              is_convertible_v<
+                  typename unique_ptr<OtherTy, OtherDeleter>::pointer,
+                  pointer> &&
+              conditional_t<is_reference_v<OtherDeleter>,
+                            is_same<OtherDeleter,
+                                    deleter_type>,  //При хранении
+                                                    //ссылки на deleter
+                                                    //типы OtherDeleter
+                                                    //и deleter_type
+                                                    //должны совпадать
+                            is_convertible<deleter_type, OtherDeleter> >::value,
+          int> = 0>
   unique_ptr(unique_ptr<OtherTy, OtherDeleter>&& other) noexcept(
       is_nothrow_constructible_v<deleter_type, OtherDeleter>)
-      : m_ptr{ptr}, m_deleter(forward<deleter_type>(other.get_deleter())) {}
+      : m_ptr{other.release()},
+        m_deleter(forward<deleter_type>(other.get_deleter())) {}
 
   template <class Dx = Deleter, enable_if_t<is_move_assignable_v<Dx>, int> = 0>
   unique_ptr& operator=(unique_ptr&& other) noexcept(
@@ -305,6 +308,14 @@ template <class Ty, class Dx>
 bool operator>=(nullptr_t null, const unique_ptr<Ty, Dx>& ptr) noexcept {
   return !(null < ptr);
 }
+
+// C++17 deduction guide
+template <class Ty>
+unique_ptr(Ty*) -> unique_ptr<Ty>;
+
+// C++17 deduction guide
+template <class Ty, class Dx>
+unique_ptr(Ty*, Dx &&) -> unique_ptr<Ty, Dx>;
 
 template <class Ty, class... Types>
 unique_ptr<Ty> make_unique(Types&&... args) {
@@ -489,10 +500,10 @@ class ref_counter_with_custom_deleter
   void destory_object() noexcept final {
     Ty* target{MyBase::exchange_ptr(nullptr)};  //Лишняя Interlocked-операция?
     if constexpr (enable_delete_null_v<Deleter>) {
-      GetDeleter()(target);
+      get_deleter()(target);
     } else {
       if (target) {
-        GetDeleter()(target);
+        get_deleter()(target);
       }
     }
   }
@@ -530,7 +541,7 @@ class ref_counter_with_allocator_default_delete_itself
  protected:
   void destroy_object() noexcept final {
     auto& alloc = MyAllocBase::get_alloc();
-    if (auto* target = MyRefCounterBase::exchange_ptr(nullptr), target) {
+    if (auto* target = MyRefCounterBase::exchange_ptr(nullptr); target) {
       allocator_traits<Alloc>::destroy(alloc, target);
       allocator_traits<Alloc>::deallocate(alloc, target, 1);
     }
@@ -539,10 +550,10 @@ class ref_counter_with_allocator_default_delete_itself
 
 template <class Ty, class Alloc>
 class ref_counter_with_allocator_deallocate_itself
-    : public ref_counter_with_default_delete_itself<Ty>,
+    : public ref_counter_ptr_holder<Ty>,
       public allocator_holder_base<Alloc> {
  public:
-  using MyRefCounterBase = ref_counter_with_default_delete_itself<Ty>;
+  using MyRefCounterBase = ref_counter_ptr_holder<Ty>;
   using MyAllocBase = allocator_holder_base<Alloc>;
 
  public:
@@ -555,7 +566,7 @@ class ref_counter_with_allocator_deallocate_itself
  protected:
   void destroy_object() noexcept final {
     auto& alloc{MyAllocBase::get_alloc()};
-    if (auto* target = MyRefCounterBase::exchange_ptr(nullptr), target) {
+    if (auto* target = MyRefCounterBase::exchange_ptr(nullptr); target) {
       allocator_traits<Alloc>::destroy(alloc, target);
     }
   }
@@ -600,9 +611,8 @@ class PtrBase {
   void incref() noexcept;  //Дочерние классы ConcretePtr
   void decref() noexcept;  //должны переопределить два этих метода
 
-  template <class U>
-  ConcretePtr& copy_construct_from(
-      const PtrBase<U, ConcretePtr>& other) noexcept {
+  template <class U, class OtherPtr>
+  ConcretePtr& copy_construct_from(const PtrBase<U, OtherPtr>& other) noexcept {
     static_assert(is_convertible_v<U*, Ty*>, "Can't convert value pointer");
     decref_if_not_null();
     exchange_value_ptr(other.m_value_ptr);
@@ -611,8 +621,8 @@ class PtrBase {
     return get_context();
   }
 
-  template <class U>
-  ConcretePtr& move_construct_from(PtrBase<U, ConcretePtr>&& other) noexcept {
+  template <class U, class OtherPtr>
+  ConcretePtr& move_construct_from(PtrBase<U, OtherPtr>&& other) noexcept {
     static_assert(is_convertible_v<U*, Ty*>, "Can't convert value pointer");
     decref_if_not_null();
     exchange_value_ptr(other.exchange_value_ptr(nullptr));
@@ -734,19 +744,21 @@ class weak_ptr : public details::PtrBase<Ty, weak_ptr<Ty> > {
 
   void swap(weak_ptr& other) noexcept { MyBase::swap(other); }
 
-  bool expired() noexcept { return MyBase::use_count() == 0; }
+  bool expired() const noexcept { return MyBase::use_count() == 0; }
 
   shared_ptr<Ty> lock() const noexcept;
 
  protected:
-  friend class MyBase;
+  friend class details::PtrBase<Ty, weak_ptr<Ty> >;  // MyBase
   void incref() noexcept { MyBase::get_ref_counter()->Follow(); }
   void decref() noexcept { MyBase::get_ref_counter()->Unfollow(); }
 };
 
 //Для выбора нужной перегрузки конструктора
-struct custom_deleter_tag {};
-struct custom_allocator_tag {};
+struct custom_deleter_tag_t {};
+inline constexpr custom_deleter_tag_t custom_deleter_tag;
+struct custom_allocator_tag_t {};
+inline constexpr custom_allocator_tag_t custom_allocator_tag;
 
 template <class Ty>
 class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
@@ -769,7 +781,7 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
       : MyBase(ptr, make_ref_counter_and_share<is_array_v<U> >(ptr)) {}
 
   template <class U, class Dx, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
-  shared_ptr(U* ptr, Dx&& deleter, custom_deleter_tag)
+  shared_ptr(U* ptr, Dx&& deleter, custom_deleter_tag_t)
       : MyBase(
             ptr,
             make_special_ref_counter<details::ref_counter_with_custom_deleter>(
@@ -779,7 +791,7 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
   template <class U,
             class Alloc,
             enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
-  shared_ptr(U* ptr, Alloc&& alloc, custom_allocator_tag)
+  shared_ptr(U* ptr, Alloc&& alloc, custom_allocator_tag_t)
       : MyBase(ptr,
                make_special_ref_counter<
                    details::ref_counter_with_allocator_default_delete_itself>(
@@ -787,20 +799,10 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
                    forward<Alloc>(alloc))) {}
 
   template <class Dx>
-  shared_ptr(nullptr_t, Dx&& deleter, custom_deleter_tag)
-      : MyBase(
-            nullptr,
-            make_special_ref_counter<details::ref_counter_with_custom_deleter>(
-                nullptr,
-                forward<Dx>(deleter))) {}
+  shared_ptr(nullptr_t, Dx&& deleter, custom_deleter_tag_t) {}
 
   template <class Alloc>
-  shared_ptr(nullptr_t, Alloc&& alloc, custom_allocator_tag)
-      : MyBase(nullptr,
-               make_special_ref_counter<
-                   details::ref_counter_with_allocator_default_delete_itself>(
-                   nullptr,
-                   forward<Alloc>(alloc))) {}
+  shared_ptr(nullptr_t, Alloc&& alloc, custom_allocator_tag_t) {}
 
   shared_ptr(const shared_ptr& other) noexcept {
     MyBase::copy_construct_from(other);
@@ -852,7 +854,7 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
 
   shared_ptr& operator=(shared_ptr&& other) {
     if (addressof(other) != this) {
-      MyBase::move_construct_from(other);
+      MyBase::move_construct_from(move(other));
     }
     return *this;
   }
@@ -860,16 +862,15 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
   template <class OtherTy,
             enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
   shared_ptr& operator=(shared_ptr<OtherTy>&& other) {
-    MyBase::move_construct_from(other);
+    MyBase::move_construct_from(move(other));
   }
 
   template <class U, class Dx>
   shared_ptr& operator=(unique_ptr<U, Dx>&& uptr) {
     auto* ptr{uptr.release()};
-    MyBase::move_construct_from(
-        MyBase(ptr, make_special_ref_counter_with_deleter<
-                        details::ref_counter_with_custom_deleter>(
-                        ptr, move(uptr.get_deleter()))));
+    MyBase::move_construct_from(MyBase(
+        ptr, make_special_ref_counter<details::ref_counter_with_custom_deleter>(
+                 ptr, move(uptr.get_deleter()))));
   }
 
   ~shared_ptr() noexcept { reset(); }
@@ -905,13 +906,17 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
   size_t use_count() const noexcept { return MyBase::use_count(); }
   operator bool() const noexcept { return static_cast<bool>(get()); }
 
+  template <class ValTy, class... Types>  //Не Ty, чтобы не скрывать основной
+                                          //шаблонный параметр класса
+  friend shared_ptr<ValTy> make_shared(Types&&... args);
+
+  template <class ValTy, class Alloc, class... Types>
+  friend shared_ptr<ValTy> allocate_shared(Alloc&& alloc, Types&&... args);
+
  protected:
-  friend class MyBase;
+  friend class details::PtrBase<Ty, shared_ptr<Ty> >;
   void incref() noexcept { MyBase::get_ref_counter()->Acquire(); }
   void decref() noexcept { MyBase::get_ref_counter()->Release(); }
-
-  template <class Ty, class... Types>
-  friend shared_ptr<Ty> make_shared(Types&&... args);
 
   shared_ptr(Ty* ptr, ref_counter_t* ref_counter) noexcept
       : MyBase(ptr, ref_counter) {}
@@ -932,11 +937,12 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
   template <template <class, class> class RefCounter, class U, class Destroyer>
   static ref_counter_t*
   make_special_ref_counter(U* ptr, Destroyer&& destroyer) noexcept(
-      is_nothrow_constructible<Destroyer, Destroyer>) {
+      is_nothrow_constructible_v<remove_reference_t<Destroyer>, Destroyer>) {
     return new (nothrow) RefCounter<U, remove_reference_t<Destroyer> >(
         ptr,
-        forward<Destroyer>(destroyer));  //Конструирование с нулевым указателем
-                                         //и кастомным Deleter'ом допускается
+        forward<Destroyer>(
+            destroyer));  //Конструирование с нулевым указателем
+                          //и кастомным Deleter'ом/Allocator'ом допускается
   }
 };
 template <class Ty>
@@ -945,7 +951,7 @@ weak_ptr<Ty>::weak_ptr(const shared_ptr<Ty>& sptr) noexcept {
 }
 
 template <class Ty>
-template <class OtherTy, enable_if_t<is_convertible_v<Ty*, OtherTy*>, int>>
+template <class OtherTy, enable_if_t<is_convertible_v<Ty*, OtherTy*>, int> >
 weak_ptr<Ty>::weak_ptr(const shared_ptr<OtherTy>& sptr) noexcept {
   MyBase::copy_construct_from(sptr);
 }
@@ -1057,8 +1063,18 @@ bool operator>=(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
   return !(null < ptr);
 }
 
+// C++17 deduction guides
+template <class Ty>
+shared_ptr(Ty*) -> shared_ptr<Ty>;
+
+template <class Ty>
+shared_ptr(weak_ptr<Ty>) -> shared_ptr<Ty>;
+
+template <class Ty, class Dx>
+shared_ptr(unique_ptr<Ty, Dx>) -> shared_ptr<Ty>;
+
 template <class Ty, class... Types>
-shared_ptr<Ty> make_shared(Types&&... args) {
+enable_if_t<!is_array_v<Ty>, shared_ptr<Ty> > make_shared(Types&&... args) {
   using ref_counter_t = details::ref_counter_with_destroy_only<Ty>;
   constexpr size_t summary_size{sizeof(Ty) + sizeof(ref_counter_t)};
   auto* memory_block{operator new(summary_size, nothrow)};
@@ -1074,7 +1090,12 @@ shared_ptr<Ty> make_shared(Types&&... args) {
 }
 
 template <class Ty, class Alloc, class... Types>
-shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
+enable_if_t<!is_array_v<Ty>, shared_ptr<Ty> > allocate_shared(Alloc&& alloc,
+                                                              Types&&... args) {
+  static_assert(is_same_v<remove_reference_t<Ty>,
+                          typename allocator_traits<Alloc>::value_type>,        //Аллокатор должен работать с объектами типа Ty
+                "Ty and Alloc::value_type must be same");
+
   using ref_counter_t = details::ref_counter_with_allocator_deallocate_itself<
       Ty, remove_reference_t<Alloc> >;
   constexpr size_t summary_size{sizeof(Ty) + sizeof(ref_counter_t)};
@@ -1088,7 +1109,7 @@ shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
   ref_counter_t* ref_counter{allocator_traits<Alloc>::construct(
       alloc, memory_block)};  //Нельзя сразу передать alloc, т.к. он может быть
                               //перемещён
-  ref_counter->get_alloc() = forward<Alloc>(alloc);
+  ref_counter->get_alloc() = forward<Alloc>(alloc); //Аллокатор должен иметь operator=()
   shared_ptr<Ty> sptr(object_ptr, ref_counter);
   allocator_traits<Alloc>::construct(ref_counter->get_alloc(), object_ptr,
                                      forward<Types>(args)...);

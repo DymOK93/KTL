@@ -108,9 +108,7 @@ struct get_always_equal {
 };
 
 template <class Target>
-struct get_propagate_on_container_swap<
-    Target,
-    void_t<typename Target::is_always_equal>> {
+struct get_always_equal<Target, void_t<typename Target::is_always_equal>> {
   using type = typename Target::is_always_equal;
 };
 
@@ -198,6 +196,5 @@ struct has_destroy<
     : true_type {};
 
 template <class Alloc, class Pointer>
-inline constexpr bool has_destroy_v =
-    has_destroy<Alloc, Pointer>::value;
+inline constexpr bool has_destroy_v = has_destroy<Alloc, Pointer>::value;
 }  // namespace winapi::kernel::mm::details
