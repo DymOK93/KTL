@@ -1088,7 +1088,6 @@ shared_ptr(weak_ptr<Ty>) -> shared_ptr<Ty>;
 template <class Ty, class Dx>
 shared_ptr(unique_ptr<Ty, Dx>) -> shared_ptr<Ty>;
 
-
 template <class Ty, class... Types>
 shared_ptr<Ty> make_shared(Types&&... args) {
   using ref_counter_t = details::ref_counter_with_destroy_only<Ty>;
@@ -1107,19 +1106,20 @@ shared_ptr<Ty> make_shared(Types&&... args) {
 }
 
 template <class Ty, class Alloc, class... Types>
-shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) { 
+shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
+  using AlTy = remove_reference_t<Alloc>;
   static_assert(is_same_v<remove_reference_t<Ty>,
                           typename allocator_traits<
-                              Alloc>::value_type>,  //Аллокатор должен работать
-                                                    //с объектами типа Ty
+                              AlTy>::value_type>,  //Аллокатор должен работать
+                                                   //с объектами типа Ty
                 "Ty and Alloc::value_type must be same");
 
-  using ref_counter_t = details::ref_counter_with_allocator_deallocate_itself<
-      Ty, remove_reference_t<Alloc> >;
+  using ref_counter_t =
+      details::ref_counter_with_allocator_deallocate_itself<Ty, AlTy>;
 
   constexpr size_t summary_size{sizeof(Ty) + sizeof(ref_counter_t)};
   auto* memory_block{
-      allocator_traits<Alloc>::allocate_bytes(alloc, summary_size)};
+      allocator_traits<AlTy>::allocate_bytes(alloc, summary_size)};
   if (!memory_block) {
     return {};
   }
@@ -1133,8 +1133,8 @@ shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
   ref_counter->get_alloc() =
       forward<Alloc>(alloc);  //Аллокатор должен иметь operator=()
   shared_ptr<Ty> sptr(object_ptr, ref_counter);
-  allocator_traits<Alloc>::construct(ref_counter->get_alloc(), object_ptr,
-                                     forward<Types>(args)...);
+  allocator_traits<AlTy>::construct(ref_counter->get_alloc(), object_ptr,
+                                    forward<Types>(args)...);
 
   return sptr;
 }
