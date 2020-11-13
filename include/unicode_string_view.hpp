@@ -18,7 +18,7 @@ class unicode_string_view {
   using const_reference = const wchar_t&;
   using const_iterator = const_pointer;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-  using size_type = unsigned short;  //Как и в UNICODE_STRING
+  using size_type = unsigned short;  //пїЅпїЅпїЅ пїЅ пїЅ UNICODE_STRING
   using difference_type = int;
 
   static constexpr size_type npos = (std::numeric_limits<size_type>::max)();
@@ -30,8 +30,11 @@ class unicode_string_view {
   constexpr unicode_string_view& operator=(const unicode_string_view& other) =
       default;
 
+ template <size_t N>
+ constexpr unicode_string_view(const wchar_t(&str)[N])
+      : m_str{make_unicode_string(str), static_cast<size_type>(N)} {}
   constexpr unicode_string_view(const wchar_t* str)
-      : m_str{make_unicode_string(str)} {}
+      : m_str{make_unicode_string(str, static_cast<size_type>(algo::string::length(str)))} {}
   constexpr unicode_string_view(const wchar_t* str, size_type length)
       : m_str{make_unicode_string(str, length)} {}
   constexpr unicode_string_view(UNICODE_STRING str) : m_str{str} {}
@@ -173,11 +176,7 @@ class unicode_string_view {
         length(),
         static_cast<size_type>(
             count +
-            pos));  //Переполнение при сложении беззнаковых целых допустимо
-  }
-  static constexpr UNICODE_STRING make_unicode_string(const value_type* str) {
-    return make_unicode_string(
-        str, static_cast<size_type>(algo::string::length(str)));
+            pos));  //пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   }
   static constexpr UNICODE_STRING make_unicode_string(const value_type* str,
                                                       size_type length) {
