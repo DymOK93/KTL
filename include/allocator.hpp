@@ -30,7 +30,9 @@ struct basic_allocator {
                                                  // срабоает в независимости от
                                                  // наличия вызова allocate()
   }
-  void deallocate(Ty* ptr, size_t bytes_count) { operator delete(ptr); }
+  void deallocate(Ty* ptr, size_t bytes_count) {
+    operator delete(ptr, bytes_count);
+  }
 
  protected:
   template <typename NewTag>
@@ -103,15 +105,22 @@ struct allocator_traits {
       details::get_propagate_on_container_swap_t<Alloc>;
   using is_always_equal = details::get_always_equal_t<Alloc>;
 
+ private:
+  template <class OtherTy>
+  struct get_rebind_alloc_type {
+    using type = typename Alloc::template rebind<OtherTy>::other;
+  };
+  template <class OtherTy>
+  struct get_rebind_traits_type {
+    using other = typename allocator_traits<typename get_rebind_alloc_type<OtherTy>::type>;
+  };
+
  public:
   template <class OtherTy>
-  struct rebind_alloc {
-    using other = typename Alloc::template rebind<OtherTy>::other;
-  };
-  template <class OtherTy>
-  struct rebind_traits {
-    using other = allocator_traits<typename rebind_alloc<OtherTy>::other>;
-  };
+  using rebind_alloc = typename get_rebind_alloc_type<OtherTy>::type;
+
+   template <class OtherTy>
+  using rebind_traits = typename get_rebind_traits_type<OtherTy>::type;
 
  public:
   static constexpr pointer allocate(Alloc& alloc, size_type object_count) {
@@ -163,6 +172,7 @@ struct allocator_traits {
     if constexpr (details::has_construct_v<Alloc, pointer, Types...>) {
       return alloc_construct(alloc, ptr, forward<Types>(args)...);
     } else {
+      (void)alloc;
       return in_place_construct(ptr, forward<Types>(args)...);
     }
   }

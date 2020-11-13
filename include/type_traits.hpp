@@ -171,6 +171,19 @@ template <class Ty>
 using add_pointer_t = typename add_pointer<Ty>::type;
 
 template <class Ty>
+struct remove_const {
+  using type = Ty;
+};
+
+template <class Ty>
+struct remove_const<const Ty> {
+  using type = Ty;
+};
+
+template <class Ty>
+using remove_const_t = typename remove_const<Ty>::type;
+
+template <class Ty>
 struct add_const {
   using type = const Ty;
 };

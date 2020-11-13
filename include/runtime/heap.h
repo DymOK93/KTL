@@ -100,7 +100,7 @@ void* _cdecl operator new(size_t bytes,
 }
 
 void* _cdecl operator new(size_t bytes, const nothrow_t&) noexcept {
-#ifdef FORCE_USING_NON_PAGED_NEW
+#ifdef USING_NON_PAGED_NEW_AS_DEFAULT
   return winapi::kernel::mm::alloc_non_paged(
       bytes);  //По умолчанию память выделяется в paged-пуле
 #else
