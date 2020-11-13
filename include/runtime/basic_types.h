@@ -3,6 +3,7 @@
 #ifndef NO_CXX_STANDARD_LIBRARY
 #include <cstdint>
 #else
+using byte = unsigned char;
 using int8_t = signed char;
 using int16_t = short;
 using int32_t = int;
@@ -14,10 +15,10 @@ using uint64_t = unsigned long long;;
 
 using nullptr_t = decltype(nullptr);
 using size_t = decltype(sizeof(int));
+using ptrdiff_t = decltype(static_cast<byte*>(nullptr) - static_cast<byte*>(nullptr));
 
 struct nothrow_t {};
 inline constexpr nothrow_t nothrow;
 #endif
 
-using byte = unsigned char;
 

@@ -40,7 +40,7 @@ constexpr void swap(Ty& lhs, Ty& rhs) noexcept(is_nothrow_swappable_v<Ty>) {
 
 template <class Ty, class Other>
 constexpr Ty exchange(Ty& target, Other&& new_value) noexcept(
-    is_nothrow_move_constructible_v<Ty> &&
+    is_nothrow_move_constructible_v<Ty>&&
         is_nothrow_assignable_v<add_lvalue_reference_t<Ty>, Other>) {
   Ty old_value(move(target));
   target = forward<Other>(new_value);

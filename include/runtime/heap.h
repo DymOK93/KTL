@@ -2,7 +2,9 @@
 #include <basic_types.h>
 #include <ntddk.h>
 
-void* _cdecl operator new(size_t bytes_count, void* ptr) {
+// TODO: вынести в .cpp
+
+void* _cdecl operator new(size_t bytes_count, void* ptr) noexcept {
   (void)bytes_count;
   return ptr;
 }
@@ -12,38 +14,46 @@ namespace kernel {
 namespace mm {
 
 namespace details {
-inline constexpr uint32_t tag_paged{0}, tag_non_paged{1};
-inline constexpr POOL_TYPE POOL_TYPE_FROM_TAG[2]{PagedPool, NonPagedPool};
+// MSDN: Each ASCII character in the tag must be a value in the range 0x20
+// (space) to 0x7E (tilde)
+inline constexpr uint32_t tag_base{0x20}, tag_paged{tag_base},
+    tag_non_paged{tag_base + 1};
+
+template <uint32_t tag>
+constexpr POOL_TYPE PoolTypeFromTag() {
+  static_assert(tag >= tag_base, "Invalid tag");
+  constexpr POOL_TYPE pool_type_info[2]{PagedPool, NonPagedPool};
+  return pool_type_info[tag - tag_base];
+}
 
 struct MemoryBlockHeader {
   uint32_t tag{0};
 };
 
-inline void* zero_fill(void* ptr, size_t size) {
+inline void* ZeroFill(void* ptr, size_t size) {
   return RtlZeroMemory(ptr, size);  //Очистка неинициализированной памяти во
                                     //избежание утечки системных данных
 }
 
-template <class KernelAllocFunction>
-void* allocate(KernelAllocFunction alloc_func,
-               uint32_t tag,
-               size_t bytes_count) {
+template <uint32_t tag, class KernelAllocFunction>
+MemoryBlockHeader* allocate(KernelAllocFunction alloc_func,
+                            size_t bytes_count) {
   if (!bytes_count) {
     return nullptr;
   }
-  auto* memory_block{alloc_func(POOL_TYPE_FROM_TAG[tag], bytes_count, tag)};
-  return new (zero_fill(memory_block, bytes_count)) MemoryBlockHeader{tag};
+  auto* memory_block{alloc_func(PoolTypeFromTag<tag>(), bytes_count, tag)};
+  return new (ZeroFill(memory_block, bytes_count)) MemoryBlockHeader{tag};
 }
 }  // namespace details
 
 inline void* alloc_paged(size_t bytes_count) {
-  return details::allocate(ExAllocatePoolWithTag, details::tag_paged,
-                           bytes_count);
+  return details::allocate<details::tag_paged>(ExAllocatePoolWithTag,
+                                               bytes_count);
 }
 
 inline void* alloc_non_paged(size_t bytes_count) {
-  return details::allocate(ExAllocatePoolWithTag, details::tag_non_paged,
-                           bytes_count);
+  return details::allocate<details::tag_non_paged>(ExAllocatePoolWithTag,
+                                                   bytes_count);
 }
 
 namespace details {

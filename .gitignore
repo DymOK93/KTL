@@ -1,0 +1,7 @@
+#Temporary and not-for-production files and directories
+archive/
+Build/
+out/
+testing/
+.vs/
+
