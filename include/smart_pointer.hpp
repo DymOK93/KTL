@@ -75,7 +75,7 @@ class unique_ptr {
                         int> = 0>
   constexpr unique_ptr() noexcept : m_ptr{nullptr} {}
 
-  constexpr unique_ptr(nullptr_t) noexcept;
+  constexpr unique_ptr(nullptr_t) noexcept {}
   explicit unique_ptr(pointer ptr) noexcept : m_ptr{ptr} {}
 
   template <class Dx = Deleter,
