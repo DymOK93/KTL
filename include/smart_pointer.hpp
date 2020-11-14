@@ -22,7 +22,7 @@ struct default_delete {
 
   constexpr default_delete() = default;
 
-  template <class OtherTy, enable_if_t<is_convertible_v<OtherTy, Ty>, int> = 0>
+  template <class OtherTy, enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
   default_delete(const default_delete<OtherTy>&) noexcept {}
 
   void operator()(Ty* ptr) const noexcept {
@@ -37,11 +37,11 @@ struct default_delete<Ty[]> {
 
   constexpr default_delete() = default;
 
-  template <class OtherTy, enable_if_t<is_convertible_v<OtherTy, Ty>, int> = 0>
+  template <class OtherTy, enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
   default_delete(const default_delete<OtherTy>&) noexcept {}
 
   void operator()(Ty* ptr) const noexcept {
-    static_assert(sizeof(Ty) > 0, "can't delete an incomplete type");
+    static_assert(sizeof(Ty) > 0, "Can't delete an incomplete type");
     delete ptr;
   }
 };
