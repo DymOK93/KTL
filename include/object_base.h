@@ -1,9 +1,7 @@
 #pragma once
 #include <ntddk.h>
+#include <utility.hpp>
 
-#ifndef NO_CXX_STANDARD_LIBRARY
-#include <utility>
-#endif
 
 namespace winapi::kernel {
 class ObjectBase {
@@ -13,7 +11,7 @@ class ObjectBase {
 
  protected:
   NTSTATUS set_status(NTSTATUS status) {
-    return std::exchange(
+    return exchange(
         m_status, status);  //”станавливает новый статус и возвращает старый
   }
 

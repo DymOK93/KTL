@@ -9,4 +9,10 @@ struct NtSuccess {
   }
 };
 
+template <NTSTATUS expected>
+struct NtStatusEqual {
+  constexpr bool operator()(NTSTATUS status) const noexcept {
+    return status == expected;
+  }
+};
 }

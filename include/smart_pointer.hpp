@@ -22,7 +22,8 @@ struct default_delete {
 
   constexpr default_delete() = default;
 
-  template <class OtherTy, enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
+  template <class OtherTy,
+            enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
   default_delete(const default_delete<OtherTy>&) noexcept {}
 
   void operator()(Ty* ptr) const noexcept {
@@ -37,7 +38,8 @@ struct default_delete<Ty[]> {
 
   constexpr default_delete() = default;
 
-  template <class OtherTy, enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
+  template <class OtherTy,
+            enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
   default_delete(const default_delete<OtherTy>&) noexcept {}
 
   void operator()(Ty* ptr) const noexcept {
@@ -194,7 +196,10 @@ class unique_ptr {
     return *m_ptr;
   }
 
-  add_rvalue_reference_t<Ty> operator*() const&& { return move(*m_ptr); }
+  add_rvalue_reference_t<Ty> operator*()
+      const&& {
+    return move(*m_ptr);
+  }
 
   pointer operator->() const noexcept { return m_ptr; }
 

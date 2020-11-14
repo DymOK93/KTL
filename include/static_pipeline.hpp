@@ -1,10 +1,10 @@
 #pragma once
 #include <general.hpp>
+#include <type_traits.hpp>
+#include <utility.hpp>
 #include <memory_tools.hpp>
 
 #include <functional>
-#include <type_traits>
-#include <utility>
 #include <optional>
 
 namespace winapi::kernel::worker {
@@ -12,6 +12,7 @@ namespace winapi::kernel::worker {
 		template <class Worker, size_t N, class PassOn = NtSuccess>
 		class StaticPipeline {
 		private:
+			using byte = winapi::kernel::mm::byte;
 		public:
 			constexpr StaticPipeline() = default;
 			constexpr StaticPipeline(const PassOn& pass_on) : m_pass_on(pass_on) {}
@@ -26,7 +27,7 @@ namespace winapi::kernel::worker {
 
 			template <typename... Types>
 			auto Process(const Types&... args) const {
-				using result_t = std::remove_reference_t<std::invoke_result_t<Worker, Types...>>;
+				using result_t = remove_reference_t<std::invoke_result_t<Worker, Types...>>;
 				std::optional<result_t> result;
 
 				for (size_t idx = 0; idx < m_size; ++idx) {
@@ -43,7 +44,7 @@ namespace winapi::kernel::worker {
 				return reinterpret_cast<Worker*>(m_storage[idx]);
 			}
 			const Worker* get_worker_by_ptr(size_t idx) const {
-				return reinterpret_cast<Worker*>(m_storage[idx]);
+				return reinterpret_cast<const Worker*>(m_storage[idx]);
 			}
 
 		private:

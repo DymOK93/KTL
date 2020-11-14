@@ -147,8 +147,33 @@ template <class Ty>
 using remove_reference_t = typename remove_reference<Ty>::type;
 
 template <class Ty>
+struct remove_pointer {
+  using type = Ty;
+};
+
+template <class Ty>
+struct remove_pointer<Ty*> {
+  using type = Ty;
+};
+
+template <class Ty>
+using remove_pointer_t = typename remove_pointer<Ty>::type;
+
+template <class Ty, class = void> 
+struct add_reference {
+    using lvalue = Ty;      //Для void
+    using rvalue = Ty;
+};
+
+template <class Ty>
+struct add_reference<Ty, void_t<Ty&>> {     //Для типов, на которые допустимы ссылки
+  using lvalue = remove_reference_t<Ty>&;
+  using rvalue = remove_reference_t<Ty>&&;
+};
+
+template <class Ty>
 struct add_lvalue_reference {
-  using type = remove_reference_t<Ty>&;
+  using type = typename add_reference<Ty>::lvalue;
 };
 
 template <class Ty>
@@ -156,7 +181,7 @@ using add_lvalue_reference_t = typename add_lvalue_reference<Ty>::type;
 
 template <class Ty>
 struct add_rvalue_reference {
-  using type = remove_reference_t<Ty>&&;
+  using type = typename add_reference<Ty>::rvalue;
 };
 
 template <class Ty>
@@ -290,7 +315,7 @@ inline constexpr bool is_move_constructible_v =
 template <class, class Ty, class... Types>
 struct is_nothrow_constructible {
   static constexpr bool value =
-      is_constructible_v<Ty, Types...>&& noexcept(Ty(declval<Types>()...));
+      is_constructible_v<Ty, Types...> && noexcept(Ty(declval<Types>()...));
 };
 
 template <class Ty, class... Types>

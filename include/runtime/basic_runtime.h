@@ -17,7 +17,7 @@ extern "C" {
 int __cdecl atexit(winapi::kernel::runtime::crt_handler_t destructor) {
   namespace runtime = winapi::kernel::runtime;
   if (destructor) {
-    auto new_entry{new (std::nothrow) runtime::destroy_entry_t{
+    auto new_entry{new (nothrow) runtime::destroy_entry_t{
         runtime::destructor_stack_head, destructor}};
     if (new_entry) {
       runtime::destructor_stack_head = new_entry;
