@@ -29,18 +29,15 @@ class StaticPipeline {
   template <typename... Types>
   auto Process(const Types&... args) const {
     using result_t = remove_reference_t<std::invoke_result_t<Worker, Types...>>;
-    // std::optional<result_t> result;
-    result_t result{};
+    std::optional<result_t> result;
 
     for (size_t idx = 0; idx < m_size; ++idx) {
       result = std::invoke(*get_worker_by_ptr(idx), args...);
-      // if (!m_pass_on(std::forward<result_t>(*result))) {
-      if (!m_pass_on(result)) {
+        if (!m_pass_on(std::forward<result_t>(*result))) {
         break;
       }
     }
-    //return *result;  // UB if empty
-    return result;
+    return *result;  // UB if empty
   }
 
  private:
