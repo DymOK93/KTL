@@ -167,8 +167,8 @@ struct add_reference {
 
 template <class Ty>
 struct add_reference<Ty, void_t<Ty&>> {     //Для типов, на которые допустимы ссылки
-  using lvalue = remove_reference_t<Ty>&;
-  using rvalue = remove_reference_t<Ty>&&;
+  using lvalue = Ty&;
+  using rvalue = Ty&&;
 };
 
 template <class Ty>

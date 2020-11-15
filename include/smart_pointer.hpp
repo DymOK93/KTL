@@ -100,7 +100,9 @@ class unique_ptr {
             enable_if_t<is_reference_v<Dx> &&
                             is_constructible_v<Dx, remove_reference_t<Dx> >,
                         int> = 0>
-  unique_ptr(pointer ptr, Dx&& deleter) = delete;
+  unique_ptr(pointer ptr, remove_reference_t<Dx>&& deleter) =
+      delete;  //Нельзя сконструировать ссылочный тип Dx& с аргументом Dx&&
+               //(r-value ref)
 
   template <class Dx = Deleter,
             enable_if_t<is_move_constructible_v<Dx>, int> = 0>
@@ -196,10 +198,7 @@ class unique_ptr {
     return *m_ptr;
   }
 
-  add_rvalue_reference_t<Ty> operator*()
-      const&& {
-    return move(*m_ptr);
-  }
+  add_rvalue_reference_t<Ty> operator*() const&& { return move(*m_ptr); }
 
   pointer operator->() const noexcept { return m_ptr; }
 
@@ -321,6 +320,31 @@ unique_ptr(Ty*) -> unique_ptr<Ty>;
 // C++17 deduction guide
 template <class Ty, class Dx>
 unique_ptr(Ty*, Dx &&) -> unique_ptr<Ty, Dx>;
+
+
+/********************************************************************************
+В соответствии с правилами вывода типов шаблонных аргументов 
+deduction guide выше может привести к неочевидным последствиям:
+
+auto make_resource_guard(some_type* resource) {
+auto guard = [](some_type* res){ release_resource(res); };
+using guard_type = decltype(guard);
+return unique_ptr(resource, guard);
+}
+
+Тип возвращаемого значения окажется
+unique_ptr<some_type, guard_type&>!
+Во избежание получения висячей ссылки 
+ниже добавлено дополнительно правило, запрещающее автоматическую подстановку
+l-value ref в аргумент шаблона.
+При необходимости сконструировать unique_ptr, хранящий ссылку на deleter, 
+необходимо указать это явно:
+unique_ptr<some_type, deleter_type&> uptr(...);
+*********************************************************************************/
+
+// C++17 deduction guide
+template <class Ty, class Dx>
+unique_ptr(Ty*, Dx&) -> unique_ptr<Ty, Dx>;
 
 template <class Ty, class... Types>
 unique_ptr<Ty> make_unique(Types&&... args) {

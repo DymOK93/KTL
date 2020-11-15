@@ -8,59 +8,63 @@
 #include <optional>
 
 namespace winapi::kernel::worker {
-	namespace details {
-		template <class Worker, size_t N, class PassOn = NtSuccess>
-		class StaticPipeline {
-		private:
-			using byte = winapi::kernel::mm::byte;
-		public:
-			constexpr StaticPipeline() = default;
-			constexpr StaticPipeline(const PassOn& pass_on) : m_pass_on(pass_on) {}
-			constexpr StaticPipeline(PassOn&& pass_on) : m_pass_on(std::move(pass_on)) {}
+namespace details {
+template <class Worker, size_t N, class PassOn = NtSuccess>
+class StaticPipeline {
+ private:
+  using byte = winapi::kernel::mm::byte;
 
-			Worker& Attach(const Worker& worker) {
-				return *mm::construct_at(get_worker_by_ptr(m_size++), worker);
-			}
-			Worker& Attach(Worker&& worker) {
-				return *mm::construct_at(get_worker_by_ptr(m_size++), std::move(worker));
-			}
+ public:
+  constexpr StaticPipeline() = default;
+  constexpr StaticPipeline(const PassOn& pass_on) : m_pass_on(pass_on) {}
+  constexpr StaticPipeline(PassOn&& pass_on) : m_pass_on(std::move(pass_on)) {}
 
-			template <typename... Types>
-			auto Process(const Types&... args) const {
-				using result_t = remove_reference_t<std::invoke_result_t<Worker, Types...>>;
-				std::optional<result_t> result;
+  Worker& Attach(const Worker& worker) {
+    return *mm::construct_at(get_worker_by_ptr(m_size++), worker);
+  }
+  Worker& Attach(Worker&& worker) {
+    return *mm::construct_at(get_worker_by_ptr(m_size++), std::move(worker));
+  }
 
-				for (size_t idx = 0; idx < m_size; ++idx) {
-					result = std::invoke(*get_worker_by_ptr(idx), args...);
-					if (!m_pass_on(std::forward<result_t>(*result))) {
-						break;
-					}
-				}
-				return *result;             //UB if empty
-			}
+  template <typename... Types>
+  auto Process(const Types&... args) const {
+    using result_t = remove_reference_t<std::invoke_result_t<Worker, Types...>>;
+    // std::optional<result_t> result;
+    result_t result{};
 
-		private:
-			Worker* get_worker_by_ptr(size_t idx) {
-				return reinterpret_cast<Worker*>(m_storage[idx]);
-			}
-			const Worker* get_worker_by_ptr(size_t idx) const {
-				return reinterpret_cast<const Worker*>(m_storage[idx]);
-			}
+    for (size_t idx = 0; idx < m_size; ++idx) {
+      result = std::invoke(*get_worker_by_ptr(idx), args...);
+      // if (!m_pass_on(std::forward<result_t>(*result))) {
+      if (!m_pass_on(result)) {
+        break;
+      }
+    }
+    //return *result;  // UB if empty
+    return result;
+  }
 
-		private:
-			alignas(Worker) byte m_storage[sizeof(Worker) * N] = {};
-			size_t m_size{ 0 };
-			PassOn m_pass_on = PassOn{};
-		};
-	}  // namespace details
+ private:
+  Worker* get_worker_by_ptr(size_t idx) {
+    return reinterpret_cast<Worker*>(m_storage + idx);
+  }
+  const Worker* get_worker_by_ptr(size_t idx) const {
+    return reinterpret_cast<const Worker*>(m_storage + idx);
+  }
 
-	template <class... Workers, class PassOn = NtSuccess>
-	constexpr auto MakeStaticPipeline(Workers&&... workers) {
-		details::StaticPipeline<std::common_type_t<Workers...>, sizeof...(Workers),
-			PassOn>
-			pipeline;
-		((pipeline.Attach(std::forward<Workers>(workers))), ...);
-		return pipeline;
-	}
+ private:
+  alignas(Worker) byte m_storage[sizeof(Worker) * N] = {};
+  size_t m_size{0};
+  PassOn m_pass_on = PassOn{};
+};  // namespace details
+}  // namespace details
+
+template <class... Workers, class PassOn = NtSuccess>
+constexpr auto MakeStaticPipeline(Workers&&... workers) {
+  details::StaticPipeline<common_type_t<Workers...>, sizeof...(Workers),
+                          PassOn>
+      pipeline;
+  ((pipeline.Attach(forward<Workers>(workers))), ...);
+  return pipeline;
+}
 
 }  // namespace winapi::kernel::worker
