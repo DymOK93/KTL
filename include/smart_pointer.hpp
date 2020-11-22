@@ -12,6 +12,7 @@ using std::weak_ptr;
 #include <functional.hpp>
 #include <allocator.hpp>
 #include <memory_type_traits.hpp>
+#include <atomic.hpp>
 
 namespace winapi::kernel::mm {  // memory management
 namespace details {
@@ -354,21 +355,6 @@ unique_ptr<Ty> make_unique(Types&&... args) {
 namespace details {
 struct external_pointer_tag {};
 struct jointly_allocated_tag {};
-
-template <class Ty>
-Ty* interlocked_exchange_pointer(Ty* const* ptr_place, Ty* new_ptr) noexcept {
-  return static_cast<Ty*>(InterlockedExchangePointer(
-      reinterpret_cast<volatile PVOID*>(const_cast<Ty**>(ptr_place)), new_ptr));
-}
-
-template <class Ty>
-Ty* interlocked_compare_exchange_pointer(Ty* const* ptr_place,
-                                         Ty* new_ptr,
-                                         Ty* expected) noexcept {
-  return static_cast<Ty*>(InterlockedCompareExchangePointer(
-      reinterpret_cast<volatile PVOID*>(const_cast<Ty**>(ptr_place)), new_ptr,
-      expected));
-}
 
 class ref_counter_base {
  public:

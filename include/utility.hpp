@@ -54,5 +54,25 @@ constexpr Ty* addressof(Ty& target) noexcept {
 
 template <class Ty>
 const Ty* addressof(const Ty&&) = delete;
+
+template <class Ty>
+constexpr const Ty* as_const(Ty* ptr) {
+  return static_cast<add_pointer_t<add_const_t<Ty> > >(ptr);
+}
+
+template <class Ty>
+constexpr const Ty& as_const(Ty& val) {
+  return static_cast<add_lvalue_reference_t<add_const_t<Ty> > >(val);
+}
+
+template <class Ty, class U>
+constexpr auto* pointer_cast(U* ptr) {
+  using pvoid_type = conditional_t<is_const_v<U>, const void*, void*>;
+  using pointer_type =
+      conditional_t<is_const_v<U>, add_pointer_t<add_const_t<Ty> >,
+                    add_pointer_t<Ty> >;
+
+  return static_cast<pointer_type>(static_cast<pvoid_type>(ptr));
+}
 }  // namespace winapi::kernel
 #endif

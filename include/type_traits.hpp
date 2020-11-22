@@ -482,5 +482,14 @@ struct is_same<Ty, Ty> : true_type {};
 template <class Ty1, class Ty2>
 inline constexpr bool is_same_v = is_same<Ty1, Ty2>::value;
 
+template <class Ty>
+struct is_const : false_type {};
+
+template <class Ty>
+struct is_const<const Ty> : true_type {};
+
+template <class Ty>
+inline constexpr bool is_const_v = is_const<Ty>::value;
+
 }  // namespace winapi::kernel
 #endif

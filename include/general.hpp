@@ -9,6 +9,10 @@ struct NtSuccess {
   }
 };
 
+constexpr bool StatusSuccess(NTSTATUS status) {
+  return NtSuccess{}(status);
+}
+
 template <NTSTATUS expected>
 struct NtStatusEqual {
   constexpr bool operator()(NTSTATUS status) const noexcept {
