@@ -4,8 +4,10 @@
 
 #include <ntddk.h>
 
+#define CRTCALL _cdecl
+
 namespace winapi::kernel::runtime {
-using crt_handler_t = void(__cdecl*)(void);
+using crt_handler_t = void(CRTCALL*)(void);
 struct destroy_entry_t {
   destroy_entry_t* next{nullptr};
   crt_handler_t destructor;
@@ -14,7 +16,7 @@ inline destroy_entry_t* destructor_stack_head{};
 }  // namespace winapi::kernel::runtime
 
 extern "C" {
-int __cdecl atexit(winapi::kernel::runtime::crt_handler_t destructor) {
+int CRTCALL atexit(winapi::kernel::runtime::crt_handler_t destructor) {
   namespace runtime = winapi::kernel::runtime;
   if (destructor) {
     auto new_entry{new (nothrow) runtime::destroy_entry_t{
@@ -27,7 +29,7 @@ int __cdecl atexit(winapi::kernel::runtime::crt_handler_t destructor) {
   return 0;
 }
 
-void __cdecl doexit(_In_ int /*code*/,
+void CRTCALL doexit(_In_ int /*code*/,
                     _In_ int /*quick*/,
                     _In_ int /*retcaller*/
 ) {
@@ -40,7 +42,7 @@ void __cdecl doexit(_In_ int /*code*/,
   }
 }
 
-int __cdecl _cinit(_In_ int) {  //Вызов конструкторов
+int CRTCALL _cinit(_In_ int) {  //Вызов конструкторов
   for (void (**ctor)(void) = __ctors_begin__ + 1; ctor < __ctors_end__;
        ++ctor) {
     (*ctor)();

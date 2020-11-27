@@ -168,7 +168,7 @@ class unicode_string_view {
   PUNICODE_STRING raw_str() { return addressof(m_str); }
   PCUNICODE_STRING raw_str() const { return addressof(m_str); }
 
-#ifndef NO_CXX_STANDARD_LIBRARY
+#ifndef KTL_NO_CXX_STANDARD_LIBRARY
   explicit constexpr operator std::wstring_view() const {
     return std::wstring_view(m_str.Buffer, m_str.Length);
   }

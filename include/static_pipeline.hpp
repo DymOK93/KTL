@@ -1,5 +1,6 @@
 #pragma once
-#include <general.hpp>
+#include <nt_status.h>
+#include <basic_types.h>
 #include <type_traits.hpp>
 #include <utility.hpp>
 #include <memory_tools.hpp>
@@ -37,7 +38,8 @@ class StaticPipeline {
 
     for (size_t idx = 0; idx < m_size; ++idx) {
       const auto& current_worker{get_worker(idx)};
-      result = current_worker(args...);
+      //winapi::kernel::debug::TypeDeductor<decltype(current_worker)> x;
+      result = std::invoke(current_worker, args...);
       if (!m_pass_on(*result)) {
         break;
       }
@@ -47,10 +49,10 @@ class StaticPipeline {
 
  private:
   Worker& get_worker(size_t idx) {
-    return *pointer_cast<Worker>(m_storage + idx);
+    return *(pointer_cast<Worker>(m_storage) + idx);
   }
   const Worker& get_worker(size_t idx) const {
-    return *pointer_cast<const Worker>(m_storage + idx);
+    return *(pointer_cast<const Worker>(m_storage) + idx);
   }
 
  private:

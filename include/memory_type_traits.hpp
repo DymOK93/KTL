@@ -1,4 +1,5 @@
 #pragma once
+#include <basic_types.h>
 #include <type_traits.hpp>
 
 namespace winapi::kernel::mm::details {
@@ -197,4 +198,23 @@ struct has_destroy<
 
 template <class Alloc, class Pointer>
 inline constexpr bool has_destroy_v = has_destroy<Alloc, Pointer>::value;
+
+template <class Ty, class = void>
+struct unfancy_pointer {
+    using type = Ty;
+};
+
+template <class Ty>
+struct unfancy_pointer<Ty, void_t<typename Ty::value_type>>{
+    using type = remove_reference_t<typename Ty::value_type>;
+};
+
+template <class Ty>
+struct unfancy_pointer<Ty, void_t<decltype(*declval<Ty>())>> {
+  using type = remove_reference_t<decltype(*declval<Ty>())>;
+};
+
+template <class Ty>
+using unfancy_pointer_t = typename unfancy_pointer<Ty>::type;
+
 }  // namespace winapi::kernel::mm::details

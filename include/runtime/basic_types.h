@@ -4,7 +4,7 @@ namespace winapi::kernel::mm {
 using byte = unsigned char;
 }
 
-#ifndef NO_CXX_STANDARD_LIBRARY
+#ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <cstdint>
 using std::nothrow_t;
 #else

@@ -1,11 +1,10 @@
 #pragma once
 
-#ifndef NO_CXX_STANDARD_LIBRARY
+#ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <memory>
 namespace winapi::kernel::mm {
 template <class Ty>
 using basic_allocator = std::allocator<Ty>;
-
 using std::allocator_traits;
 }  // namespace winapi::kernel::mm
 #else
@@ -27,7 +26,7 @@ struct basic_allocator {
   Ty* allocate(size_t bytes_count) {
     static_assert(always_false_v<>,
                   "allocate() is non-virtual");  // static_assert(false, ...)
-                                                 // срабоает в независимости от
+                                                 // сработает в независимости от
                                                  // наличия вызова allocate()
   }
   void deallocate(Ty* ptr, size_t bytes_count) {

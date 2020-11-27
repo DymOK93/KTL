@@ -5,7 +5,7 @@
 // TODO: вынести в .cpp
 
 //Защита на случай подключения стандартного хедера <memory>
-#if defined(NO_CXX_STANDARD_LIBRARY) && !defined(__PLACEMENT_NEW_INLINE)
+#if defined(KTL_NO_CXX_STANDARD_LIBRARY) && !defined(__PLACEMENT_NEW_INLINE)
 void* _cdecl operator new(size_t bytes_count, void* ptr) noexcept {
   (void)bytes_count;
   return ptr;
