@@ -14,7 +14,7 @@ using std::forward_iterator_tag;
 using std::bidirectional_iterator_tag;
 using std::random_access_iterator_tag;
 #else
-#include <iterator_type_traits.hpp>
+#include <memory_type_traits.hpp>
 #include <functional.hpp>
 
 namespace winapi::kernel {
@@ -27,7 +27,7 @@ struct random_access_iterator_tag {};
 namespace it::details {
 template <class It, class = void>
 struct get_reference_type {
-  using type = decltype(*declval<It>()) > ;
+  using type = decltype(*declval<It>());
 };
 
 template <class It>
