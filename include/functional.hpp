@@ -2,15 +2,15 @@
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <functional>
-namespace winapi::kernel {
+namespace ktl {
 using std::less;
 using std::greater;
-}  // namespace winapi::kernel
+}  // namespace ktl
 #else
 #include <type_traits.hpp>
 #include <utility.hpp>
 
-namespace winapi::kernel {
+namespace ktl {
 template <class Ty = void>
 struct less {
   constexpr bool operator()(const Ty& lhs, const Ty& rhs) const {
@@ -212,5 +212,5 @@ template <class Ty1, class Ty2>
 inline constexpr bool has_operator_minus_v =
     has_operator_minus<Ty1, Ty2>::value;
 
-}  // namespace winapi::kernel
+}  // namespace ktl
 #endif

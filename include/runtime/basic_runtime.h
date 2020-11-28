@@ -6,23 +6,22 @@
 
 #define CRTCALL _cdecl
 
-namespace winapi::kernel::runtime {
+namespace ktl::runtime {
 using crt_handler_t = void(CRTCALL*)(void);
 struct destroy_entry_t {
   destroy_entry_t* next{nullptr};
   crt_handler_t destructor;
 };
 inline destroy_entry_t* destructor_stack_head{};
-}  // namespace winapi::kernel::runtime
+}  // namespace ktl::runtime
 
 extern "C" {
-int CRTCALL atexit(winapi::kernel::runtime::crt_handler_t destructor) {
-  namespace runtime = winapi::kernel::runtime;
+int CRTCALL atexit(ktl::runtime::crt_handler_t destructor) {
   if (destructor) {
-    auto new_entry{new (nothrow) runtime::destroy_entry_t{
-        runtime::destructor_stack_head, destructor}};
+    auto new_entry{new (nothrow) ktl::runtimedestroy_entry_t{
+        ktl::runtime::destructor_stack_head, destructor}};
     if (new_entry) {
-      runtime::destructor_stack_head = new_entry;
+      ktl::runtime::destructor_stack_head = new_entry;
       return 1;
     }
   }
@@ -33,11 +32,10 @@ void CRTCALL doexit(_In_ int /*code*/,
                     _In_ int /*quick*/,
                     _In_ int /*retcaller*/
 ) {
-  namespace runtime = winapi::kernel::runtime;
-  while (runtime::destructor_stack_head) {
-    auto* target{runtime::destructor_stack_head};
-    runtime::destructor_stack_head = target->next;
-    target->destructor();  //Нужен ли здесь этот вызов?
+  while (ktl::runtime::destructor_stack_head) {
+    auto* target{ktl::runtime::destructor_stack_head};
+    ktl::runtime::destructor_stack_head = target->next;
+    target->destructor();
     delete target;
   }
 }

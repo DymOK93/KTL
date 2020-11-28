@@ -2,17 +2,17 @@
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <memory>
-namespace winapi::kernel::mm {
+namespace ktl::mm {
 template <class Ty>
 using basic_allocator = std::allocator<Ty>;
 using std::allocator_traits;
-}  // namespace winapi::kernel::mm
+}  // namespace ktl::mm
 #else
 #include <heap.h>
 #include <memory_tools.hpp>
 #include <memory_type_traits.hpp>
 
-namespace winapi::kernel::mm {
+namespace ktl::mm {
 template <class Ty>
 struct basic_allocator {
  public:
@@ -199,5 +199,5 @@ struct allocator_traits {
 
   static void in_place_destroy(pointer ptr) { destroy_at(ptr); }
 };
-}  // namespace winapi::kernel::mm
+}  // namespace ktl::mm
 #endif

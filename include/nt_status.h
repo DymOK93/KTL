@@ -1,7 +1,7 @@
 #pragma once
 #include <ntddk.h>
 
-namespace winapi::kernel {
+namespace ktl {
 struct NtSuccess {
   constexpr bool operator()(NTSTATUS status) const noexcept {
     return NT_SUCCESS(status);

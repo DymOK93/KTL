@@ -2,11 +2,11 @@
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <memory>
-namespace winapi::kernel::mm {
+namespace ktl::mm {
 using std::unique_ptr;
 using std::shared_ptr;
 using std::weak_ptr;
-}  // namespace winapi::kernel::mm
+}  // namespace ktl::mm
 #else
 #include <heap.h>
 #include <functional.hpp>
@@ -14,7 +14,7 @@ using std::weak_ptr;
 #include <memory_type_traits.hpp>
 #include <atomic.hpp>
 
-namespace winapi::kernel::mm {  // memory management
+namespace ktl::mm {  // memory management
 namespace details {
 template <class Ty>
 struct default_delete {
@@ -983,7 +983,7 @@ weak_ptr<Ty>::weak_ptr(const shared_ptr<OtherTy>& sptr) noexcept {
 template <class Ty>
 shared_ptr<Ty> weak_ptr<Ty>::lock() const noexcept {
   return shared_ptr<Ty>(*this);  //В отличие от std::shared_ptr, конструктор
-                                 // winapi::kernel::mm::shared_ptr(const
+                                 // ktl::mm::shared_ptr(const
                                  // weak_ptr&) не бросает исключений
 }
 
@@ -1153,27 +1153,27 @@ shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
 
   return sptr;
 }
-}  // namespace winapi::kernel::mm
+}  // namespace ktl::mm
 
 namespace std {
 template <class Ty, class Deleter>
-void swap(winapi::kernel::mm::unique_ptr<Ty, Deleter>& lhs,
-          winapi::kernel::mm::unique_ptr<Ty, Deleter>&
+void swap(ktl::mm::unique_ptr<Ty, Deleter>& lhs,
+          ktl::mm::unique_ptr<Ty, Deleter>&
               rhs) noexcept(noexcept(lhs.swap(rhs))) {
   lhs.swap(rhs);
 }
 
 template <class Ty>
 void swap(
-    winapi::kernel::mm::shared_ptr<Ty>& lhs,
-    winapi::kernel::mm::shared_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+    ktl::mm::shared_ptr<Ty>& lhs,
+    ktl::mm::shared_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
   lhs.swap(rhs);
 }
 
 template <class Ty>
 void swap(
-    winapi::kernel::mm::weak_ptr<Ty>& lhs,
-    winapi::kernel::mm::weak_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+    ktl::mm::weak_ptr<Ty>& lhs,
+    ktl::mm::weak_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
   lhs.swap(rhs);
 }
 }  // namespace std

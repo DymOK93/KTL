@@ -17,7 +17,7 @@ using std::random_access_iterator_tag;
 #include <memory_type_traits.hpp>
 #include <functional.hpp>
 
-namespace winapi::kernel {
+namespace ktl {
 struct input_iterator_tag {};
 struct output_iterator_tag {};
 struct forward_iterator_tag {};
@@ -149,5 +149,5 @@ template <class BidirectionalIt>
   }
 }
 
-}  // namespace winapi::kernel
+}  // namespace ktl
 #endif

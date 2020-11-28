@@ -4,7 +4,7 @@
 
 #include <ntddk.h>
 
-namespace winapi::kernel::th {
+namespace ktl::th {
 bool interlocked_exchange(bool& target, bool new_value) {
   return InterlockedExchange8(
       reinterpret_cast<volatile char*>(addressof(target)),
@@ -38,4 +38,4 @@ void interlocked_swap_pointer(Ty* const* lhs, Ty* const* rhs) noexcept {
   interlocked_exchange(lhs, rhs);
   interlocked_exchange(rhs, old_lhs);
 }
-}  // namespace winapi::kernel::th
+}  // namespace ktl::th

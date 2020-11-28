@@ -2,7 +2,7 @@
 #include <basic_types.h>
 #include <type_traits.hpp>
 
-namespace winapi::kernel::mm::details {
+namespace ktl::mm::details {
 template <class Target, class Ty, class = void>
 struct get_pointer_type {
   using type = add_pointer_t<Ty>;
@@ -214,4 +214,4 @@ struct memset_is_safe<unsigned char> : true_type {};
 template <class Ty>
 inline constexpr bool memset_is_safe_v = memset_is_safe<Ty>::value;
 
-}  // namespace winapi::kernel::mm::details
+}  // namespace ktl::mm::details

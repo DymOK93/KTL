@@ -8,7 +8,7 @@
 #include <string_view>
 #include <utility>
 
-namespace winapi::kernel {
+namespace ktl {
 class unicode_string_view {
  public:
   using value_type = wchar_t;
@@ -213,11 +213,11 @@ constexpr bool operator<=(unicode_string_view lhs, unicode_string_view rhs) {
 constexpr bool operator>=(unicode_string_view lhs, unicode_string_view rhs) {
   return !(lhs < rhs);
 }
-}  // namespace winapi::kernel
+}  // namespace ktl
 
 namespace std {
-_CONSTEXPR20 void swap(winapi::kernel::unicode_string_view& lhs,
-                       winapi::kernel::unicode_string_view& rhs) noexcept {
+_CONSTEXPR20 void swap(ktl::unicode_string_view& lhs,
+                       ktl::unicode_string_view& rhs) noexcept {
   return lhs.swap(rhs);
 }
 }  // namespace std

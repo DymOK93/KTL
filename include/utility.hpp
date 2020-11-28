@@ -3,18 +3,18 @@
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <utility>
 
-namespace winapi::kernel {
+namespace ktl {
 using std::exchange;
 using std::forward;
 using std::move;
 using std::swap;
 using std::addressof;
-}  // namespace winapi::kernel
+}  // namespace ktl
 
 #else
 #include <type_traits.hpp>
 
-namespace winapi::kernel {
+namespace ktl {
 template <class Ty>
 constexpr remove_reference_t<Ty>&& move(Ty&& val) noexcept {
   return static_cast<remove_reference_t<Ty>&&>(val);
@@ -64,10 +64,10 @@ template <class Ty>
 constexpr const Ty& as_const(Ty& val) {
   return static_cast<add_lvalue_reference_t<add_const_t<Ty> > >(val);
 }
-}  // namespace winapi::kernel
+}  // namespace ktl
 #endif
 
-namespace winapi::kernel {
+namespace ktl {
 template <class Ty, class U>
 constexpr auto* pointer_cast(U* ptr) noexcept {
   using pvoid_type = conditional_t<is_const_v<U>, const void*, void*>;
@@ -83,4 +83,4 @@ constexpr bool bool_cast(Ty&& val) noexcept(
     noexcept(static_cast<bool>(forward<Ty>(val)))) {
   return static_cast<bool>(forward<Ty>(val));
 }
-}  // namespace winapi::kernel
+}  // namespace ktl
