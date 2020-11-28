@@ -288,6 +288,15 @@ inline constexpr bool is_default_constructible_v =
     is_default_constructible<Ty>::value;
 
 template <class Ty>
+struct is_trivially_default_constructible {
+  static constexpr bool value = __is_trivially_constructible(Ty);
+};
+
+template <class Ty>
+inline constexpr bool is_trivially_default_constructible_v =
+    is_trivially_default_constructible<Ty>::value;
+
+template <class Ty>
 struct is_nothrow_default_constructible {
   static constexpr bool value = is_constructible_v<Ty>&& noexcept(Ty());
 };

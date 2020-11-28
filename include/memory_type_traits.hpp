@@ -199,22 +199,19 @@ struct has_destroy<
 template <class Alloc, class Pointer>
 inline constexpr bool has_destroy_v = has_destroy<Alloc, Pointer>::value;
 
-template <class Ty, class = void>
-struct unfancy_pointer {
-    using type = Ty;
-};
+template <class Ty>
+struct memset_is_safe : false_type {};
+
+template <>
+struct memset_is_safe<char> : true_type {};
+
+template <>
+struct memset_is_safe<signed char> : true_type {};
+
+template <>
+struct memset_is_safe<unsigned char> : true_type {};
 
 template <class Ty>
-struct unfancy_pointer<Ty, void_t<typename Ty::value_type>>{
-    using type = remove_reference_t<typename Ty::value_type>;
-};
-
-template <class Ty>
-struct unfancy_pointer<Ty, void_t<decltype(*declval<Ty>())>> {
-  using type = remove_reference_t<decltype(*declval<Ty>())>;
-};
-
-template <class Ty>
-using unfancy_pointer_t = typename unfancy_pointer<Ty>::type;
+inline constexpr bool memset_is_safe_v = memset_is_safe<Ty>::value;
 
 }  // namespace winapi::kernel::mm::details
