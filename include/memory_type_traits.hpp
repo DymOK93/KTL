@@ -1,4 +1,5 @@
 #pragma once
+#include <basic_types.h>
 #include <type_traits.hpp>
 
 namespace winapi::kernel::mm::details {
@@ -197,4 +198,20 @@ struct has_destroy<
 
 template <class Alloc, class Pointer>
 inline constexpr bool has_destroy_v = has_destroy<Alloc, Pointer>::value;
+
+template <class Ty>
+struct memset_is_safe : false_type {};
+
+template <>
+struct memset_is_safe<char> : true_type {};
+
+template <>
+struct memset_is_safe<signed char> : true_type {};
+
+template <>
+struct memset_is_safe<unsigned char> : true_type {};
+
+template <class Ty>
+inline constexpr bool memset_is_safe_v = memset_is_safe<Ty>::value;
+
 }  // namespace winapi::kernel::mm::details

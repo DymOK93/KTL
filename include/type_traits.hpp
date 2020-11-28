@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#ifndef NO_CXX_STANDARD_LIBRARY
+#ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <type_traits>
 
 namespace winapi::kernel {
@@ -78,6 +78,9 @@ using std::is_reference_v;
 using std::is_same;
 using std::is_same_v;
 
+using std::is_trivially_copyable;
+using std::is_trivially_destructible;
+
 }  // namespace winapi::kernel
 #else
 namespace winapi::kernel {
@@ -147,8 +150,34 @@ template <class Ty>
 using remove_reference_t = typename remove_reference<Ty>::type;
 
 template <class Ty>
+struct remove_pointer {
+  using type = Ty;
+};
+
+template <class Ty>
+struct remove_pointer<Ty*> {
+  using type = Ty;
+};
+
+template <class Ty>
+using remove_pointer_t = typename remove_pointer<Ty>::type;
+
+template <class Ty, class = void>
+struct add_reference {
+  using lvalue = Ty;  //Для void
+  using rvalue = Ty;
+};
+
+template <class Ty>
+struct add_reference<Ty,
+                     void_t<Ty&> > {  //Для типов, на которые допустимы ссылки
+  using lvalue = Ty&;
+  using rvalue = Ty&&;
+};
+
+template <class Ty>
 struct add_lvalue_reference {
-  using type = remove_reference_t<Ty>&;
+  using type = typename add_reference<Ty>::lvalue;
 };
 
 template <class Ty>
@@ -156,7 +185,7 @@ using add_lvalue_reference_t = typename add_lvalue_reference<Ty>::type;
 
 template <class Ty>
 struct add_rvalue_reference {
-  using type = remove_reference_t<Ty>&&;
+  using type = typename add_reference<Ty>::rvalue;
 };
 
 template <class Ty>
@@ -259,6 +288,15 @@ inline constexpr bool is_default_constructible_v =
     is_default_constructible<Ty>::value;
 
 template <class Ty>
+struct is_trivially_default_constructible {
+  static constexpr bool value = __is_trivially_constructible(Ty);
+};
+
+template <class Ty>
+inline constexpr bool is_trivially_default_constructible_v =
+    is_trivially_default_constructible<Ty>::value;
+
+template <class Ty>
 struct is_nothrow_default_constructible {
   static constexpr bool value = is_constructible_v<Ty>&& noexcept(Ty());
 };
@@ -344,7 +382,7 @@ inline constexpr bool is_copy_assignable_v = is_copy_assignable<Ty>::value;
 template <class Ty>
 struct is_move_assignable {
   static constexpr bool value =
-      is_assignable_v<Ty, add_rvalue_reference_t<Ty>>;
+      is_assignable_v<Ty, add_rvalue_reference_t<Ty> >;
 };
 
 template <class Ty>
@@ -456,6 +494,33 @@ struct is_same<Ty, Ty> : true_type {};
 
 template <class Ty1, class Ty2>
 inline constexpr bool is_same_v = is_same<Ty1, Ty2>::value;
+
+template <class Ty>
+struct is_const : false_type {};
+
+template <class Ty>
+struct is_const<const Ty> : true_type {};
+
+template <class Ty>
+inline constexpr bool is_const_v = is_const<Ty>::value;
+
+template <class Ty>
+struct is_trivially_copyable {
+  static constexpr bool value = __is_trivially_copyable(Ty);
+};
+
+template <class Ty>
+inline constexpr bool is_trivially_copyable_v =
+    is_trivially_copyable<Ty>::value;
+
+template <class Ty>
+struct is_trivially_destructible {
+  static constexpr bool value = __is_trivially_destructible(Ty);
+};
+
+template <class Ty>
+inline constexpr bool is_trivially_destructible_v =
+    is_trivially_copyable<Ty>::value;
 
 }  // namespace winapi::kernel
 #endif

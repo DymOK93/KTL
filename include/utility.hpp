@@ -1,6 +1,6 @@
 #pragma once
 
-#ifndef NO_CXX_STANDARD_LIBRARY
+#ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <utility>
 
 namespace winapi::kernel {
@@ -54,5 +54,33 @@ constexpr Ty* addressof(Ty& target) noexcept {
 
 template <class Ty>
 const Ty* addressof(const Ty&&) = delete;
+
+template <class Ty>
+constexpr const Ty* as_const(Ty* ptr) {
+  return static_cast<add_pointer_t<add_const_t<Ty> > >(ptr);
+}
+
+template <class Ty>
+constexpr const Ty& as_const(Ty& val) {
+  return static_cast<add_lvalue_reference_t<add_const_t<Ty> > >(val);
+}
 }  // namespace winapi::kernel
 #endif
+
+namespace winapi::kernel {
+template <class Ty, class U>
+constexpr auto* pointer_cast(U* ptr) noexcept {
+  using pvoid_type = conditional_t<is_const_v<U>, const void*, void*>;
+  using pointer_type =
+      conditional_t<is_const_v<U>, add_pointer_t<add_const_t<Ty> >,
+                    add_pointer_t<Ty> >;
+
+  return static_cast<pointer_type>(static_cast<pvoid_type>(ptr));
+}
+
+template <class Ty>
+constexpr bool bool_cast(Ty&& val) noexcept(
+    noexcept(static_cast<bool>(forward<Ty>(val)))) {
+  return static_cast<bool>(forward<Ty>(val));
+}
+}  // namespace winapi::kernel

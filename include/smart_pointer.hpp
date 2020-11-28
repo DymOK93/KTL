@@ -1,6 +1,6 @@
 #pragma once
 
-#ifndef NO_CXX_STANDARD_LIBRARY
+#ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <memory>
 namespace winapi::kernel::mm {
 using std::unique_ptr;
@@ -12,6 +12,7 @@ using std::weak_ptr;
 #include <functional.hpp>
 #include <allocator.hpp>
 #include <memory_type_traits.hpp>
+#include <atomic.hpp>
 
 namespace winapi::kernel::mm {  // memory management
 namespace details {
@@ -22,7 +23,8 @@ struct default_delete {
 
   constexpr default_delete() = default;
 
-  template <class OtherTy, enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
+  template <class OtherTy,
+            enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
   default_delete(const default_delete<OtherTy>&) noexcept {}
 
   void operator()(Ty* ptr) const noexcept {
@@ -37,7 +39,8 @@ struct default_delete<Ty[]> {
 
   constexpr default_delete() = default;
 
-  template <class OtherTy, enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
+  template <class OtherTy,
+            enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
   default_delete(const default_delete<OtherTy>&) noexcept {}
 
   void operator()(Ty* ptr) const noexcept {
@@ -98,7 +101,9 @@ class unique_ptr {
             enable_if_t<is_reference_v<Dx> &&
                             is_constructible_v<Dx, remove_reference_t<Dx> >,
                         int> = 0>
-  unique_ptr(pointer ptr, Dx&& deleter) = delete;
+  unique_ptr(pointer ptr, remove_reference_t<Dx>&& deleter) =
+      delete;  //Нельзя сконструировать ссылочный тип Dx& с аргументом Dx&&
+               //(r-value ref)
 
   template <class Dx = Deleter,
             enable_if_t<is_move_constructible_v<Dx>, int> = 0>
@@ -317,6 +322,31 @@ unique_ptr(Ty*) -> unique_ptr<Ty>;
 template <class Ty, class Dx>
 unique_ptr(Ty*, Dx &&) -> unique_ptr<Ty, Dx>;
 
+
+/********************************************************************************
+В соответствии с правилами вывода типов шаблонных аргументов 
+deduction guide выше может привести к неочевидным последствиям:
+
+auto make_resource_guard(some_type* resource) {
+auto guard = [](some_type* res){ release_resource(res); };
+using guard_type = decltype(guard);
+return unique_ptr(resource, guard);
+}
+
+Тип возвращаемого значения окажется
+unique_ptr<some_type, guard_type&>!
+Во избежание получения висячей ссылки 
+ниже добавлено дополнительно правило, запрещающее автоматическую подстановку
+l-value ref в аргумент шаблона.
+При необходимости сконструировать unique_ptr, хранящий ссылку на deleter, 
+необходимо указать это явно:
+unique_ptr<some_type, deleter_type&> uptr(...);
+*********************************************************************************/
+
+// C++17 deduction guide
+template <class Ty, class Dx>
+unique_ptr(Ty*, Dx&) -> unique_ptr<Ty, Dx>;
+
 template <class Ty, class... Types>
 unique_ptr<Ty> make_unique(Types&&... args) {
   return unique_ptr<Ty>(new (nothrow) Ty(forward<Types>(args)...));
@@ -325,21 +355,6 @@ unique_ptr<Ty> make_unique(Types&&... args) {
 namespace details {
 struct external_pointer_tag {};
 struct jointly_allocated_tag {};
-
-template <class Ty>
-Ty* interlocked_exchange_pointer(Ty* const* ptr_place, Ty* new_ptr) noexcept {
-  return static_cast<Ty*>(InterlockedExchangePointer(
-      reinterpret_cast<volatile PVOID*>(const_cast<Ty**>(ptr_place)), new_ptr));
-}
-
-template <class Ty>
-Ty* interlocked_compare_exchange_pointer(Ty* const* ptr_place,
-                                         Ty* new_ptr,
-                                         Ty* expected) noexcept {
-  return static_cast<Ty*>(InterlockedCompareExchangePointer(
-      reinterpret_cast<volatile PVOID*>(const_cast<Ty**>(ptr_place)), new_ptr,
-      expected));
-}
 
 class ref_counter_base {
  public:
