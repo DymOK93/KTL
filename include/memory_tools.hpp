@@ -41,7 +41,7 @@ template <class InputIt>
 constexpr void destroy(
     InputIt first,
     InputIt last) noexcept {  // CRASH if d-tor isn't noexcept
-  using value_type = mm::details::unfancy_pointer_t<InputIt>;
+  using value_type = typename iterator_traits<InputIt>::value_type;
   if constexpr (!is_trivially_destructible_v<value_type>) {
     for (; first != last; first = next(first)) {
       destroy_at(addressof(*first));
@@ -53,7 +53,7 @@ template <class InputIt>
 constexpr void destroy_n(
     InputIt first,
     size_t count) noexcept {  // CRASH if d-tor isn't noexcept
-  using value_type = mm::details::unfancy_pointer_t<InputIt>;
+  using value_type = typename iterator_traits<InputIt>::value_type;
   if constexpr (!is_trivially_destructible_v<value_type>) {
     for (size_t step = 0; step < count; first = next(first), ++step) {
       destroy_at(addressof(*first));
@@ -374,10 +374,12 @@ uninitialized_copy(
                 is_pointer_v<NoThrowForwardIt>) {
 #ifdef KTL_NO_EXCEPTIONS
     (void)vf;
-#endif
     return bool_cast(
         mm::details::uninitialized_copy_trivial_impl(first, last,
                                                      dest));  // always true
+#else
+    return mm::details::uninitialized_copy_trivial_impl(first, last, dest);
+#endif
   } else {
 #ifndef KTL_NO_EXCEPTIONS
     return mm::details::uninitialized_copy_non_trivial_impl(first, last, dest);
@@ -425,9 +427,12 @@ uninitialized_copy_n(
                 is_pointer_v<NoThrowForwardIt>) {
 #ifdef KTL_NO_EXCEPTIONS
     (void)vf;
+    return bool_cast(
+        mm::details::uninitialized_copy_trivial_impl(first, count,
+                                                     dest));  // always true
+#else
+    return mm::details::uninitialized_copy_trivial_impl(first, count, dest);
 #endif
-    return mm::details::uninitialized_copy_trivial_impl(first, count,
-                                                        dest);  // always true
   } else {
 #ifndef KTL_NO_EXCEPTIONS
     return mm::details::uninitialized_copy_non_trivial_impl(first, count, dest);
@@ -470,7 +475,13 @@ uninitialized_move(
   using value_type = typename iterator_traits<InputIt>::value_type;
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {
+#ifdef KTL_NO_EXCEPTIONS
+    (void)vf;
+    return bool_cast(
+        mm::details::uninitialized_copy_trivial_impl(first, last, dest));
+#else
     return mm::details::uninitialized_copy_trivial_impl(first, last, dest);
+#endif
   } else {
 #ifndef KTL_NO_EXCEPTIONS
     return mm::details::uninitialized_move_impl(first, last, dest);
@@ -513,7 +524,13 @@ uninitialized_move_n(
   using value_type = typename iterator_traits<InputIt>::value_type;
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {
+#ifdef KTL_NO_EXCEPTIONS
+    (void)vf;
+    return bool_cast(
+        mm::details::uninitialized_copy_trivial_impl(first, count, dest));
+#else
     return mm::details::uninitialized_copy_trivial_impl(first, count, dest);
+#endif
   } else {
 #ifndef KTL_NO_EXCEPTIONS
     return mm::details::uninitialized_move_impl(first, count, dest);
@@ -525,7 +542,9 @@ uninitialized_move_n(
 
 template <class InputIt, class NoThrowForwardIt>
 NoThrowForwardIt  // using memcpy() for trivially copyable types
-uninitialized_move_n(InputIt first, size_t count, NoThrowForwardIt dest) {
+uninitialized_move_n_unchecked(InputIt first,
+                               size_t count,
+                               NoThrowForwardIt dest) {
   using value_type = typename iterator_traits<InputIt>::value_type;
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {
@@ -599,7 +618,7 @@ class uninitialized_construct_helper
     }
   }
 
-  void value_construct_n(size_t count) {
+  void default_construct_n(size_t count) {
     for (size_t step = 0; step < count; ++step) {
       MyBase::default_construct();
     }
@@ -685,9 +704,16 @@ uninitialized_fill(
     ForwardIt last,
     const Ty& val) {
   if constexpr (mm::details::memset_is_safe_v<Ty> && is_pointer_v<ForwardIt>) {
-    memset(first, static_cast<int>(val),
-           distance(first,
-                    last))  // sizeof(Ty) must be equal to sizeof(unsigned char)
+#ifdef KTL_NO_EXCEPTIONS
+    (void)vf;
+    return bool_cast(memset(
+        first, static_cast<int>(val),
+        distance(first,
+                 last)));  // sizeof(Ty) must be equal to sizeof(unsigned char)
+#else
+    return static_cast<ForwardIt>(
+        memset(first, static_cast<int>(val), distance(first, last)));
+#endif
   } else {
     ForwardIt current{first};
 #ifndef KTL_NO_EXCEPTIONS
@@ -715,8 +741,14 @@ uninitialized_fill_n(
     size_t count,
     const Ty& val) {
   if constexpr (mm::details::memset_is_safe_v<Ty> && is_pointer_v<ForwardIt>) {
-    memset(first, static_cast<int>(val),
-           count)  // sizeof(Ty) must be equal to sizeof(unsigned char)
+#ifdef KTL_NO_EXCEPTIONS
+    (void)vf;
+    return bool_cast(
+        memset(first, static_cast<int>(val),
+               count));  // sizeof(Ty) must be equal to sizeof(unsigned char)
+#else
+    return static_cast<ForwardIt>(memset(first, static_cast<int>(val), count));
+#endif
   } else {
     ForwardIt current{first};
 #ifndef KTL_NO_EXCEPTIONS
@@ -746,7 +778,12 @@ uninitialized_value_construct(
   if constexpr (is_trivially_default_constructible_v<value_type> &&
                 is_pointer_v<ForwardIt>) {
     size_t bytes_count{distance(first, last) * sizeof(value_type)};
-    memset(first, 0, bytes_count);
+#ifdef KTL_NO_EXCEPTIONS
+    (void)vf;
+    return bool_cast(memset(first, 0, bytes_count));
+#else
+    return static_cast<ForwardIt>(memset(first, 0, bytes_count));
+#endif
   } else {
     ForwardIt current{first};
 #ifndef KTL_NO_EXCEPTIONS
@@ -775,7 +812,12 @@ uninitialized_value_construct_n(
   using value_type = typename iterator_traits<ForwardIt>::value_type;
   if constexpr (is_trivially_default_constructible_v<value_type> &&
                 is_pointer_v<ForwardIt>) {
-    memset(first, 0, count * sizeof(value_type));
+#ifdef KTL_NO_EXCEPTIONS
+    (void)vf;
+    return bool_cast(memset(first, 0, count * sizeof(value_type)));
+#else
+    return static_cast<ForwardIt>(memset(first, 0, count * sizeof(value_type)));
+#endif
   } else {
     ForwardIt current{first};
 #ifndef KTL_NO_EXCEPTIONS
@@ -805,7 +847,12 @@ uninitialized_default_construct(
   if constexpr (is_trivially_default_constructible_v<value_type> &&
                 is_pointer_v<ForwardIt>) {
     size_t bytes_count{distance(first, last) * sizeof(value_type)};
-    memset(first, 0, bytes_count);
+#ifdef KTL_NO_EXCEPTIONS
+    (void)vf;
+    return bool_cast(memset(first, 0, bytes_count));
+#else
+    return static_cast<ForwardIt>(memset(first, 0, bytes_count));
+#endif
   } else {
     ForwardIt current{first};
 #ifndef KTL_NO_EXCEPTIONS
@@ -834,7 +881,12 @@ uninitialized_default_construct_n(
   using value_type = typename iterator_traits<ForwardIt>::value_type;
   if constexpr (is_trivially_default_constructible_v<value_type> &&
                 is_pointer_v<ForwardIt>) {
-    memset(first, 0, count * sizeof(value_type));
+#ifdef KTL_NO_EXCEPTIONS
+    (void)vf;
+    return bool_cast(memset(first, 0, count * sizeof(value_type)));
+#else
+    return static_cast<ForwardIt>(memset(first, 0, count * sizeof(value_type)));
+#endif
   } else {
     ForwardIt current{first};
 #ifndef KTL_NO_EXCEPTIONS
