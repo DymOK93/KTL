@@ -8,22 +8,26 @@ unsigned int destructor_count{0};
 driver_unload_t custom_driver_unload{nullptr};
 
 constexpr unsigned int MAX_DESTRUCTOR_COUNT{sizeof(destructor_stack) /
-                                              sizeof(handler_t)};
+                                            sizeof(handler_t)};
 constexpr int INIT_CODE = 0x4b544caU;
 constexpr int EXIT_CODE = 0x4b544ceU;
 
 void __declspec(noreturn) CRTCALL doexit(_In_ int) {
   KdPrint(("Destructor count: %u\n", destructor_count));
-  for (; ktl::crt::destructor_count; ktl::crt::destructor_count--) {
-    ktl::crt::destructor_stack[ktl::crt::destructor_count]();
+  if (ktl::crt::destructor_count) {
+    do {
+      auto& destructor{
+          ktl::crt::destructor_stack[--ktl::crt::destructor_count]};  // index =
+                                                                      // size -
+                                                                      // 1
+      destructor();
+    } while (ktl::crt::destructor_count);
   }
 }
 
 int CRTCALL cinit(_In_ int) {  //Вызов конструкторов
-  KdPrint(("Constructor count: %d\n", __cxx_ctors_end__ - __cxx_ctors_begin__));
   for (ktl::crt::handler_t* ctor_ptr = __cxx_ctors_begin__;
        ctor_ptr < __cxx_ctors_end__; ++ctor_ptr) {
-    //(*ctor_ptr)();
     auto& constructor{*ctor_ptr};
     if (constructor) {
       constructor();
