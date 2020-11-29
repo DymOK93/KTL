@@ -20,17 +20,6 @@ constexpr size_t null_terminated_string_length(const CharT* ptr) {
   return length;
 }
 
-template <>
-size_t null_terminated_string_length(const char* ptr) {
-  return std::strlen(ptr);  // heavily optimized avx-strlen
-}
-
-template <>
-size_t null_terminated_string_length(const wchar_t* ptr) {
-  return std::wcslen(ptr);  // heavily optimized avx-strlen
-}
-
-
 template <class StringOrChar, class = void>
 struct internal_size_type_impl {
   using type = size_t;

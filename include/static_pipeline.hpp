@@ -24,9 +24,6 @@ class StaticPipeline {
     return *construct_at(addressof(get_worker(m_size++)), move(worker));
   }
 
-  template <class Ty>
-  class Deductor;
-
   template <typename... Types>
   auto Process(const Types&... args) const -> std::optional<
       remove_reference_t<std::invoke_result_t<Worker, Types...>>> {
@@ -35,7 +32,6 @@ class StaticPipeline {
 
     for (size_t idx = 0; idx < m_size; ++idx) {
       const auto& current_worker{get_worker(idx)};
-      //ktl::debug::TypeDeductor<decltype(current_worker)> x;
       result = std::invoke(current_worker, args...);
       if (!m_pass_on(*result)) {
         break;
