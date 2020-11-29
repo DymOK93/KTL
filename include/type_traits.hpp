@@ -225,7 +225,7 @@ struct add_const<const Ty> {
 template <class Ty>
 using add_const_t = typename add_const<Ty>::type;
 
-namespace details {
+namespace tt::details {
 template <class... Types>
 struct common_type_impl {};
 
@@ -245,11 +245,11 @@ struct common_type_impl<Ty1, Ty2, Rest...> {
       typename common_type_impl<typename common_type_impl<Ty1, Ty2>::type,
                                 Rest...>::type;
 };
-}  // namespace details
+}  // namespace tt::details
 
 template <class... Types>
 struct common_type {
-  using type = typename details::common_type_impl<Types...>::type;
+  using type = typename tt::details::common_type_impl<Types...>::type;
 };
 
 template <class... Types>
