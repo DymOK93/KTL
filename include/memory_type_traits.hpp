@@ -2,7 +2,7 @@
 #include <basic_types.h>
 #include <type_traits.hpp>
 
-namespace winapi::kernel::mm::details {
+namespace ktl::mm::details {
 template <class Target, class Ty, class = void>
 struct get_pointer_type {
   using type = add_pointer_t<Ty>;
@@ -141,6 +141,21 @@ template <class Alloc, class size_type>
 inline constexpr bool has_allocate_single_object_v =
     has_allocate_single_object<Alloc, size_type>::value;
 
+
+template <class Alloc, class size_type, class = void>
+struct has_allocate_bytes : false_type {};
+
+template <class Alloc, class size_type>
+struct has_allocate_bytes<
+    Alloc,
+    size_type,
+    void_t<decltype(declval<Alloc>().allocate_bytes(declval<size_type>()))>>
+    : true_type {};
+
+template <class Alloc, class size_type>
+inline constexpr bool has_allocate_bytes_v =
+    has_allocate_bytes<Alloc, size_type>::value;
+
 template <class Alloc, class Pointer, class size_type, class = void>
 struct has_deallocate : false_type {};
 
@@ -167,9 +182,25 @@ struct has_deallocate_single_object<
     void_t<decltype(declval<Alloc>().deallocate(declval<Pointer>()))>>
     : true_type {};
 
-template <class Alloc, class Pointer, class size_type>
+template <class Alloc, class Pointer>
 inline constexpr bool has_deallocate_single_object_v =
     has_deallocate_single_object<Alloc, Pointer, size_type>::value;
+
+template <class Alloc, class Pointer, class size_type, class = void>
+struct has_deallocate_bytes : false_type {};
+
+template <class Alloc, class Pointer, class size_type>
+struct has_deallocate_bytes<
+    Alloc,
+    Pointer,
+    size_type,
+    void_t<decltype(
+        declval<Alloc>().deallocate_bytes(declval<Pointer>(), declval<size_type>()))>>
+    : true_type {};
+
+template <class Alloc, class Pointer, class size_type>
+inline constexpr bool has_deallocate_bytes_v =
+    has_deallocate_bytes<Alloc, Pointer, size_type>::value;
 
 template <class, class Alloc, class Pointer, class... Types>
 struct has_construct : false_type {};
@@ -199,6 +230,20 @@ struct has_destroy<
 template <class Alloc, class Pointer>
 inline constexpr bool has_destroy_v = has_destroy<Alloc, Pointer>::value;
 
+template <class Deleter, class = void>
+struct get_enable_delete_null : false_type {};
+
+template <class Deleter>
+struct get_enable_delete_null<Deleter,
+                              void_t<typename Deleter::enable_delete_null>> {
+  static constexpr bool value = Deleter::enable_delete_null::value;
+};
+
+template <class Deleter>
+inline constexpr bool get_enable_delete_null_v =
+    get_enable_delete_null<Deleter>::value;
+
+
 template <class Ty>
 struct memset_is_safe : false_type {};
 
@@ -214,4 +259,4 @@ struct memset_is_safe<unsigned char> : true_type {};
 template <class Ty>
 inline constexpr bool memset_is_safe_v = memset_is_safe<Ty>::value;
 
-}  // namespace winapi::kernel::mm::details
+}  // namespace ktl::mm::details

@@ -1,7 +1,11 @@
-#Temporary and not-for-production files and directories
+#Not-for-production files and directories
 archive/
+htscpp/
+testing/
+
+#Build system temporary files and directories
 Build/
 out/
-testing/
 .vs/
+
 

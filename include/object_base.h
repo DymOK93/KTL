@@ -3,7 +3,7 @@
 #include <utility.hpp>
 
 
-namespace winapi::kernel {
+namespace ktl {
 class ObjectBase {
  public:
   NTSTATUS GetStatus() const noexcept { return m_status; }
@@ -18,4 +18,4 @@ class ObjectBase {
  private:
   NTSTATUS m_status{STATUS_SUCCESS};
 };
-}  // namespace winapi::kernel
+}  // namespace ktl

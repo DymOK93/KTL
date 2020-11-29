@@ -1,6 +1,6 @@
 #pragma once
 
-namespace winapi::kernel::mm {
+namespace ktl {
 using byte = unsigned char;
 }
 

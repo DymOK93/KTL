@@ -7,8 +7,8 @@
 
 #include <ntddk.h>
 
-namespace winapi::kernel::th {  // threads management
-namespace chrono = winapi::kernel::chrono;
+namespace ktl::th {  // threads management
+namespace chrono = ktl::chrono;
 namespace details {
 template <class SyncPrimitive>
 class sync_primitive_base {
@@ -527,4 +527,4 @@ shared_lock(Mutex&,
     -> shared_lock<typename details::mutex_guard_base<Mutex>::mutex_t>;
 
 // TODO: tuple, scoped_lock
-}  // namespace winapi::kernel::th
+}  // namespace ktl::th

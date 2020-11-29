@@ -17,7 +17,7 @@ using std::uninitialized_fill_n;
 #include <memory_type_traits.hpp>
 #include <iterator.hpp>
 
-namespace winapi::kernel {
+namespace ktl {
 template <class Ty, class... Types>
 constexpr Ty* construct_at(Ty* place, Types&&... args) noexcept(
     is_nothrow_constructible_v<Ty, Types...>) {
@@ -899,5 +899,5 @@ uninitialized_default_construct_n(
   }
 }
 
-}  // namespace winapi::kernel
+}  // namespace ktl
 #endif

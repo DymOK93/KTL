@@ -14,13 +14,10 @@ namespace details {
 template <class CharT>
 constexpr size_t null_terminated_string_length(const CharT* ptr) {
   size_t length{0};
-  for (; ptr[length] != static_cast<CharT>(0); ++length)
-    ;
+  while (ptr[length] != static_cast<CharT>(0)) {
+    ++length;
+  }
   return length;
-}
-template <>
-size_t null_terminated_string_length<char>(const char* ptr) {
-  return std::strlen(ptr);      //heavily optimized avx-strlen
 }
 
 template <class StringOrChar, class = void>

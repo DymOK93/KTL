@@ -3,7 +3,7 @@
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <type_traits>
 
-namespace winapi::kernel {
+namespace ktl {
 using std::false_type;
 using std::true_type;
 using std::void_t;
@@ -81,9 +81,9 @@ using std::is_same_v;
 using std::is_trivially_copyable;
 using std::is_trivially_destructible;
 
-}  // namespace winapi::kernel
+}  // namespace ktl
 #else
-namespace winapi::kernel {
+namespace ktl {
 template <class... Dummy>
 struct always_false {
   static constexpr bool value = false;
@@ -225,7 +225,7 @@ struct add_const<const Ty> {
 template <class Ty>
 using add_const_t = typename add_const<Ty>::type;
 
-namespace details {
+namespace tt::details {
 template <class... Types>
 struct common_type_impl {};
 
@@ -245,11 +245,11 @@ struct common_type_impl<Ty1, Ty2, Rest...> {
       typename common_type_impl<typename common_type_impl<Ty1, Ty2>::type,
                                 Rest...>::type;
 };
-}  // namespace details
+}  // namespace tt::details
 
 template <class... Types>
 struct common_type {
-  using type = typename details::common_type_impl<Types...>::type;
+  using type = typename tt::details::common_type_impl<Types...>::type;
 };
 
 template <class... Types>
@@ -522,5 +522,5 @@ template <class Ty>
 inline constexpr bool is_trivially_destructible_v =
     is_trivially_copyable<Ty>::value;
 
-}  // namespace winapi::kernel
+}  // namespace ktl
 #endif

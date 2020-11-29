@@ -1,5 +1,5 @@
 #pragma once
-namespace winapi::kernel {
+namespace ktl {
 namespace dirty {  //Требуется для взаимодействия с WinAPI
 template <class Ty>
 constexpr const Ty* remove_const_from_pointer(const Ty* const ptr) {
@@ -14,4 +14,4 @@ constexpr Ty* remove_const(const Ty* const ptr) {
   return const_cast<Ty*>(ptr);
 }
 }  // namespace dirty
-}  // namespace winapi::kernel
+}  // namespace ktl

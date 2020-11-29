@@ -8,27 +8,21 @@
 #include <functional>
 #include <optional>
 
-namespace winapi::kernel::worker {
+namespace ktl::worker {
 namespace details {
 template <class Worker, size_t N, class PassOn = NtSuccess>
 class StaticPipeline {
- private:
-  using byte = winapi::kernel::mm::byte;
-
  public:
   constexpr StaticPipeline() = default;
   constexpr StaticPipeline(const PassOn& pass_on) : m_pass_on(pass_on) {}
   constexpr StaticPipeline(PassOn&& pass_on) : m_pass_on(std::move(pass_on)) {}
 
   Worker& Attach(const Worker& worker) {
-    return *mm::construct_at(addressof(get_worker(m_size++)), worker);
+    return *construct_at(addressof(get_worker(m_size++)), worker);
   }
   Worker& Attach(Worker&& worker) {
-    return *mm::construct_at(addressof(get_worker(m_size++)), move(worker));
+    return *construct_at(addressof(get_worker(m_size++)), move(worker));
   }
-
-  template <class Ty>
-  class Deductor;
 
   template <typename... Types>
   auto Process(const Types&... args) const -> std::optional<
@@ -38,7 +32,6 @@ class StaticPipeline {
 
     for (size_t idx = 0; idx < m_size; ++idx) {
       const auto& current_worker{get_worker(idx)};
-      //winapi::kernel::debug::TypeDeductor<decltype(current_worker)> x;
       result = std::invoke(current_worker, args...);
       if (!m_pass_on(*result)) {
         break;
@@ -70,4 +63,4 @@ constexpr auto MakeStaticPipeline(Workers&&... workers) {
   return pipeline;
 }
 
-}  // namespace winapi::kernel::worker
+}  // namespace ktl::worker

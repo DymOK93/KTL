@@ -1,7 +1,7 @@
 #pragma once
 #include <ntddk.h>
 
-namespace winapi::kernel {
+namespace ktl {
 struct DeviceInfo {
   unsigned long extension_size{0},  //Дополнительная память, выделямое под
                                     //устройство (+ к sizeof(device))
@@ -15,4 +15,4 @@ Driver* GetDriverFromDeviceExtension(PDRIVER_OBJECT driver) {
   return static_cast<std::add_pointer_t<std::decay_t<Driver>>>(
       driver->DeviceObject->DeviceExtension);
 }
-}  // namespace winapi::kernel
+}  // namespace ktl
