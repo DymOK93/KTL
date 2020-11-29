@@ -4,7 +4,7 @@
 
 namespace ktl::raii {
 auto MakeHandleGuard(HANDLE handle) {
-  return ktl::mm::unique_ptr(
+  return unique_ptr(
       handle, [](HANDLE target) { ObDereferenceObject(target); });
 }
 using handle_guard = std::invoke_result_t<decltype(MakeHandleGuard), HANDLE>;

@@ -12,19 +12,16 @@ namespace ktl::worker {
 namespace details {
 template <class Worker, size_t N, class PassOn = NtSuccess>
 class StaticPipeline {
- private:
-  using byte = ktl::mm::byte;
-
  public:
   constexpr StaticPipeline() = default;
   constexpr StaticPipeline(const PassOn& pass_on) : m_pass_on(pass_on) {}
   constexpr StaticPipeline(PassOn&& pass_on) : m_pass_on(std::move(pass_on)) {}
 
   Worker& Attach(const Worker& worker) {
-    return *mm::construct_at(addressof(get_worker(m_size++)), worker);
+    return *construct_at(addressof(get_worker(m_size++)), worker);
   }
   Worker& Attach(Worker&& worker) {
-    return *mm::construct_at(addressof(get_worker(m_size++)), move(worker));
+    return *construct_at(addressof(get_worker(m_size++)), move(worker));
   }
 
   template <class Ty>

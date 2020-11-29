@@ -2,11 +2,11 @@
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <memory>
-namespace ktl::mm {
+namespace ktl {
 using std::unique_ptr;
 using std::shared_ptr;
 using std::weak_ptr;
-}  // namespace ktl::mm
+}  // namespace ktl
 #else
 #include <heap.h>
 #include <functional.hpp>
@@ -14,8 +14,8 @@ using std::weak_ptr;
 #include <memory_type_traits.hpp>
 #include <atomic.hpp>
 
-namespace ktl::mm {  // memory management
-namespace details {
+namespace ktl {
+namespace mm::details {
 template <class Ty>
 struct default_delete {
   using enable_delete_null =
@@ -48,25 +48,12 @@ struct default_delete<Ty[]> {
     delete ptr;
   }
 };
+}  // namespace mm::details
 
-template <class Deleter, class = void>
-struct enable_delete_null : false_type {};
-
-template <class Deleter>
-struct enable_delete_null<Deleter,
-                          void_t<typename Deleter::enable_delete_null> > {
-  static constexpr bool value = Deleter::enable_delete_null::value;
-};
-
-template <class Deleter>
-inline constexpr bool enable_delete_null_v = enable_delete_null<Deleter>::value;
-
-}  // namespace details
-
-template <class Ty, class Deleter = details::default_delete<Ty> >
+template <class Ty, class Deleter = mm::details::default_delete<Ty> >
 class unique_ptr {
  public:
-  using pointer = details::get_pointer_type_t<Deleter, Ty>;
+  using pointer = mm::details::get_pointer_type_t<Deleter, Ty>;
   using element_type = Ty;
   using deleter_type = Deleter;
 
@@ -170,7 +157,8 @@ class unique_ptr {
 
   void reset(pointer ptr = pointer{}) noexcept {
     pointer target{exchange(m_ptr, ptr)};
-    if constexpr (details::enable_delete_null_v<deleter_type>) {  //Поддерживает
+    if constexpr (mm::details::get_enable_delete_null_v<
+                      deleter_type>) {  //Поддерживает
       //передачу nullptr в
       //качестве аргумента
       get_deleter()(target);
@@ -322,9 +310,8 @@ unique_ptr(Ty*) -> unique_ptr<Ty>;
 template <class Ty, class Dx>
 unique_ptr(Ty*, Dx &&) -> unique_ptr<Ty, Dx>;
 
-
 /********************************************************************************
-В соответствии с правилами вывода типов шаблонных аргументов 
+В соответствии с правилами вывода типов шаблонных аргументов
 deduction guide выше может привести к неочевидным последствиям:
 
 auto make_resource_guard(some_type* resource) {
@@ -335,10 +322,10 @@ return unique_ptr(resource, guard);
 
 Тип возвращаемого значения окажется
 unique_ptr<some_type, guard_type&>!
-Во избежание получения висячей ссылки 
+Во избежание получения висячей ссылки
 ниже добавлено дополнительно правило, запрещающее автоматическую подстановку
 l-value ref в аргумент шаблона.
-При необходимости сконструировать unique_ptr, хранящий ссылку на deleter, 
+При необходимости сконструировать unique_ptr, хранящий ссылку на deleter,
 необходимо указать это явно:
 unique_ptr<some_type, deleter_type&> uptr(...);
 *********************************************************************************/
@@ -352,7 +339,7 @@ unique_ptr<Ty> make_unique(Types&&... args) {
   return unique_ptr<Ty>(new (nothrow) Ty(forward<Types>(args)...));
 }
 
-namespace details {
+namespace mm::details {
 struct external_pointer_tag {};
 struct jointly_allocated_tag {};
 
@@ -514,7 +501,7 @@ class ref_counter_with_custom_deleter
  protected:
   void destroy_object() noexcept final {
     Ty* target{MyBase::exchange_ptr(nullptr)};  //Лишняя Interlocked-операция?
-    if constexpr (enable_delete_null_v<Deleter>) {
+    if constexpr (get_enable_delete_nulle_v<Deleter>) {
       get_deleter()(target);
     } else {
       if (target) {
@@ -692,15 +679,15 @@ class PtrBase {
   ref_counter_t* m_ref_counter{nullptr};
 };
 
-}  // namespace details
+}  // namespace mm::details
 
 template <class Ty>
 class shared_ptr;
 
 template <class Ty>
-class weak_ptr : public details::PtrBase<Ty, weak_ptr<Ty> > {
+class weak_ptr : public mm::details::PtrBase<Ty, weak_ptr<Ty> > {
  public:
-  using MyBase = details::PtrBase<Ty, weak_ptr<Ty> >;
+  using MyBase = mm::details::PtrBase<Ty, weak_ptr<Ty> >;
   using typename MyBase::element_type;
 
  public:
@@ -768,7 +755,7 @@ class weak_ptr : public details::PtrBase<Ty, weak_ptr<Ty> > {
   shared_ptr<Ty> lock() const noexcept;
 
  protected:
-  friend class details::PtrBase<Ty, weak_ptr<Ty> >;  // MyBase
+  friend class mm::details::PtrBase<Ty, weak_ptr<Ty> >;  // MyBase
   void incref() noexcept { MyBase::get_ref_counter()->Follow(); }
   void decref() noexcept { MyBase::get_ref_counter()->Unfollow(); }
 };
@@ -780,9 +767,9 @@ struct custom_allocator_tag_t {};
 inline constexpr custom_allocator_tag_t custom_allocator_tag;
 
 template <class Ty>
-class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
+class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
  public:
-  using MyBase = details::PtrBase<Ty, shared_ptr<Ty> >;
+  using MyBase = mm::details::PtrBase<Ty, shared_ptr<Ty> >;
   using ref_counter_t = typename MyBase::ref_counter_t;
   using element_type = Ty;
   using pointer = element_type*;
@@ -801,11 +788,11 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
 
   template <class U, class Dx, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
   shared_ptr(U* ptr, Dx&& deleter, custom_deleter_tag_t)
-      : MyBase(
-            ptr,
-            make_special_ref_counter<details::ref_counter_with_custom_deleter>(
-                ptr,
-                forward<Dx>(deleter))) {}
+      : MyBase(ptr,
+               make_special_ref_counter<
+                   mm::details::ref_counter_with_custom_deleter>(
+                   ptr,
+                   forward<Dx>(deleter))) {}
 
   template <class U,
             class Alloc,
@@ -854,7 +841,7 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
   shared_ptr(unique_ptr<U, Dx>&& uptr) {
     auto* ptr{uptr.get()};
     auto new_ref_counter{
-        make_special_ref_counter<details::ref_counter_with_custom_deleter>(
+        make_special_ref_counter<mm::details::ref_counter_with_custom_deleter>(
             ptr, move(uptr.get_deleter()))};
     if (new_ref_counter) {
       uptr.release();  //Если создание контрольного блока не удалось, отбирать
@@ -893,8 +880,9 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
   shared_ptr& operator=(unique_ptr<U, Dx>&& uptr) {
     auto* ptr{uptr.release()};
     MyBase::move_construct_from(MyBase(
-        ptr, make_special_ref_counter<details::ref_counter_with_custom_deleter>(
-                 ptr, move(uptr.get_deleter()))));
+        ptr,
+        make_special_ref_counter<mm::details::ref_counter_with_custom_deleter>(
+            ptr, move(uptr.get_deleter()))));
   }
 
   ~shared_ptr() noexcept { reset(); }
@@ -938,7 +926,7 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
   template <class ValTy, class Alloc, class... Types>
   friend shared_ptr<ValTy> allocate_shared(Alloc&& alloc, Types&&... args);
 
-  friend class details::PtrBase<Ty, shared_ptr<Ty> >;
+  friend class mm::details::PtrBase<Ty, shared_ptr<Ty> >;
   void incref() noexcept { MyBase::get_ref_counter()->Acquire(); }
   void decref() noexcept { MyBase::get_ref_counter()->Release(); }
 
@@ -950,9 +938,10 @@ class shared_ptr : public details::PtrBase<Ty, shared_ptr<Ty> > {
   static ref_counter_t* make_ref_counter_and_share(U* ptr) noexcept {
     if (ptr) {
       if constexpr (is_array) {
-        return new (nothrow) details::ref_counter_with_array_delete<U>(ptr);
+        return new (nothrow) mm::details::ref_counter_with_array_delete<U>(ptr);
       } else {
-        return new (nothrow) details::ref_counter_with_scalar_delete<U>(ptr);
+        return new (nothrow)
+            mm::details::ref_counter_with_scalar_delete<U>(ptr);
       }
     }
     return nullptr;
@@ -1105,7 +1094,7 @@ shared_ptr(unique_ptr<Ty, Dx>) -> shared_ptr<Ty>;
 
 template <class Ty, class... Types>
 shared_ptr<Ty> make_shared(Types&&... args) {
-  using ref_counter_t = details::ref_counter_with_destroy_only<Ty>;
+  using ref_counter_t = mm::details::ref_counter_with_destroy_only<Ty>;
   constexpr size_t summary_size{sizeof(Ty) + sizeof(ref_counter_t)};
   auto* memory_block{operator new(summary_size, nothrow)};
   if (!memory_block) {
@@ -1130,11 +1119,11 @@ shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
                 "Ty and Alloc::value_type must be same");
 
   using ref_counter_t =
-      details::ref_counter_with_allocator_deallocate_itself<Ty, AlTy>;
+      mm::details::ref_counter_with_allocator_deallocate_itself<Ty, AlTy>;
 
   constexpr size_t summary_size{sizeof(Ty) + sizeof(ref_counter_t)};
   auto* memory_block{
-      allocator_traits<AlTy>::allocate_bytes(alloc, summary_size)};
+      allocator_traits<AlTy>::allocate_bytes(alloc, summary_size)}; //Alloc должен предоставить allocate_bytes()
   if (!memory_block) {
     return {};
   }
@@ -1143,8 +1132,7 @@ shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
 
   auto* ref_counter{construct_at(static_cast<ref_counter_t*>(memory_block),
                                  object_ptr)};  //Нельзя сразу передать alloc,
-                                                //т.к. он может
-  //быть перемещён
+                                                //т.к. он может быть перемещён
   ref_counter->get_alloc() =
       forward<Alloc>(alloc);  //Аллокатор должен иметь operator=()
   shared_ptr<Ty> sptr(object_ptr, ref_counter);
@@ -1153,28 +1141,24 @@ shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
 
   return sptr;
 }
-}  // namespace ktl::mm
 
-namespace std {
 template <class Ty, class Deleter>
-void swap(ktl::mm::unique_ptr<Ty, Deleter>& lhs,
-          ktl::mm::unique_ptr<Ty, Deleter>&
-              rhs) noexcept(noexcept(lhs.swap(rhs))) {
+void swap(unique_ptr<Ty, Deleter>& lhs,
+          unique_ptr<Ty, Deleter>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
   lhs.swap(rhs);
 }
 
 template <class Ty>
-void swap(
-    ktl::mm::shared_ptr<Ty>& lhs,
-    ktl::mm::shared_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+void swap(ktl::shared_ptr<Ty>& lhs,
+          ktl::shared_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
   lhs.swap(rhs);
 }
 
 template <class Ty>
-void swap(
-    ktl::mm::weak_ptr<Ty>& lhs,
-    ktl::mm::weak_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+void swap(ktl::weak_ptr<Ty>& lhs,
+          ktl::weak_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
   lhs.swap(rhs);
 }
-}  // namespace std
+}  // namespace ktl
+
 #endif

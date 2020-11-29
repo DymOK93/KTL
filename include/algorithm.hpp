@@ -1,10 +1,33 @@
 #pragma once
 
+#ifdef KTL_NO_CXX_STANDARD_LIBRARY
+#include <algorithm>
+using std::min;
+using std::max;
+#else
+#include <utility.hpp>
+template <class Ty1, class Ty2>
+constexpr decltype(auto) min(Ty1&& lhs,
+                             Ty2&& rhs) noexcept(noexcept(forward<Ty2>(rhs) <
+                                                          forward<Ty1>(lhs))) {
+  return forward<Ty2>(rhs) < forward<Ty1>(lhs) ? forward<Ty2>(rhs)
+                                               : forward<Ty1>(lhs);
+}
+
+template <class Ty1, class Ty2>
+constexpr decltype(auto) max(Ty1&& lhs,
+                             Ty2&& rhs) noexcept(noexcept(forward<Ty1>(lhs) <
+                                                          forward<Ty2>(lhs))) {
+  return forward<Ty1>(lhs) < forward<Ty2>(rhs) ? forward<Ty2>(rhs)
+                                               : forward<Ty1>(lhs);
+}
+#endif
+
 #include <iterator.hpp>
 #include <utility.hpp>
 #include <type_traits.hpp>
 
-#ifndef KTL_CXX20 
+#ifndef KTL_CXX20
 namespace ktl {
 #ifndef KTL_NO_EXCEPTIONS
 template <class ForwardIt>

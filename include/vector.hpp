@@ -3,55 +3,240 @@
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <vector>
 namespace ktl {
-	using std::vector;
+using std::vector;
 }
 #else
+#include <algorithm.hpp>
+#include <allocator.hpp>
+#include <basic_types.h>
+#include <iterator.hpp>
 #include <type_traits.hpp>
-#include <iterator>
+#include <utility.hpp>
+namespace ktl {
+namespace mm::details {
+template <class Allocator>
+class raw_memory {
+ private:
+  using AlTy = Allocator;
+  using AlTyTraits = allocator_traits<AlTy>;
+  using pointer = typename AlTyTraits::pointer;
+  using const_pointer = typename AlTyTraits::const_pointer;
+  using reference = typename AlTyTraits::reference;
+  using const_reference = typename AlTyTraits::const_reference;
+  using size_type = typename AlTyTraits::size_type;
 
-template <class Ty>
-class Vector {
  public:
-  Vector() = default;
-  Vector(size_t n);
-  Vector(const Vector& other);
-  Vector(Vector&& other) noexcept;
-  ~Vector();
+  raw_memory(Allocator& alc) noexcept
+      : m_alc{addressof(alc)}, m_buf{nullptr}, m_capacity{0} {}
+  raw_memory(Allocator& alc, size_type object_count) : raw_memory(alc) {
+    m_buf = allocate(*m_alc, object_count);
+    if (m_buf) {
+      m_capacity = object_count;
+    }
+  }
 
-  Vector& operator=(const Vector& other);
-  Vector& operator=(Vector&& other) noexcept;
+  raw_memory(const raw_memory&) = delete;
+  raw_memory(raw_memory&& other) noexcept
+      : m_buf{exchange(other.m_buf, nullptr)},
+        m_capacity{exchange(other.m_capacity, 0)} {}
 
-  void Swap(Vector& other) noexcept;
+  raw_memory& operator=(const raw_memory&) = delete;
+  raw_memory& operator=(raw_memory&& other) noexcept {
+    if (this != addressof(other)) {
+      deallocate(*m_alc, _buf, m_capacity);
+      m_buf = exchange(other.m_buf, nullptr);
+      m_capacity = exchange(other.m_capacity, 0);
+    }
+    return *this;
+  }
+  ~raw_memory() { deallocate(m_buf); }
 
-  void Reserve(size_t n);
-  void Resize(size_t n);
+  void swap(raw_memory& other) noexcept {
+    swap(m_buf, other.m_buf);
+    swap(m_capacity, other.m_capacity);
+  }
+  size_type capacity() const noexcept { return m_capacity; }
 
-  void PushBack(const Ty& elem);
-  void PushBack(Ty&& elem);
-  void PopBack();
+  pointer begin() noexcept { return m_buf; }
+  pointer end() noexcept { return m_buf + m_capacity; }
+  const_pointer begin() const noexcept { return m_buf; }
+  const_pointer end() const noexcept { return m_buf + m_capacity; }
+
+  reference operator[](size_type idx) noexcept { return m_buf[idx]; }
+  const_reference operator[](size_type idx) const noexcept {
+    return m_buf[idx];
+  }
+
+  bool is_null() const noexcept { return m_buf; }
+  explicit operator bool() const noexcept { return m_buf; }
+
+ private:
+  static Ty* allocate(Allocator& alc, size_type object_count) {
+    return AlTyTraits::allocate(object_count);
+  }
+  static void deallocate(Allocator& alc, Ty* buf, size_type object_count) {
+    if constexpr (AlTyTraits::enable_delete_null) {
+      AlTyTraits::deallocate(m_buf, object_count);
+    } else {
+      if (m_buf) {
+        AlTyTraits::deallocate(m_buf, object_count);
+      }
+    }
+  }
+
+ private:
+  Allocator* m_alc;
+  Ty* m_buf;
+  size_type m_capacity;
+};
+
+template <class size_type>
+struct size_info {
+  size_info() = default;
+
+  size_info(const size_info&) = default;
+  size_info& operator=(const size_info&) = default;
+
+  size_info(size_info&& other) : size { exchange(other.size, 0) }
+#ifdef KTL_NO_EXCEPTIONS
+  , not_corrupted { exchange(other.not_corrupted, false) }
+#endif
+  {}
+  size_info& operator=(size_info&& other) {
+    if (this != addressof(other)) {
+      size = exchange(other.m_size, 0);
+#ifdef KTL_NO_EXCEPTIONS
+      not_corrupted = exchange(other.m_not_corrupted, false);
+#endif
+    }
+    return this;
+  }
+
+  void swap(size_info& other) noexcept {
+    swap(size, other.size);
+#ifdef KTL_NO_EXCEPTIONS
+    swap(not_corrupted, other.not_corrupted);
+#endif
+  }
+
+#ifdef KTL_NO_EXCEPTIONS
+  bool not_corrupted() const noexcept { return not_corrupted; }
+  bool not_corrupted{true};
+#endif
+
+  size_type size{0};
+};
+}  // namespace mm::details
+
+#ifndef KTL_NO_EXCEPTIONS
+template <class Ty, class Allocator = basic_paged_allocator<Ty> >
+#else
+template <class Ty,
+          class Verifier,
+          class Allocator = basic_paged_allocator<Ty> >
+#endif
+class vector {
+ public:
+  using value_type = Ty;
+  using allocator_type = Allocator;
+  using allocator_traits_type = allocator_traits<allocator_type>;
+  using pointer = typename allocator_traits_type::pointer;
+  using const_pointer = typename allocator_traits_type::const_pointer;
+  using reference = typename allocator_traits_type::reference;
+  using const_reference = typename allocator_traits_type::const_reference;
+  using size_type = typename allocator_traits_type::size_type;
+
+#ifdef KTL_NO_EXCEPTIONS
+  using verifier_type = Verifier;
+#endif
+
+  using iterator = pointer;
+  using const_iterator = const_pointer;
+
+ private:
+  static constexpr size_type MIN_CAPACITY{1}, GROWTH_COEF{2};
+
+ public:
+#ifndef KTL_NO_EXCEPTIONS
+  vector() noexcept(is_nothrow_default_constructible_v<Allocator>)
+      : m_data(m_alc), m_not_corrupted{true} {}
+#else
+  vector() noexcept(is_nothrow_default_constructible_v<Allocator>&&
+                        is_nothrow_default_constructible_v<Verifier>)
+      : m_data(m_alc) {}
+#endif
+
+  vector(size_type object_count) noexcept(
+      noexcept(vector()) && is_nothrow_default_constructible_v<Ty>)
+      : m_data{mm::details::raw_memory(m_alc, object_count)} {
+    if (!m_data.is_null()) {
+#ifndef KTL_NO_EXCEPTIONS
+      uninitialized_default_construct_n(m_data.begin(), object_count);
+      m_size = object_count;
+#else
+      m_size_info.not_corrupted =
+          uninitialized_default_construct_n(m_vf, m_data.begin(), object_count);
+      if (m_size_into.not_corrupted()) {
+        m_size_into.size = object_count;
+      }
+#endif
+    }
+  }
+
+  vector(const vector& other);
+  vector(vector&& other) = default;  // noexcept
+  ~vector();
+
+  vector& operator=(const vector& other);
+  vector& operator=(vector&& other) = default;  // noexcept
+
+  void swap(vector& other) noexcept {
+    m_data.swap(other.m_data);
+    m_size_info.swap(other.m_size_info);
+  }
+
+  bool reserve(size_type object_count) {
+    if (object_count > capacity()) {
+      raw_memory tmp(n);
+      // move_if_noexcept_or_copy_buf(tmp, m_data, m_size);
+      // destroy_and_swap(m_data, m_size, tmp);
+    }
+  }
+  void Resize(size_type n);
+
+  bool push_back(const Ty& elem) { return emplace_back(elem); }
+  bool push_back(Ty&& elem) { return emplace_back(move(elem)); }
+
+  void pop_back() {  // UB if empty
+    destroy_at(addressof(back()));
+    --m_size_info.size;
+  }
 
   template <typename... Types>
-  Ty& EmplaceBack(Types&&... args);
+  bool emplace_back(Types&&... args);
 
-  size_t Size() const noexcept;
-  size_t Capacity() const noexcept;
+  size_type size() const noexcept { return m_size_info.size; }
+  size_type capacity() const noexcept { return m_data.capacity(); }
 
-  const Ty& operator[](size_t i) const;
-  Ty& operator[](size_t i);
+  const_reference operator[](size_type i) const { return m_data[i]; }
+  reference operator[](size_type i) { return m_data[i]; }
 
-  // В данной части задачи реализуйте дополнительно эти функции:
-  using iterator = Ty*;
-  using const_iterator = const Ty*;
+  iterator begin() noexcept { return m_data.begin(); }
+  iterator end() noexcept { return m_data.begin() + m_size_info.size; }
 
-  iterator begin() noexcept;
-  iterator end() noexcept;
+  const_iterator begin() const noexcept { return cbegin(); }
+  const_iterator end() const noexcept { return cend(); }
 
-  const_iterator begin() const noexcept;
-  const_iterator end() const noexcept;
+  const_iterator cbegin() const noexcept { return m_data.begin(); }
+  const_iterator cend() const noexcept {
+    return m_data.begin() + m_size_info.size;
+  }
 
-  // Тут должна быть такая же реализация, как и для константных версий begin/end
-  const_iterator cbegin() const noexcept;
-  const_iterator cend() const noexcept;
+  reference front() { return return m_data[0]; }
+  reference back() { return return m_data[size() - 1]; }
+
+  const_reference front() const { return return m_data[0]; }
+  const_reference back() { return return m_data[size() - 1]; }
 
   // Вставляет элемент перед pos
   // Возвращает итератор на вставленный элемент
@@ -68,90 +253,61 @@ class Vector {
   iterator Erase(const_iterator it);
 
  private:
-  class MemoryBuffer;
-  static size_t calculate_new_capacity(size_t current_capacity,
-                                       size_t summary_object_cnt);
-  static void move_if_noexcept_or_copy_buf(MemoryBuffer& dst,
-                                           MemoryBuffer& src,
-                                           size_t count);
-  static void move_if_noexcept_or_copy(Ty* dst, Ty* src, size_t count);
+  class raw_memory;
+  static size_type calculate_new_capacity(size_type current_capacity,
+                                          size_type summary_object_cnt) {
+    if (current_capacity >= summary_object_cnt) {
+      return current_capacity;
+    }
+    return current_capacity
+               ? (max)(MIN_CAPACITY, summary_object_cnt)
+               : (max)(current_capacity * GROWTH_COEF, summary_object_cnt);
+  }
+  static void move_if_noexcept_or_copy_buf(raw_memory& dst,
+                                           raw_memory& src,
+                                           size_type count);
+  static void move_if_noexcept_or_copy(Ty* dst, Ty* src, size_type count);
 
   template <typename... Types>
   Ty& emplace_back_helper(Types&&... args);  //Не изменяет размер
   template <typename... Types>
   static Ty* construct_in_place(void* place, Types&&... args);
-  static void destroy_helper(MemoryBuffer& buf, size_t count);
+  static void destroy_helper(raw_memory& buf, size_type count);
   static void destroy_and_swap(
-      MemoryBuffer& old_buf,
-      size_t count,
-      MemoryBuffer& new_buf);  //Очищает старый буфер и заменяет его на новый
- private:
-  inline static constexpr size_t min_capacity{1}, growth_coef{2};
+      raw_memory& old_buf,
+      size_type count,
+      raw_memory& new_buf);  //Очищает старый буфер и заменяет его на новый
 
  private:
-  class MemoryBuffer {
-   public:
-    MemoryBuffer() = default;
-    MemoryBuffer(size_t n);
-    MemoryBuffer(const MemoryBuffer&) = delete;
-    MemoryBuffer(MemoryBuffer&& other) noexcept;
-    MemoryBuffer& operator=(const MemoryBuffer&) = delete;
-    MemoryBuffer& operator=(MemoryBuffer&& other) noexcept;
-    ~MemoryBuffer();
-
-    void Swap(MemoryBuffer& other) noexcept;
-    size_t Capacity() const noexcept;
-
-    Ty* begin() noexcept;
-    Ty* end() noexcept;
-    const Ty* begin() const noexcept;
-    const Ty* end() const noexcept;
-
-    Ty& operator[](size_t idx) noexcept;
-    const Ty& operator[](size_t idx) const noexcept;
-
-   private:
-    static Ty* allocate(size_t object_count);
-    void deallocate(Ty* buf);
-
-   private:
-    Ty* m_buf{nullptr};
-    size_t m_capacity{0};
-  };
-  MemoryBuffer m_data;
-  size_t m_size{0};
-};
+  Allocator m_alc;
+#ifdef KTL_NO_EXCEPTIONS
+  Verifier m_vf;
+#endif
+  mm::details::raw_memory<Allocator> m_data;
+  mm::details::size_info<size_type> m_size_info;
+};  // namespace ktl
 
 template <class Ty>
-Vector<Ty>::Vector(size_t n) : m_data{MemoryBuffer(n)}, m_size{n} {
-  std::uninitialized_default_construct_n(m_data.begin(), n);
-}
-
-template <class Ty>
-Vector<Ty>::Vector(const Vector& other)
+vector<Ty>::vector(const vector& other)
     : m_data(other.m_size), m_size{other.m_size} {
   std::uninitialized_copy_n(other.m_data.begin(), other.m_size, m_data.begin());
 }
 
 template <class Ty>
-Vector<Ty>::Vector(Vector&& other) noexcept
-    : m_data(std::move(other.m_data)), m_size{std::exchange(other.m_size, 0)} {}
-
-template <class Ty>
-Vector<Ty>::~Vector() {
+vector<Ty>::~vector() {
   destroy_helper(m_data, m_size);
 }
 
 template <class Ty>
-Vector<Ty>& Vector<Ty>::operator=(const Vector& other) {
+vector<Ty>& vector<Ty>::operator=(const vector& other) {
   if (this != std::addressof(other)) {
     if (other.m_size >
         Capacity()) {  //Если размер копируемого вектора больше, чем емкость
                        //текущего - не реаллоцируем уже имеющиеся элементы
-      Vector tmp(other);  // Copy-and-Swap
+      vector tmp(other);  // Copy-and-Swap
       Swap(tmp);
     } else {
-      const size_t min_size{std::min(m_size, other.m_size)};
+      const size_type min_size{std::min(m_size, other.m_size)};
       std::copy(  //Для примитивных типов std::copy использует memmove()
           other.m_data.begin(), other.m_data.begin() + min_size,
           m_data.begin());
@@ -169,31 +325,25 @@ Vector<Ty>& Vector<Ty>::operator=(const Vector& other) {
 }
 
 template <class Ty>
-Vector<Ty>& Vector<Ty>::operator=(Vector&& other) noexcept {
+vector<Ty>& vector<Ty>::operator=(vector&& other) noexcept {
   if (this != std::addressof(other)) {
-    Vector tmp(std::move(other));
+    vector tmp(std::move(other));
     Swap(tmp);
   }
   return *this;
 }
 
 template <class Ty>
-void Vector<Ty>::Swap(Vector& other) noexcept {
-  m_data.Swap(other.m_data);
-  std::swap(m_size, other.m_size);
-}
-
-template <class Ty>
-void Vector<Ty>::Reserve(size_t n) {
+void vector<Ty>::Reserve(size_type n) {
   if (n > Capacity()) {
-    MemoryBuffer tmp(n);
+    raw_memory tmp(n);
     move_if_noexcept_or_copy_buf(tmp, m_data, m_size);
     destroy_and_swap(m_data, m_size, tmp);
   }
 }
 
 template <class Ty>
-void Vector<Ty>::Resize(size_t n) {
+void vector<Ty>::Resize(size_type n) {
   Reserve(n);
   if (n < m_size) {
     std::destroy(m_data.begin() + n, m_data.begin() + m_size);
@@ -206,94 +356,28 @@ void Vector<Ty>::Resize(size_t n) {
 }
 
 template <class Ty>
-void Vector<Ty>::PushBack(const Ty& elem) {
-  EmplaceBack(elem);
-}
-
-template <class Ty>
-void Vector<Ty>::PushBack(Ty&& elem) {
-  EmplaceBack(std::move(elem));
-}
-
-template <class Ty>
-void Vector<Ty>::PopBack() {
-  std::destroy_at(m_data.begin() + m_size - 1);
-  --m_size;  //Не забываем обновить размер вектора
-}
-
-template <class Ty>
 template <typename... Types>
-Ty& Vector<Ty>::EmplaceBack(Types&&... args) {
+Ty& vector<Ty>::EmplaceBack(Types&&... args) {
   Ty& elem_ref{emplace_back_helper(std::forward<Types>(args)...)};
   ++m_size;
   return elem_ref;
 }
 
 template <class Ty>
-size_t Vector<Ty>::Size() const noexcept {
-  return m_size;
-}
-
-template <class Ty>
-size_t Vector<Ty>::Capacity() const noexcept {
-  return m_data.Capacity();
-}
-
-template <class Ty>
-const Ty& Vector<Ty>::operator[](size_t i) const {
-  return m_data[i];
-}
-
-template <class Ty>
-Ty& Vector<Ty>::operator[](size_t i) {
-  return m_data[i];
-}
-
-template <class Ty>
-typename Vector<Ty>::iterator Vector<Ty>::begin() noexcept {
-  return m_data.begin();
-}
-
-template <class Ty>
-typename Vector<Ty>::iterator Vector<Ty>::end() noexcept {
-  return m_data.begin() + m_size;
-}
-
-template <class Ty>
-typename Vector<Ty>::const_iterator Vector<Ty>::begin() const noexcept {
-  return m_data.begin();
-}
-
-template <class Ty>
-typename Vector<Ty>::const_iterator Vector<Ty>::end() const noexcept {
-  return m_data.begin() + m_size;
-}
-
-template <class Ty>
-typename Vector<Ty>::const_iterator Vector<Ty>::cbegin() const noexcept {
-  return begin();
-}
-
-template <class Ty>
-typename Vector<Ty>::const_iterator Vector<Ty>::cend() const noexcept {
-  return end();
-}
-
-template <class Ty>
-typename Vector<Ty>::iterator Vector<Ty>::Insert(const_iterator pos,
+typename vector<Ty>::iterator vector<Ty>::Insert(const_iterator pos,
                                                  const Ty& elem) {
   return Emplace(pos, elem);
 }
 
 template <class Ty>
-typename Vector<Ty>::iterator Vector<Ty>::Insert(const_iterator pos,
+typename vector<Ty>::iterator vector<Ty>::Insert(const_iterator pos,
                                                  Ty&& elem) {
   return Emplace(pos, std::move(elem));
 }
 
 template <class Ty>
 template <typename... Types>
-typename Vector<Ty>::iterator Vector<Ty>::Emplace(const_iterator it,
+typename vector<Ty>::iterator vector<Ty>::Emplace(const_iterator it,
                                                   Types&&... args) {
   auto offset{it - m_data.begin()};
   if (offset == m_size) {  //Смещение от начала
@@ -302,7 +386,7 @@ typename Vector<Ty>::iterator Vector<Ty>::Emplace(const_iterator it,
     if (m_size < Capacity()) {
       emplace_back_helper(std::move_if_noexcept(
           m_data[m_size - 1]));  //Конструируем собственный последний элемент на
-                                 //1 позицию правее
+                                 // 1 позицию правее
       shift_right(
           m_data.begin() + offset,
           m_data.begin() + m_size  //Значение m_size пока остается прежним
@@ -310,7 +394,7 @@ typename Vector<Ty>::iterator Vector<Ty>::Emplace(const_iterator it,
       construct_in_place(std::addressof(m_data[offset]),
                          std::forward<Types>(args)...);
     } else {
-      MemoryBuffer tmp(calculate_new_capacity(  //Вычисляем требуемую емкость
+      raw_memory tmp(calculate_new_capacity(  //Вычисляем требуемую емкость
           Capacity(), m_size + 1));
       construct_in_place(std::addressof(tmp[offset]),
                          std::forward<Types>(args)...);  //Конструируем элемент
@@ -326,7 +410,7 @@ typename Vector<Ty>::iterator Vector<Ty>::Emplace(const_iterator it,
 }
 
 template <class Ty>
-typename Vector<Ty>::iterator Vector<Ty>::Erase(const_iterator it) {
+typename vector<Ty>::iterator vector<Ty>::Erase(const_iterator it) {
   iterator target{m_data.begin() + (it - m_data.begin())};
   shift_left(  //Сдвигаем элементы влево
       target, m_data.begin() + m_size);
@@ -334,27 +418,15 @@ typename Vector<Ty>::iterator Vector<Ty>::Erase(const_iterator it) {
   return target;  //Теперь по этому адресу расположен элемент, следующий за
                   //удалённым
 }
-
 template <class Ty>
-size_t Vector<Ty>::calculate_new_capacity(size_t current_capacity,
-                                          size_t summary_object_cnt) {
-  if (current_capacity >= summary_object_cnt) {
-    return current_capacity;
-  }
-  return current_capacity
-             ? std::max(min_capacity, summary_object_cnt)
-             : std::max(current_capacity * growth_coef, summary_object_cnt);
-}
-
-template <class Ty>
-void Vector<Ty>::move_if_noexcept_or_copy_buf(MemoryBuffer& dst,
-                                              MemoryBuffer& src,
-                                              size_t count) {
+void vector<Ty>::move_if_noexcept_or_copy_buf(raw_memory& dst,
+                                              raw_memory& src,
+                                              size_type count) {
   move_if_noexcept_or_copy(dst.begin(), src.begin(), count);
 }
 
 template <class Ty>
-void Vector<Ty>::move_if_noexcept_or_copy(Ty* dst, Ty* src, size_t count) {
+void vector<Ty>::move_if_noexcept_or_copy(Ty* dst, Ty* src, size_type count) {
   if constexpr (std::is_nothrow_move_constructible_v<Ty>) {  // strong guarantee
     std::uninitialized_move_n(
         src, count, dst);  //Оптимизировано для trivially copyable-типов
@@ -365,7 +437,7 @@ void Vector<Ty>::move_if_noexcept_or_copy(Ty* dst, Ty* src, size_t count) {
 
 template <class Ty>
 template <typename... Types>
-Ty& Vector<Ty>::emplace_back_helper(Types&&... args) {
+Ty& vector<Ty>::emplace_back_helper(Types&&... args) {
   Ty* elem_ptr;
   if (m_size < Capacity()) {  //Не изменяем my_size, чтобы не оставить вектор в
                               //несогласованном состоянии
@@ -373,7 +445,7 @@ Ty& Vector<Ty>::emplace_back_helper(Types&&... args) {
         std::addressof(m_data[m_size]),
         std::forward<Types>(args)...);  //при выбросе исключения
   } else {
-    MemoryBuffer tmp(calculate_new_capacity(  //Вычисляем требуемую емкость
+    raw_memory tmp(calculate_new_capacity(  //Вычисляем требуемую емкость
         Capacity(), m_size + 1));
     elem_ptr = new (std::addressof(tmp[m_size])) Ty(std::forward<Types>(
         args)...);  //Сначала конструируем новый объект, т.к. в EmplaceBack()
@@ -387,95 +459,46 @@ Ty& Vector<Ty>::emplace_back_helper(Types&&... args) {
 
 template <class Ty>
 template <typename... Types>
-Ty* Vector<Ty>::construct_in_place(void* place, Types&&... args) {
+Ty* vector<Ty>::construct_in_place(void* place, Types&&... args) {
   return new (place) Ty(std::forward<Types>(args)...);
 }
 
 template <class Ty>
-void Vector<Ty>::destroy_helper(MemoryBuffer& buf, size_t count) {
+void vector<Ty>::destroy_helper(raw_memory& buf, size_type count) {
   std::destroy_n(buf.begin(), count);
 }
 
 template <class Ty>
-void Vector<Ty>::destroy_and_swap(MemoryBuffer& old_buf,
-                                  size_t count,
-                                  MemoryBuffer& new_buf) {
+void vector<Ty>::destroy_and_swap(raw_memory& old_buf,
+                                  size_type count,
+                                  raw_memory& new_buf) {
   destroy_helper(old_buf, count);
   old_buf.Swap(new_buf);
 }
 
 template <class Ty>
-Vector<Ty>::MemoryBuffer::MemoryBuffer(size_t n)
+vector<Ty>::raw_memory::raw_memory(size_type n)
     : m_buf{allocate(n)}, m_capacity{n} {}
 
 template <class Ty>
-Vector<Ty>::MemoryBuffer::MemoryBuffer(MemoryBuffer&& other) noexcept
+vector<Ty>::raw_memory::raw_memory(raw_memory&& other) noexcept
     : m_buf{std::exchange(other.m_buf, nullptr)},
       m_capacity{std::exchange(other.m_capacity, 0)} {}
 
 template <class Ty>
-typename Vector<Ty>::MemoryBuffer& Vector<Ty>::MemoryBuffer::operator=(
-    MemoryBuffer&& other) noexcept {
+typename vector<Ty>::raw_memory& vector<Ty>::raw_memory::operator=(
+    raw_memory&& other) noexcept {
   if (this != std::addressof(other)) {
-    MemoryBuffer tmp(std::move(other));
+    raw_memory tmp(std::move(other));
     Swap(tmp);  // Move-and-Swap
   }
   return *this;
 }
 
 template <class Ty>
-Vector<Ty>::MemoryBuffer::~MemoryBuffer() {
+vector<Ty>::raw_memory::~raw_memory() {
   deallocate(m_buf);
 }
 
-template <class Ty>
-void Vector<Ty>::MemoryBuffer::Swap(MemoryBuffer& other) noexcept {
-  std::swap(m_buf, other.m_buf);
-  std::swap(m_capacity, other.m_capacity);
-}
-
-template <class Ty>
-size_t Vector<Ty>::MemoryBuffer::Capacity() const noexcept {
-  return m_capacity;
-}
-
-template <class Ty>
-Ty* Vector<Ty>::MemoryBuffer::begin() noexcept {
-  return m_buf;
-}
-
-template <class Ty>
-Ty* Vector<Ty>::MemoryBuffer::end() noexcept {
-  return m_buf + m_capacity;
-}
-
-template <class Ty>
-const Ty* Vector<Ty>::MemoryBuffer::begin() const noexcept {
-  return m_buf;
-}
-
-template <class Ty>
-const Ty* Vector<Ty>::MemoryBuffer::end() const noexcept {
-  return m_buf + m_capacity;
-}
-
-template <class Ty>
-Ty& Vector<Ty>::MemoryBuffer::operator[](size_t idx) noexcept {
-  return m_buf[idx];
-}
-
-template <class Ty>
-const Ty& Vector<Ty>::MemoryBuffer::operator[](size_t idx) const noexcept {
-  return m_buf[idx];
-}
-
-template <class Ty>
-Ty* Vector<Ty>::MemoryBuffer::allocate(size_t object_count) {
-  return static_cast<Ty*>(operator new[](object_count * sizeof(Ty)));
-}
-
-template <class Ty>
-void Vector<Ty>::MemoryBuffer::deallocate(Ty* buf) {
-  operator delete[](buf);
-}
+}  // namespace ktl
 #endif

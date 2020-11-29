@@ -18,7 +18,7 @@ inline destroy_entry_t* destructor_stack_head{};
 extern "C" {
 int CRTCALL atexit(ktl::runtime::crt_handler_t destructor) {
   if (destructor) {
-    auto new_entry{new (nothrow) ktl::runtimedestroy_entry_t{
+    auto new_entry{new (nothrow) ktl::runtime::destroy_entry_t{
         ktl::runtime::destructor_stack_head, destructor}};
     if (new_entry) {
       ktl::runtime::destructor_stack_head = new_entry;
