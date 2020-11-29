@@ -25,8 +25,7 @@ class unicode_string_view {
 
  public:
   constexpr unicode_string_view() noexcept = default;
-  constexpr unicode_string_view(const unicode_string_view& other) noexcept =
-      default;
+  constexpr unicode_string_view(const unicode_string_view& other) = default;
   constexpr unicode_string_view& operator=(const unicode_string_view& other) =
       default;
 
@@ -61,8 +60,12 @@ class unicode_string_view {
   constexpr const_pointer data() const { return m_str.Buffer; }
 
  public:
-  constexpr size_type size() const { return m_str.Length; }
-  constexpr size_type length() const { return m_str.Length; }
+  constexpr size_type size() const {
+    return length_to_characters(m_str.Length);
+  }
+  constexpr size_type length() const {
+    return length_to_characters(m_str.Length);
+  }
   constexpr bool empty() const { return length() == 0; }
 
  public:
@@ -175,20 +178,29 @@ class unicode_string_view {
 #endif
 
  private:
-  constexpr size_type calc_segment_length(size_type pos, size_type count) {
-    return (std::min)(
-        length(),
-        static_cast<size_type>(
-            count +
-            pos)); 
+  constexpr size_type calc_segment_length(size_type pos,
+                                          size_type count) {  // In characters
+    return (std::min)(length(), static_cast<size_type>(count + pos));
   }
-  static constexpr UNICODE_STRING make_unicode_string(const value_type* str,
-                                                      size_type length) {
+  static constexpr UNICODE_STRING make_unicode_string(
+      const value_type* str,
+      size_type length) noexcept {  // length in characters
     UNICODE_STRING unicode_str{};
     unicode_str.Buffer = dirty::remove_const_from_value(str);
-    unicode_str.Length = length;
-    unicode_str.MaximumLength = length;
+    unicode_str.Length = length_to_bytes(
+        length);  // UNICODE_STRING requires length in bytes (NOT in characters)
+    unicode_str.MaximumLength = length_to_bytes(length);
     return unicode_str;
+  }
+
+  static constexpr size_type length_to_bytes(
+      size_type length_in_characters) noexcept {
+    return length_in_characters * sizeof(value_type);
+  }
+
+  static constexpr size_type length_to_characters(
+      size_type bytes_count) noexcept {
+    return bytes_count / sizeof(value_type);
   }
 
  private:
