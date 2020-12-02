@@ -99,7 +99,7 @@ void* _cdecl operator new(size_t bytes,
 
 void* _cdecl operator new(size_t bytes, const nothrow_t&) noexcept {
 #ifdef KTL_USING_NON_PAGED_NEW_AS_DEFAULT
-  return ktl::mm::alloc_non_paged(
+  return ktl::alloc_non_paged(
       bytes);  //По умолчанию память выделяется в paged-пуле
 #else
   return ktl::alloc_paged(bytes);
