@@ -1,0 +1,7 @@
+# Builded libraries
+lib/
+
+# Build system temporary files and directories
+Build/
+out/
+.vs/
