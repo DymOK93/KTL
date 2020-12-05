@@ -328,7 +328,7 @@ inline constexpr bool is_move_constructible_v =
 template <class, class Ty, class... Types>
 struct is_nothrow_constructible {
   static constexpr bool value =
-      is_constructible_v<Ty, Types...>&& noexcept(Ty(declval<Types>()...));
+      is_constructible_v<Ty, Types...> && noexcept(Ty(declval<Types>()...));
 };
 
 template <class Ty, class... Types>

@@ -7,9 +7,8 @@
 
 #include <ntddk.h>
 
-namespace ktl::th {  // threads management
-namespace chrono = ktl::chrono;
-namespace details {
+namespace ktl {  // threads management
+namespace th::details {
 template <class SyncPrimitive>
 class sync_primitive_base {
  public:
@@ -37,7 +36,7 @@ class waitable_sync_primitive
                                                    //поддерживающие ожидание с
                                                    //таймером
  public:
-  using MyBase = details::sync_primitive_base<KMUTEX>;
+  using MyBase = th::details::sync_primitive_base<KMUTEX>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
   using native_handle_t = typename MyBase::native_handle_t;
   using duration_t = chrono::duration_t;
@@ -63,9 +62,9 @@ class waitable_sync_primitive
 }  // namespace details
 
 class recursive_mutex
-    : public details::waitable_sync_primitive<KMUTEX> {  // Recursive KMUTEX
+    : public th::details::waitable_sync_primitive<KMUTEX> {  // Recursive KMUTEX
  public:
-  using MyBase = details::waitable_sync_primitive<KMUTEX>;
+  using MyBase = th::details::waitable_sync_primitive<KMUTEX>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
   using native_handle_t = typename MyBase::native_handle_t;
 
@@ -93,11 +92,11 @@ class timed_recursive_mutex : public recursive_mutex {  //Блокировка с таймером
 };
 
 class fast_mutex
-    : public details::sync_primitive_base<FAST_MUTEX> {  // Implemented using
+    : public th::details::sync_primitive_base<FAST_MUTEX> {  // Implemented using
                                                          // non-recursive
                                                          // FAST_MUTEX
  public:
-  using MyBase = details::sync_primitive_base<FAST_MUTEX>;
+  using MyBase = th::details::sync_primitive_base<FAST_MUTEX>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
   using native_handle_t = typename MyBase::native_handle_t;
 
@@ -110,11 +109,11 @@ class fast_mutex
 };
 
 class shared_mutex
-    : public details::sync_primitive_base<ERESOURCE> {  // Wrapper for
+    : public th::details::sync_primitive_base<ERESOURCE> {  // Wrapper for
                                                         // ERESOURCE
 
  public:
-  using MyBase = details::sync_primitive_base<ERESOURCE>;
+  using MyBase = th::details::sync_primitive_base<ERESOURCE>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
   using native_handle_t = typename MyBase::native_handle_t;
 
@@ -136,10 +135,10 @@ class shared_mutex
 };
 
 class dpc_spin_lock
-    : public details::sync_primitive_base<KSPIN_LOCK> {  // DISPATCH_LEVEL spin
+    : public th::details::sync_primitive_base<KSPIN_LOCK> {  // DISPATCH_LEVEL spin
                                                          // lock
  public:
-  using MyBase = details::sync_primitive_base<KSPIN_LOCK>;
+  using MyBase = th::details::sync_primitive_base<KSPIN_LOCK>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
   using native_handle_t = typename MyBase::native_handle_t;
 
@@ -151,10 +150,10 @@ class dpc_spin_lock
 };
 
 class semaphore
-    : public details::sync_primitive_base<KSEMAPHORE> {  // Implemented using
+    : public th::details::sync_primitive_base<KSEMAPHORE> {  // Implemented using
                                                          // KSEMAPHORE
  public:
-  using MyBase = details::sync_primitive_base<KSEMAPHORE>;
+  using MyBase = th::details::sync_primitive_base<KSEMAPHORE>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
   using native_handle_t = typename MyBase::native_handle_t;
 
@@ -185,10 +184,10 @@ class semaphore
   }
 };
 
-class event : public details::sync_primitive_base<KEVENT> {  // Implemented
+class event : public th::details::sync_primitive_base<KEVENT> {  // Implemented
                                                              // using KSEMAPHORE
  public:
-  using MyBase = details::sync_primitive_base<KEVENT>;
+  using MyBase = th::details::sync_primitive_base<KEVENT>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
   using native_handle_t = typename MyBase::native_handle_t;
 
@@ -238,7 +237,7 @@ class event : public details::sync_primitive_base<KEVENT> {  // Implemented
   State m_state;
 };
 
-namespace details {
+namespace th::details {
 bool unlock_impl() {
   return true;  // Dummy
 }
@@ -257,10 +256,10 @@ bool unlock_impl(FirstLocable& first, RestLockables&... rest) {
 
 template <class... Lockable>
 void unlock(Lockable&... locables) {
-  details::unlock_impl(locables);
+  th::details::unlock_impl(locables);
 }
 
-namespace details {
+namespace th::details {
 bool lock_impl() {
   return true;  // Dummy
 }
@@ -282,10 +281,10 @@ bool lock_impl(FirstLocable& first, RestLockables&... rest) {
 
 template <class... Lockable>
 void lock(Lockable&... locables) {
-  details::lock_impl(locables);
+  th::details::lock_impl(locables);
 }
 
-namespace details {
+namespace th::details {
 template <class Locable, class Duration, class = void>
 struct has_try_lock_for : false_type {};
 
@@ -306,7 +305,7 @@ struct defer_lock_tag {};    //Отложенная блокировка
 struct try_lock_for_tag {};  //Блокировка с таймаутом
 struct adopt_lock_tag {};  //Сигнализирует, что мьютекс уже захвачен
 
-namespace details {
+namespace th::details {
 template <class Mutex, class = void>
 struct get_duration_type {
   using type = chrono::duration_t;
@@ -389,9 +388,9 @@ class mutex_guard_base {
 }  // namespace details
 
 template <class Mutex>
-class lock_guard : public details::mutex_guard_base<Mutex> {
+class lock_guard : public th::details::mutex_guard_base<Mutex> {
  public:
-  using MyBase = details::mutex_guard_base<Mutex>;
+  using MyBase = th::details::mutex_guard_base<Mutex>;
   using mutex_t = typename MyBase::mutex_t;
 
  public:
@@ -402,16 +401,16 @@ class lock_guard : public details::mutex_guard_base<Mutex> {
 
 template <class Mutex>
 lock_guard(Mutex&)
-    -> lock_guard<typename details::mutex_guard_base<Mutex>::mutex_t>;
+    -> lock_guard<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
 template <class Mutex>
 lock_guard(Mutex&, adopt_lock_tag)
-    -> lock_guard<typename details::mutex_guard_base<Mutex>::mutex_t>;
+    -> lock_guard<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
 template <class Mutex>
-class unique_lock : public details::mutex_guard_base<Mutex> {
+class unique_lock : public th::details::mutex_guard_base<Mutex> {
  public:
-  using MyBase = details::mutex_guard_base<Mutex>;
+  using MyBase = th::details::mutex_guard_base<Mutex>;
   using mutex_t = typename MyBase::mutex_t;
   using duration_t = typename MyBase::duration_t;
 
@@ -422,7 +421,7 @@ class unique_lock : public details::mutex_guard_base<Mutex> {
   unique_lock(mutex_t& mtx, defer_lock_tag) : MyBase(mtx) {}
 
   template <class Mtx = mutex_t,
-            enable_if_t<details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
+            enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
   unique_lock(mutex_t& mtx, duration_t timeout_duration, try_lock_for_tag)
       : MyBase(mtx){MyBase::try_lock_for(timeout_duration)}
 
@@ -451,26 +450,26 @@ class unique_lock : public details::mutex_guard_base<Mutex> {
 
 template <class Mutex>
 unique_lock(Mutex&)
-    -> unique_lock<typename details::mutex_guard_base<Mutex>::mutex_t>;
+    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
 template <class Mutex>
 unique_lock(Mutex&, adopt_lock_tag)
-    -> unique_lock<typename details::mutex_guard_base<Mutex>::mutex_t>;
+    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
 template <class Mutex>
 unique_lock(Mutex&, defer_lock_tag)
-    -> unique_lock<typename details::mutex_guard_base<Mutex>::mutex_t>;
+    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
 template <class Mutex>
 unique_lock(Mutex&,
-            typename details::mutex_guard_base<Mutex>::duration_t,
+            typename th::details::mutex_guard_base<Mutex>::duration_t,
             try_lock_for_tag)
-    -> unique_lock<typename details::mutex_guard_base<Mutex>::mutex_t>;
+    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
 template <class Mutex>
-class shared_lock : public details::mutex_guard_base<Mutex> {
+class shared_lock : public th::details::mutex_guard_base<Mutex> {
  public:
-  using MyBase = details::mutex_guard_base<Mutex>;
+  using MyBase = th::details::mutex_guard_base<Mutex>;
   using mutex_t = typename MyBase::mutex_t;
   using duration_t = typename MyBase::duration_t;
 
@@ -481,7 +480,7 @@ class shared_lock : public details::mutex_guard_base<Mutex> {
   shared_lock(mutex_t& mtx, defer_lock_tag) : MyBase(mtx) {}
 
   template <class Mtx = mutex_t,
-            enable_if_t<details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
+            enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
   shared_lock(mutex_t& mtx, duration_t timeout_duration, try_lock_for_tag)
       : MyBase(mtx){MyBase::try_lock_for(timeout_duration)}
 
@@ -510,21 +509,21 @@ class shared_lock : public details::mutex_guard_base<Mutex> {
 
 template <class Mutex>
 shared_lock(Mutex&)
-    -> shared_lock<typename details::mutex_guard_base<Mutex>::mutex_t>;
+    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
 template <class Mutex>
 shared_lock(Mutex&, adopt_lock_tag)
-    -> shared_lock<typename details::mutex_guard_base<Mutex>::mutex_t>;
+    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
 template <class Mutex>
 shared_lock(Mutex&, defer_lock_tag)
-    -> shared_lock<typename details::mutex_guard_base<Mutex>::mutex_t>;
+    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
 template <class Mutex>
 shared_lock(Mutex&,
-            typename details::mutex_guard_base<Mutex>::duration_t,
+            typename th::details::mutex_guard_base<Mutex>::duration_t,
             try_lock_for_tag)
-    -> shared_lock<typename details::mutex_guard_base<Mutex>::mutex_t>;
+    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
 // TODO: tuple, scoped_lock
 }  // namespace ktl::th
