@@ -1,12 +1,14 @@
 ﻿#pragma once
 #include "string_base.hpp"
 #include "string_algorithms.hpp"
+#include "type_traits.hpp"
 
 #include <ntddk.h>
+
+#ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <algorithm>
-#include <cstdint>
 #include <string_view>
-#include <utility>
+#endif
 
 namespace ktl {
 class unicode_string_view {
@@ -17,11 +19,13 @@ class unicode_string_view {
   using reference = wchar_t&;
   using const_reference = const wchar_t&;
   using const_iterator = const_pointer;
+#ifndef KTL_NO_CXX_STANDARD_LIBRARY
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+#endif
   using size_type = unsigned short;  //Как и в UNICODE_STRING
   using difference_type = int;
 
-  static constexpr size_type npos = (std::numeric_limits<size_type>::max)();
+  static constexpr size_type npos = static_cast<size_type>(-1);
 
  public:
   constexpr unicode_string_view() noexcept = default;
@@ -33,9 +37,7 @@ class unicode_string_view {
   constexpr unicode_string_view(const wchar_t (&str)[N])
       : m_str{make_unicode_string(str), static_cast<size_type>(N)} {}
   constexpr unicode_string_view(const wchar_t* str)
-      : m_str{make_unicode_string(
-            str,
-            static_cast<size_type>(algo::string::length(str)))} {}
+      : m_str{make_unicode_string(str, static_cast<size_type>(ktl::length(str)))} {}
   constexpr unicode_string_view(const wchar_t* str, size_type length)
       : m_str{make_unicode_string(str, length)} {}
   constexpr unicode_string_view(UNICODE_STRING str) : m_str{str} {}
@@ -71,29 +73,28 @@ class unicode_string_view {
  public:
   constexpr void remove_prefix(size_type shift) { m_str.Buffer += shift; }
   constexpr void remove_suffix(size_type shift) { m_str.Length -= shift; }
-  _CONSTEXPR20 void swap(unicode_string_view& other) {
-    std::swap(m_str, other.m_str);
+  constexpr void swap(unicode_string_view& other) {
+    ktl::swap(m_str, other.m_str);
   }
 
  public:
-  _CONSTEXPR20 size_type copy(wchar_t* dst,
+  /*constexpr size_type copy(wchar_t* dst,          // ktl::copy пока недоступна
                               size_type count,
                               size_type pos = 0) {
     auto last{std::copy(begin() + pos,
                         begin() + calc_segment_length(pos, count), dst)};
     return static_cast<size_type>(last - dst);
   }
-  _CONSTEXPR20 size_type copy(PUNICODE_STRING dst,
+  constexpr size_type copy(PUNICODE_STRING dst,
                               size_type count,
                               size_type pos = 0) {
     return copy(dst->Buffer, count, pos);
-  }
+  }*/
   constexpr unicode_string_view substr(size_type pos, size_type count = npos) {
     return unicode_string_view(data() + pos, calc_segment_length(pos, count));
   }
   constexpr int compare(unicode_string_view other) {
-    return algo::string::compare(data(), size(), std::data(other),
-                                 std::size(other));
+    return ktl::compare(data(), size(), other.data(), other.size());
   }
   constexpr int compare(size_type pos,
                         size_type count,
@@ -108,8 +109,7 @@ class unicode_string_view {
     return substr(pos, count).compare(other.substr(other_pos, other_count));
   }
   constexpr int compare(const wchar_t* other) {
-    return algo::string::compare(data(), size(), other,
-                                 algo::string::length(other));
+    return ktl::compare(data(), size(), other, ktl::length(other));
   }
   constexpr int compare(size_type pos, size_type count, const wchar_t* other) {
     return substr(pos, count).compare(other);
@@ -124,23 +124,23 @@ class unicode_string_view {
   }
   constexpr bool starts_with(wchar_t ch) { return !empty() && front() == ch; }
   constexpr bool starts_with(const wchar_t* str) {
-    size_type str_length{static_cast<size_type>(algo::string::length(str))};
+    size_type str_length{static_cast<size_type>(ktl::length(str))};
     return compare(0, str_length, str, 0, str_length) == 0;
   }
   constexpr bool starts_with(unicode_string_view str) {
-    return compare(0, std::size(str), str) == 0;
+    return compare(0, str.length(), str) == 0;
   }
   constexpr bool ends_with(wchar_t ch) { return !empty() && back() == ch; }
   constexpr bool ends_with(const wchar_t* str) {
-    size_type str_length{static_cast<size_type>(algo::string::length(str))};
+    size_type str_length{static_cast<size_type>(ktl::length(str))};
     if (str_length > length()) {
       return false;
     }
     auto lhs{substr(length() - str_length, str_length)};
-    return lhs.compare(0, std::size(lhs), str, 0, str_length);
+    return lhs.compare(0, ktl::length(lhs), str, 0, str_length);
   }
   constexpr bool ends_with(unicode_string_view str) {
-    size_type str_length{std::size(str)};
+    size_type str_length{str.size()};
     if (str_length > length()) {
       return false;
     }
@@ -148,23 +148,22 @@ class unicode_string_view {
     return lhs.compare(str);
   }
   constexpr size_type find(wchar_t ch, size_type pos = 0) {
-    return static_cast<size_type>(
-        algo::string::find_character(substr(pos), ch));
+    return static_cast<size_type>(find_character(substr(pos), ch));
   }
 
   constexpr size_type find(const wchar_t* str, size_type pos = 0) {
-    return static_cast<size_type>(algo::string::find_substr(substr(pos), str));
+    return static_cast<size_type>(find_substr(substr(pos), str));
   }
 
   constexpr size_type find(const wchar_t* str,
                            size_t count,
                            size_type pos = 0) {
     auto lhs{substr(pos)};
-    return static_cast<size_type>(algo::string::details::find_substr_impl(
-        substr(pos), 0, std::size(lhs), str, count));
+    return static_cast<size_type>(
+        str::details::find_substr_impl(substr(pos), 0, lhs.size(), str, count));
   }
   constexpr size_type find(unicode_string_view str, size_type pos = 0) {
-    return static_cast<size_type>(algo::string::find_substr(substr(pos), str));
+    return static_cast<size_type>(find_substr(substr(pos), str));
   }
 
  public:
@@ -180,7 +179,9 @@ class unicode_string_view {
  private:
   constexpr size_type calc_segment_length(size_type pos,
                                           size_type count) {  // In characters
-    return (std::min)(length(), static_cast<size_type>(count + pos));
+    return length() <= static_cast<size_type>(count + pos)
+               ? length()
+               : static_cast<size_type>(count + pos);
   }
   static constexpr UNICODE_STRING make_unicode_string(
       const value_type* str,
@@ -225,11 +226,9 @@ constexpr bool operator<=(unicode_string_view lhs, unicode_string_view rhs) {
 constexpr bool operator>=(unicode_string_view lhs, unicode_string_view rhs) {
   return !(lhs < rhs);
 }
-}  // namespace ktl
 
-namespace std {
-_CONSTEXPR20 void swap(ktl::unicode_string_view& lhs,
-                       ktl::unicode_string_view& rhs) noexcept {
+constexpr void swap(unicode_string_view& lhs,
+                    unicode_string_view& rhs) noexcept {
   return lhs.swap(rhs);
 }
-}  // namespace std
+}  // namespace ktl

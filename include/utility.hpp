@@ -9,6 +9,8 @@ using std::forward;
 using std::move;
 using std::swap;
 using std::addressof;
+
+using std::size;
 }  // namespace ktl
 
 #else
@@ -82,5 +84,15 @@ template <class Ty>
 constexpr bool bool_cast(Ty&& val) noexcept(
     noexcept(static_cast<bool>(forward<Ty>(val)))) {
   return static_cast<bool>(forward<Ty>(val));
+}
+
+template <class Container>
+constexpr auto size(const Container& cont) -> decltype(cont.size()) {
+  return cont.size();
+}
+
+template <class Ty, size_t N>
+constexpr size_t size(const Ty(&arr)[N]) {
+  return N;
 }
 }  // namespace ktl
