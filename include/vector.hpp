@@ -68,7 +68,7 @@ class raw_memory {
     return m_buf[idx];
   }
 
-  bool is_null() const noexcept { return m_buf; }
+  bool is_null() const noexcept { return !m_buf; }
   explicit operator bool() const noexcept { return m_buf; }
 
  private:
