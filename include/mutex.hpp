@@ -59,7 +59,7 @@ class waitable_sync_primitive
     );
   }
 };
-}  // namespace details
+}  // namespace th::details
 
 class recursive_mutex
     : public th::details::waitable_sync_primitive<KMUTEX> {  // Recursive KMUTEX
@@ -92,9 +92,10 @@ class timed_recursive_mutex : public recursive_mutex {  //Блокировка с таймером
 };
 
 class fast_mutex
-    : public th::details::sync_primitive_base<FAST_MUTEX> {  // Implemented using
-                                                         // non-recursive
-                                                         // FAST_MUTEX
+    : public th::details::sync_primitive_base<FAST_MUTEX> {  // Implemented
+                                                             // using
+                                                             // non-recursive
+                                                             // FAST_MUTEX
  public:
   using MyBase = th::details::sync_primitive_base<FAST_MUTEX>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
@@ -110,7 +111,7 @@ class fast_mutex
 
 class shared_mutex
     : public th::details::sync_primitive_base<ERESOURCE> {  // Wrapper for
-                                                        // ERESOURCE
+                                                            // ERESOURCE
 
  public:
   using MyBase = th::details::sync_primitive_base<ERESOURCE>;
@@ -135,8 +136,15 @@ class shared_mutex
 };
 
 class dpc_spin_lock
-    : public th::details::sync_primitive_base<KSPIN_LOCK> {  // DISPATCH_LEVEL spin
-                                                         // lock
+    : public th::details::sync_primitive_base<KSPIN_LOCK> {  // DISPATCH_LEVEL
+                                                             // spin
+                                                             // lock
+ public:
+      using MyBase = th::details::sync_primitive_base<KSPIN_LOCK>;
+  using sync_primitive_t = typename MyBase::sync_primitive_t;
+  using native_handle_t = typename MyBase::native_handle_t;
+  using irql_t = KIRQL;
+
  public:
   using MyBase = th::details::sync_primitive_base<KSPIN_LOCK>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
@@ -145,13 +153,17 @@ class dpc_spin_lock
  public:
   dpc_spin_lock() { KeInitializeSpinLock(native_handle()); }
 
-  void lock() { KeAcquireSpinLockAtDpcLevel(native_handle()); }
-  void unlock() { KeReleaseSpinLockFromDpcLevel(native_handle()); }
+  void lock() { KeAcquireSpinLock(native_handle(), addressof(m_old_irql)); }
+  void unlock() { KeReleaseSpinLock(native_handle(), m_old_irql); }
+
+ private:
+  irql_t m_old_irql;
 };
 
 class semaphore
-    : public th::details::sync_primitive_base<KSEMAPHORE> {  // Implemented using
-                                                         // KSEMAPHORE
+    : public th::details::sync_primitive_base<KSEMAPHORE> {  // Implemented
+                                                             // using
+                                                             // KSEMAPHORE
  public:
   using MyBase = th::details::sync_primitive_base<KSEMAPHORE>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
@@ -185,7 +197,7 @@ class semaphore
 };
 
 class event : public th::details::sync_primitive_base<KEVENT> {  // Implemented
-                                                             // using KSEMAPHORE
+  // using KSEMAPHORE
  public:
   using MyBase = th::details::sync_primitive_base<KEVENT>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
@@ -252,7 +264,7 @@ bool unlock_impl(FirstLocable& first, RestLockables&... rest) {
   }
   return current_unlock_success && unlock_impl(rest...);
 }
-}  // namespace details
+}  // namespace th::details
 
 template <class... Lockable>
 void unlock(Lockable&... locables) {
@@ -277,7 +289,7 @@ bool lock_impl(FirstLocable& first, RestLockables&... rest) {
   }
   return lock_chain_result;
 }
-}  // namespace details
+}  // namespace th::details
 
 template <class... Lockable>
 void lock(Lockable&... locables) {
@@ -299,7 +311,7 @@ template <class Locable, class Duration>
 inline constexpr bool has_try_lock_for_v = false;
 // has_try_lock_for<Locable, Duration>::value;
 
-}  // namespace details
+}  // namespace th::details
 
 struct defer_lock_tag {};    //Отложенная блокировка
 struct try_lock_for_tag {};  //Блокировка с таймаутом
@@ -385,7 +397,7 @@ class mutex_guard_base {
   mutex_t* m_mtx{nullptr};
   bool m_owned{false};
 };
-}  // namespace details
+}  // namespace th::details
 
 template <class Mutex>
 class lock_guard : public th::details::mutex_guard_base<Mutex> {
@@ -420,8 +432,9 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
   unique_lock(mutex_t& mtx, adopt_lock_tag) : MyBase(mtx, true) {}
   unique_lock(mutex_t& mtx, defer_lock_tag) : MyBase(mtx) {}
 
-  template <class Mtx = mutex_t,
-            enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
+  template <
+      class Mtx = mutex_t,
+      enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
   unique_lock(mutex_t& mtx, duration_t timeout_duration, try_lock_for_tag)
       : MyBase(mtx){MyBase::try_lock_for(timeout_duration)}
 
@@ -479,8 +492,9 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
   shared_lock(mutex_t& mtx, adopt_lock_tag) : MyBase(mtx, true) {}
   shared_lock(mutex_t& mtx, defer_lock_tag) : MyBase(mtx) {}
 
-  template <class Mtx = mutex_t,
-            enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
+  template <
+      class Mtx = mutex_t,
+      enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
   shared_lock(mutex_t& mtx, duration_t timeout_duration, try_lock_for_tag)
       : MyBase(mtx){MyBase::try_lock_for(timeout_duration)}
 
@@ -525,5 +539,26 @@ shared_lock(Mutex&,
             try_lock_for_tag)
     -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
 
+class irql_guard {
+ public:
+  using irql_t = KIRQL;
+
+ public:
+  irql_guard(irql_t new_irql) : m_old_irql{raise_irql(new_irql)} {}
+  ~irql_guard() { lower_irql(m_old_irql); }
+
+ private:
+  static irql_t raise_irql(irql_t new_irql) {
+    irql_t old_irql;
+    KeRaiseIrql(new_irql, addressof(old_irql));
+    return old_irql;
+  }
+
+  static void lower_irql(irql_t new_irql) { return KeLowerIrql(new_irql); }
+
+ private:
+  irql_t m_old_irql;
+};
+
 // TODO: tuple, scoped_lock
-}  // namespace ktl::th
+}  // namespace ktl

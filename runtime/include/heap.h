@@ -3,6 +3,7 @@
 #include <ntddk.h>
 
 // TODO: вынести в .cpp
+#define KTL_RUNTIME_DBG
 
 //Защита на случай подключения стандартного хедера <memory>
 #if defined(KTL_NO_CXX_STANDARD_LIBRARY) && !defined(__PLACEMENT_NEW_INLINE)
@@ -16,18 +17,27 @@ namespace ktl {
 namespace mm::details {
 // MSDN: Each ASCII character in the tag must be a value in the range 0x20
 // (space) to 0x7E (tilde)
-inline constexpr uint32_t tag_base{0x20}, tag_paged{tag_base},
+using memory_tag_t = uint16_t;
+inline constexpr memory_tag_t tag_base{0x20}, tag_paged{tag_base},
     tag_non_paged{tag_base + 1};
 
-template <uint32_t tag>
+template <memory_tag_t tag>
 constexpr POOL_TYPE PoolTypeFromTag() {
   static_assert(tag >= tag_base, "Invalid tag");
   constexpr POOL_TYPE pool_type_info[] = {PagedPool, NonPagedPool};
   return pool_type_info[tag - tag_base];
 }
 
-struct MemoryBlockHeader {
-  uint32_t tag{0};
+#if defined(_WIN64)
+inline constexpr size_t allocation_alignment{16};
+#elif defined(_WIN32)
+inline constexpr size_t allocation_alignment{8};
+#else
+#error Unsupported platform
+#endif
+
+struct __declspec(align(allocation_alignment)) MemoryBlockHeader {
+  memory_tag_t tag{0};
 };
 
 inline void* ZeroFill(void* ptr, size_t size) {
@@ -36,37 +46,61 @@ inline void* ZeroFill(void* ptr, size_t size) {
 }
 
 template <uint32_t tag, class KernelAllocFunction>
-MemoryBlockHeader* allocate(KernelAllocFunction alloc_func,
-                            size_t bytes_count) {
+void* allocate_impl(KernelAllocFunction alloc_func,
+                                 size_t bytes_count) {
   if (!bytes_count) {
     return nullptr;
   }
-  auto* memory_block{alloc_func(PoolTypeFromTag<tag>(), bytes_count, tag)};
-  return new (ZeroFill(memory_block, bytes_count)) MemoryBlockHeader{tag};
+  constexpr size_t header_size{sizeof(MemoryBlockHeader)};
+  auto* memory_block_header{
+      alloc_func(PoolTypeFromTag<tag>(), bytes_count + header_size, tag)};
+  void* memory_block{nullptr};
+
+  if (memory_block_header) {
+    new (ZeroFill(memory_block_header, bytes_count)) MemoryBlockHeader{tag};
+    memory_block = static_cast<byte*>(memory_block_header) + header_size;
+#ifdef KTL_RUNTIME_DBG
+    NT_ASSERT(reinterpret_cast<size_t>(memory_block) % allocation_alignment ==
+              0);  // Пользовательские данные должны быть выровнены
+#endif
+  }
+  return memory_block;
 }
+
+void deallocate_impl(void* memory_block) {
+#ifdef KTL_RUNTIME_DBG
+  NT_ASSERT(reinterpret_cast<size_t>(memory_block) % allocation_alignment == 0);
+#endif
+  auto* raw_header{static_cast<byte*>(memory_block) - allocation_alignment};
+  auto* memory_block_header{reinterpret_cast<MemoryBlockHeader*>(raw_header)};
+#ifdef KTL_RUNTIME_DBG
+  NT_ASSERT(memory_block_header->tag >= mm::details::tag_base);
+// Пользовательские данные должны быть выровнены
+#endif
+  ExFreePoolWithTag(memory_block_header, memory_block_header->tag);
+}
+
 }  // namespace mm::details
 
 inline void* alloc_paged(size_t bytes_count) {
-  return mm::details::allocate<mm::details::tag_paged>(ExAllocatePoolWithTag,
-                                               bytes_count);
+  return mm::details::allocate_impl<mm::details::tag_paged>(
+      ExAllocatePoolWithTag, bytes_count);
 }
 
 inline void* alloc_non_paged(size_t bytes_count) {
-  return mm::details::allocate<mm::details::tag_non_paged>(
-      ExAllocatePoolWithTag,
-                                                   bytes_count);
+  return mm::details::allocate_impl<mm::details::tag_non_paged>(
+      ExAllocatePoolWithTag, bytes_count);
 }
 
-inline void deallocate(mm::details::MemoryBlockHeader* memory_block) {
+inline void deallocate(void* memory_block) {
   if (memory_block) {
-    NT_ASSERT(memory_block->tag >= mm::details::tag_base);
-    ExFreePoolWithTag(memory_block, memory_block->tag);
+    mm::details::deallocate_impl(memory_block);
   }
 }
 
 inline void free(void* ptr, size_t bytes = 0) {
   (void)bytes;  // unused
-  deallocate(static_cast<mm::details::MemoryBlockHeader*>(ptr));
+  deallocate(ptr);
 }
 
 inline wchar_t* allocate_string(size_t length_in_bytes) {

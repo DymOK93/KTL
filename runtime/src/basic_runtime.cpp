@@ -23,6 +23,7 @@ void __declspec(noreturn) CRTCALL doexit(_In_ int) {
       destructor();
     } while (ktl::crt::destructor_count);
   }
+  KdPrint(("Doexit() cleaning was successful\n"));
 }
 
 int CRTCALL cinit(_In_ int) {  //Вызов конструкторов
