@@ -19,6 +19,7 @@ class raw_memory {
  private:
   using AlTy = Allocator;
   using AlTyTraits = allocator_traits<AlTy>;
+  using value_type = typename AlTyTraits::value_type;
   using pointer = typename AlTyTraits::pointer;
   using const_pointer = typename AlTyTraits::const_pointer;
   using reference = typename AlTyTraits::reference;
@@ -49,7 +50,7 @@ class raw_memory {
     }
     return *this;
   }
-  ~raw_memory() { deallocate(m_buf); }
+  ~raw_memory() { deallocate(*m_alc, m_buf, m_capacity); }
 
   void swap(raw_memory& other) noexcept {
     swap(m_buf, other.m_buf);
@@ -67,26 +68,26 @@ class raw_memory {
     return m_buf[idx];
   }
 
-  bool is_null() const noexcept { return m_buf; }
+  bool is_null() const noexcept { return !m_buf; }
   explicit operator bool() const noexcept { return m_buf; }
 
  private:
-  static Ty* allocate(Allocator& alc, size_type object_count) {
-    return AlTyTraits::allocate(object_count);
+  static pointer allocate(Allocator& alc, size_type object_count) {
+    return AlTyTraits::allocate(alc, object_count);
   }
-  static void deallocate(Allocator& alc, Ty* buf, size_type object_count) {
-    if constexpr (AlTyTraits::enable_delete_null) {
-      AlTyTraits::deallocate(m_buf, object_count);
+  static void deallocate(Allocator& alc, pointer buf, size_type object_count) {
+    if constexpr (AlTyTraits::enable_delete_null::value) {
+      AlTyTraits::deallocate(alc, buf, object_count);
     } else {
-      if (m_buf) {
-        AlTyTraits::deallocate(m_buf, object_count);
+      if (buf) {
+        AlTyTraits::deallocate(alc, buf, object_count);
       }
     }
   }
 
  private:
   Allocator* m_alc;
-  Ty* m_buf;
+  pointer m_buf;
   size_type m_capacity;
 };
 

@@ -560,8 +560,6 @@ class ref_counter_with_allocator_deallocate_itself
   using MyAllocBase = allocator_holder_base<Alloc>;
 
  public:
-  ref_counter_with_allocator_deallocate_itself(Ty* ptr)
-      : MyRefCounterBase(ptr) {}
   template <class Allocator>
   ref_counter_with_allocator_deallocate_itself(Ty* ptr, Allocator&& alloc)
       : MyRefCounterBase(ptr), MyAllocBase(forward<Allocator>(alloc)) {}
@@ -1130,11 +1128,9 @@ shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
   Ty* object_ptr{reinterpret_cast<Ty*>(static_cast<byte*>(memory_block) +
                                        sizeof(ref_counter_t))};
 
-  auto* ref_counter{construct_at(static_cast<ref_counter_t*>(memory_block),
-                                 object_ptr)};  //Нельзя сразу передать alloc,
-                                                //т.к. он может быть перемещён
-  ref_counter->get_alloc() =
-      forward<Alloc>(alloc);  //Аллокатор должен иметь operator=()
+  auto* ref_counter{construct_at(static_cast<ref_counter_t*>(memory_block), object_ptr,
+                   forward <Alloc>(alloc))};  
+                                                
   shared_ptr<Ty> sptr(object_ptr, ref_counter);
   allocator_traits<AlTy>::construct(ref_counter->get_alloc(), object_ptr,
                                     forward<Types>(args)...);

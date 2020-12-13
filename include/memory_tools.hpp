@@ -898,6 +898,5 @@ uninitialized_default_construct_n(
     return vf.release();
   }
 }
-
 }  // namespace ktl
 #endif

@@ -1,5 +1,7 @@
 #pragma once
 #include <ntddk.h>
+#include <basic_types.h>
+#include <type_traits.hpp>
 
 namespace ktl {
 struct DeviceInfo {
@@ -10,9 +12,19 @@ struct DeviceInfo {
   bool exclusive{false};  //Кол-во клиентов драйвера
 };
 
+struct DeviceIoResponse {
+  NTSTATUS status{STATUS_SUCCESS};
+  uint32_t info{0};
+};
+
 template <class Driver>
-Driver* GetDriverFromDeviceExtension(PDRIVER_OBJECT driver) {
-  return static_cast<std::add_pointer_t<std::decay_t<Driver>>>(
-      driver->DeviceObject->DeviceExtension);
+Driver* GetDriverFromDeviceExtension(PDEVICE_OBJECT device_object) {
+  return static_cast<ktl::add_pointer_t<ktl::remove_reference_t<Driver>>>(
+      device_object->DeviceExtension);
+}
+
+template <class Driver>
+Driver* GetDriverFromDeviceExtension(PDRIVER_OBJECT driver_object) {
+  return GetDriverFromDeviceExtension<Driver>(driver_object->DeviceObject);
 }
 }  // namespace ktl

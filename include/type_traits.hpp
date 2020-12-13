@@ -79,7 +79,9 @@ using std::is_same;
 using std::is_same_v;
 
 using std::is_trivially_copyable;
+using std::is_trivially_default_constructible;
 using std::is_trivially_destructible;
+using std::is_trivial;
 
 }  // namespace ktl
 #else
@@ -521,6 +523,15 @@ struct is_trivially_destructible {
 template <class Ty>
 inline constexpr bool is_trivially_destructible_v =
     is_trivially_copyable<Ty>::value;
+
+template <class Ty>
+struct is_trivial {
+  static constexpr bool value =
+      is_trivially_default_constructible_v<Ty> && is_trivially_copyable_v<Ty>;
+};
+
+template <class Ty>
+inline constexpr bool is_trivial_v = is_trivial<Ty>::value;
 
 }  // namespace ktl
 #endif

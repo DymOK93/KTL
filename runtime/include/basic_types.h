@@ -16,7 +16,6 @@ using uint8_t = unsigned char;
 using uint16_t = unsigned short;
 using uint32_t = unsigned int;
 using uint64_t = unsigned long long;
-;
 
 using nullptr_t = decltype(nullptr);
 using size_t = decltype(sizeof(int));

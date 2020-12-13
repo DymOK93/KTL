@@ -117,6 +117,8 @@ struct allocator_traits {
   using value_type = typename Alloc::value_type;
   using pointer = mm::details::get_pointer_type_t<Alloc, value_type>;
   using const_pointer = add_const_t<pointer>;
+  using reference = mm::details::get_reference_type_t<Alloc, value_type>;
+  using const_reference = add_const_t<reference>;
   using size_type = mm::details::get_size_type_t<Alloc>;
   using difference_type = mm::details::get_difference_type<Alloc>;
 
@@ -149,13 +151,13 @@ struct allocator_traits {
 
  public:
   static constexpr pointer allocate(Alloc& alloc, size_type object_count) {
-    static_assert(details::has_allocate_v<Alloc, size_type>,
+    static_assert(mm::details::has_allocate_v<Alloc, size_type>,
                   "Allocator must provide allocate(size_type) function");
     return alloc.allocate(object_count * sizeof(value_type));
   }
 
   static constexpr pointer allocate_single_object(Alloc& alloc) {
-    static_assert(details::has_allocate_single_object_v<Alloc, size_type>,
+    static_assert(mm::details::has_allocate_single_object_v<Alloc, size_type>,
                   "Allocator must provide allocate(void) function");
     return alloc.allocate();
   }
