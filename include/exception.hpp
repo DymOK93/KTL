@@ -13,35 +13,35 @@ class kernel_error;
 
 struct exception_visitor {
   virtual ~exception_visitor() = default;
-  virtual void visit(const exception& exc) const = 0;
-  virtual void visit(const kernel_error& exc) const = 0;
+  virtual bool visit(const exception& exc) const = 0;
+  virtual bool visit(const kernel_error& exc) const = 0;
 };
 
 template <class Exc>
-struct single_default_exception_visitor : exception_visitor {
+struct ignore_single_exception_visitor : exception_visitor {
   using MyBase = exception_visitor;
 
   using MyBase::visit;
-  void visit(const Exc&) const override {}
+  bool visit(const Exc&) const override { return false; }
 };
 
 template <class... Excs>
-struct multiple_default_exception_visitor
-    : public single_default_exception_visitor<Excs>... {
-  using single_default_exception_visitor<Excs>::visit...;
+struct ignore_multiple_exception_visitor
+    : public ignore_single_exception_visitor<Excs>... {
+  using ignore_single_exception_visitor<Excs>::visit...;
 };
 
 using native_char_t = wchar_t;
 
 struct exception : public crt::ExceptionBase {
   // virtual native_char_t* what() const noexcept = 0;
-  virtual void visit(const exception_visitor&) const = 0;
+  virtual bool visit(const exception_visitor&) const = 0;
 };
 
 template <class ConcreteExc>
 struct visitable_exception : exception {
-  void visit(const exception_visitor& exc_visitor) const final {
-    exc_visitor.visit(static_cast<const ConcreteExc&>(*this));
+  bool visit(const exception_visitor& exc_visitor) const final {
+    return exc_visitor.visit(static_cast<const ConcreteExc&>(*this));
   }
 };
 
@@ -108,35 +108,32 @@ template <class Exc, class... Types>
   crt::throw_exception(static_cast<exception*>(exc_guard.release()));
 }
 
-inline NTSTATUS FilterException(NTSTATUS exc_code) {
-  if (crt::is_ktl_exception(exc_code)) {
-    return EXCEPTION_EXECUTE_HANDLER;
-  }
-  return EXCEPTION_CONTINUE_SEARCH;
-}
-
 namespace exc::details {
 inline const exception& get_exception(NTSTATUS exc_code) {
   return static_cast<const exception&>(*crt::get_exception(exc_code));
 }
 
-void catch_exception_impl(NTSTATUS exc_code,
-                          const exception_visitor& exc_visitor) {
+bool handle_exception(NTSTATUS exc_code, const exception_visitor& exc_visitor) {
   const auto& exc{exc::details::get_exception(exc_code)};
-  exc.visit(exc_visitor);
+  return exc.visit(exc_visitor);
 }
 
 template <class ExcHandler>
-enable_if_t<!is_convertible_v<ExcHandler, exception_visitor>, void>
-catch_exception_impl(NTSTATUS exc_code, ExcHandler&& handler) {
-  return forward<Handler>(handler)(exc::details::get_exception(exc_code));
+enable_if_t<!is_convertible_v<ExcHandler, exception_visitor>, bool>
+handle_exception(NTSTATUS exc_code, ExcHandler&& handler) {
+  return bool_cast(
+      forward<Handler>(handler)(exc::details::get_exception(exc_code)));
 }
 
+template <class... ExcHandlers>
+bool catch_exception_impl(NTSTATUS exc_code, ExcHandlers&&... handlers) {
+  return ((handle_exception(exc_code, forward<ExcHandlers>(handlers))) && ...);
+}
 }  // namespace exc::details
 
-template <class ExcHandler>
-void CatchException(NTSTATUS exc_code) {
-   exc::details::catch_exception_impl(exc_code, ExcHandler{});
+template <class... ExcHandlers>
+bool CatchException(NTSTATUS exc_code) {
+  return exc::details::catch_exception_impl(exc_code, ExcHandlers{}...);
 }
 
 template <class Exc, class... Types>
@@ -148,6 +145,22 @@ template <class Exc, class... Types>
 
 [[noreturn]] void RethrowException(NTSTATUS old_exc_code) {
   crt::throw_again(old_exc_code);
+}
+
+inline NTSTATUS FilterException(NTSTATUS exc_code) {
+  if (crt::is_ktl_exception(exc_code)) {
+    return EXCEPTION_EXECUTE_HANDLER;
+  }
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
+template <class... ExcHandlers>
+inline NTSTATUS FilterException(NTSTATUS exc_code) {
+  if (crt::is_ktl_exception(exc_code) &&
+      CatchException<ExcHandlers...>(exc_code)) {
+    return EXCEPTION_EXECUTE_HANDLER;
+  }
+  return EXCEPTION_CONTINUE_SEARCH;
 }
 
 }  // namespace ktl
