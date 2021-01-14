@@ -2,6 +2,7 @@
 archive/
 htscpp/
 testing/
+lib/
 
 # Build system temporary files and directories
 Build/

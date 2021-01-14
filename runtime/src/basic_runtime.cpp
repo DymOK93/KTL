@@ -1,5 +1,6 @@
 #include <basic_runtime.h>
 #include <crt_runtime.h>
+#include <exception_base.h>
 
 namespace ktl::crt {
 static handler_t destructor_stack[128] = {
@@ -12,7 +13,7 @@ constexpr unsigned int MAX_DESTRUCTOR_COUNT{sizeof(destructor_stack) /
 constexpr int INIT_CODE = 0x4b544caU;
 constexpr int EXIT_CODE = 0x4b544ceU;
 
-void __declspec(noreturn) CRTCALL doexit(_In_ int) {
+void CRTCALL doexit(_In_ int) {
   KdPrint(("Destructor count: %u\n", destructor_count));
   if (ktl::crt::destructor_count) {
     do {
@@ -49,6 +50,7 @@ int CRTCALL atexit(ktl::crt::handler_t destructor) {
 
 NTSTATUS KtlDriverEntry(PDRIVER_OBJECT driver_object,
                         PUNICODE_STRING registry_path) {
+  ktl::crt::init_exception_environment();
   ktl::crt::cinit(ktl::crt::INIT_CODE);
   NTSTATUS init_status{DriverEntry(driver_object, registry_path)};
   if (!NT_SUCCESS(init_status)) {
@@ -57,6 +59,7 @@ NTSTATUS KtlDriverEntry(PDRIVER_OBJECT driver_object,
     ktl::crt::custom_driver_unload = driver_object->DriverUnload;
     driver_object->DriverUnload = &KtlDriverUnload;
   }
+  ktl::crt::cleanup_exception_environment();
   return init_status;
 }
 

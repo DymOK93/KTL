@@ -9,13 +9,17 @@ if("${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" LESS 3.0)
    message(FATAL_ERROR "CMake version >= 3.0 required")
 endif()
 
-set(KTL_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/include")
-set(KTL_RUNTIME_DIR "${CMAKE_CURRENT_LIST_DIR}/runtime")
+set(KTL_DIR ${CMAKE_CURRENT_LIST_DIR})
+set(KTL_RUNTIME_DIR "${KTL_DIR}/runtime")
 set(KTL_RUNTIME_INCLUDE_DIR "${KTL_RUNTIME_DIR}/include")
+set(KTL_INCLUDE_DIR "${KTL_DIR}/include")
+set(KTL_SOURCE_DIR "${KTL_DIR}/src")
 
 file(GLOB KTL_RUNTIME_LIBRARIES "${KTL_RUNTIME_DIR}/lib/*.lib")    
+file(GLOB KTL_CPP_LIBRARIES "${KTL_DIR}/lib/*.lib")  
+  
 
-foreach(LIBRARY IN LISTS KTL_RUNTIME_LIBRARIES)
+foreach(LIBRARY IN LISTS KTL_RUNTIME_LIBRARIES KTL_CPP_LIBRARIES)
     get_filename_component(LIBRARY_NAME ${LIBRARY} NAME_WE)
 
 # Protect against multiple inclusion, which would fail when already imported targets are added once more.

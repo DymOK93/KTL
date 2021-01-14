@@ -1,7 +1,10 @@
 #pragma once
+#include <crt_attributes.h>
+
 #include <ntddk.h>
 
-#define CRTCALL __cdecl
+
+
 
 namespace ktl::crt {
 using handler_t = void(CRTCALL*)(void);

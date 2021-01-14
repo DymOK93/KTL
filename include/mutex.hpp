@@ -151,7 +151,9 @@ class dpc_spin_lock
   using native_handle_t = typename MyBase::native_handle_t;
 
  public:
-  dpc_spin_lock() { KeInitializeSpinLock(native_handle()); }
+  dpc_spin_lock() : m_old_irql{KeGetCurrentIrql()} {
+    KeInitializeSpinLock(native_handle());
+  }
 
   void lock() { KeAcquireSpinLock(native_handle(), addressof(m_old_irql)); }
   void unlock() { KeReleaseSpinLock(native_handle(), m_old_irql); }
