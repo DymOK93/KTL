@@ -2,7 +2,7 @@
   "configurations": [
     {
       "name": "x64-Debug",
-      "generator": "Ninja",
+      "generator": "Visual Studio 16 2019 Win64",
       "configurationType": "Debug",
       "inheritEnvironments": [ "msvc_x64_x64" ],
       "buildRoot": "${projectDir}\\out\\build\\${name}",
@@ -10,6 +10,18 @@
       "cmakeCommandArgs": "-DCMAKE_MODULE_PATH:STRING=\"D:/CXX_Source/CMakeModules\"",
       "buildCommandArgs": "",
       "ctestCommandArgs": "",
+      "variables": []
+    },
+    {
+      "name": "x64-Debug-Ninja",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "-DCMAKE_MODULE_PATH:STRING=\"D:/CXX_Source/CMakeModules\" -DCMAKE_VERBOSE_MAKEFILE=1",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "inheritEnvironments": [ "msvc_x64_x64" ],
       "variables": []
     }
   ]

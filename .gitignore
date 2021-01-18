@@ -3,6 +3,7 @@ archive/
 htscpp/
 testing/
 lib/
+ntke_winnt/
 
 # Build system temporary files and directories
 Build/

@@ -1,5 +1,11 @@
+#include <crt_attributes.h>
+#include <exc_engine_interface.h>
 #include <exception_base.h>
 #include <heap.h>
+
+using ktl::crt::exc_engine::cpu_context_t;
+using ktl::crt::exc_engine::disposition_t;
+using ktl::crt::exc_engine::record_t;
 
 namespace ktl::crt {
 using exception_index = uint16_t;
@@ -85,3 +91,14 @@ void cleanup_exception_environment() {
   ExRaiseStatus(KTL_CRT_FAILURE);
 }
 }  // namespace ktl::crt
+
+#define DEFINE_CXX_FRAME_HANDLER(number)                               \
+  EXTERN_C disposition_t CONCAT(__CxxFrameHandler, number)(            \
+      record_t * exc_rec, void* frame_ptr, cpu_context_t* cpu_context, \
+      void* dispatcher_context) {                                      \
+    return ktl::crt::exc_engine::handle_stack_frame(                   \
+        exc_rec, frame_ptr, cpu_context, dispatcher_context);          \
+  }
+
+DEFINE_CXX_FRAME_HANDLER(3)
+DEFINE_CXX_FRAME_HANDLER(4)
