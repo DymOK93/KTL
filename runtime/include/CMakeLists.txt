@@ -6,20 +6,22 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(KTL_RUNTIME_INCLUDE_DIR "${KTL_RUNTIME_DIR}/include")
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
-
 set(
 	KTL_RUNTIME_HEADER_FILES
+		"algorithm_impl.hpp"
 		"basic_runtime.h"
 		"basic_types.h"
 		"crt_attributes.h"
 		"crt_runtime.h"
 		"exception_base.h"
-		"exc_engine"
+		"funtcional_impl.hpp"
 		"heap.h"
 		"irql.h"
+		"limits_impl.hpp"
+		"memory_type_traits_impl.hpp"
 		"placement_new.h"
+		"type_info.h"
+		"type_traits_impl.hpp"
 )
 
 set(TARGET_LIB basic_runtime_interface)
@@ -27,5 +29,9 @@ set(TARGET_LIB basic_runtime_interface)
 add_library(${TARGET_LIB} INTERFACE)
 target_include_directories(
 	${TARGET_LIB} 
-		INTERFACE ${KTL_RUNTIME_INCLUDE_DIR} 
+		INTERFACE ${KTL_RUNTIME_INCLUDE_DIR}
+)
+target_compile_definitions(
+	${TARGET_LIB} 
+		INTERFACE KTL_ENABLE_EXTENDED_ALIGNED_STORAGE
 )

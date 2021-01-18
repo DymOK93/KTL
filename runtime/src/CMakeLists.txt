@@ -4,8 +4,6 @@ project ("KTL RTL Modules")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(KTL_RUNTIME_SOURCE_DIR "${KTL_RUNTIME_DIR}/src")
-
 set(
 	KTL_RUNTIME_SOURCE_FILES
 		"basic_runtime.cpp"
@@ -16,8 +14,6 @@ set(
 )
 
 set(TARGET_LIB basic_runtime)
-
-add_subdirectory(exc_engine)
 
 wdk_add_library(
 	${TARGET_LIB} STATIC 
@@ -31,9 +27,8 @@ target_compile_definitions(
 )
 target_link_libraries(
 	${TARGET_LIB} 
+		PUBLIC cpp_interface
 		PUBLIC basic_runtime_interface
-		PRIVATE exc_engine
-		PRIVATE exc_x64
 )
 target_link_options(
 	${TARGET_LIB} 

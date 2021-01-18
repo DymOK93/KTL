@@ -24,4 +24,6 @@ using ptrdiff_t = decltype(static_cast<unsigned char*>(nullptr) -
 
 struct nothrow_t {};
 inline constexpr nothrow_t nothrow;
+
+using max_align_t = double; // Most aligned type
 #endif
