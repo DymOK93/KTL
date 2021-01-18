@@ -1,5 +1,5 @@
 # ----------
-# 2020 Dmitry Bolshakov
+# 2020-2021 Dmitry Bolshakov
 # ----------
 # Kernel Template Library
 # CRT environment, STL-style containers and RAII tools for Windows Kernel programming
