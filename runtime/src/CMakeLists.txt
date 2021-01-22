@@ -4,9 +4,13 @@ project ("KTL RTL Modules")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(KTL_RUNTIME_SOURCE_DIR "${KTL_RUNTIME_DIR}/src")
+
 set(
 	KTL_RUNTIME_SOURCE_FILES
+		"assert.cpp"
 		"basic_runtime.cpp"
+		"bugcheck.cpp"
 		"exception_base.cpp"
 		"irql.cpp"
 		"heap.cpp"
@@ -14,6 +18,8 @@ set(
 )
 
 set(TARGET_LIB basic_runtime)
+
+add_subdirectory(exc_engine)
 
 wdk_add_library(
 	${TARGET_LIB} STATIC 

@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#ifdef KTL_NO_CXX_STANDARD_LIBRARY
+#ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <type_traits>
 
 namespace ktl {
@@ -572,10 +572,12 @@ struct aligned_storage_impl<Size, Align, double, false> {
       "changes layout and breaks "
       "binary compatibility."
       "Please define either"
-      "(1) KTL_ENABLE_EXTENDED_ALIGNED_STORAGE to acknowledge that you understand "
+      "(1) KTL_ENABLE_EXTENDED_ALIGNED_STORAGE to acknowledge that you "
+      "understand "
       "this message and "
       "that you actually want a type with an extended alignment, or "
-      "(2) KTL_DISABLE_EXTENDED_ALIGNED_STORAGE to silence this message and get "
+      "(2) KTL_DISABLE_EXTENDED_ALIGNED_STORAGE to silence this message and "
+      "get "
       "the old non-conforming "
       "behavior.");
 #endif  // !DISABLE_EXTENDED_ALIGNED_STORAGE
@@ -624,6 +626,32 @@ struct aligned_storage {
 
 template <size_t Size, size_t Align = alignof(max_align_t)>
 using aligned_storage_t = typename aligned_storage<Size, Align>::type;
+
+
+template <class Ty>
+struct is_enum {
+  static constexpr bool value = __is_enum(Ty);
+};
+
+template <class Ty>
+inline constexpr bool is_enum_v = is_enum<Ty>::value;
+
+namespace tt::details {
+template <class Ty, bool = is_enum_v<Ty> >
+struct underlying_type_impl {
+  using type = __underlying_type(Ty);
+};
+
+template <class Ty>
+struct underlying_type_impl<Ty, false> {};
+}  // namespace tt::details
+
+template <class Ty>
+struct underlying_type : tt::details::underlying_type_impl<Ty> {
+};  // determine underlying type for enum
+
+template <class Ty>
+using underlying_type_t = typename underlying_type<Ty>::type;
 
 }  // namespace ktl
 #endif

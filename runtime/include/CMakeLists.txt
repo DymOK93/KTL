@@ -9,8 +9,10 @@ set(KTL_RUNTIME_INCLUDE_DIR "${KTL_RUNTIME_DIR}/include")
 set(
 	KTL_RUNTIME_HEADER_FILES
 		"algorithm_impl.hpp"
+		"assert.h"
 		"basic_runtime.h"
 		"basic_types.h"
+		"bugcheck.h"
 		"crt_attributes.h"
 		"crt_runtime.h"
 		"exception_base.h"
@@ -25,6 +27,8 @@ set(
 )
 
 set(TARGET_LIB basic_runtime_interface)
+
+add_subdirectory(exc_engine)
 
 add_library(${TARGET_LIB} INTERFACE)
 target_include_directories(

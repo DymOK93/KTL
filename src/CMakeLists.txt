@@ -4,6 +4,8 @@ project ("Kernel Template Library")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(KTL_SOURCE_DIR "${KTL_DIR}/src")
+
 set(
 	KTL_SOURCE_FILES
 		"${KTL_SOURCE_DIR}/new_delete.cpp"
@@ -25,8 +27,9 @@ target_compile_definitions(
 		KTL_RUNTIME_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
 )
-target_link_libraries(${TARGET_LIB} 
-	cpp_interface
-	basic_runtime_interface
-	basic_runtime
+target_link_libraries(
+	${TARGET_LIB} 
+		PUBLIC cpp_interface
+		PUBLIC basic_runtime_interface
+		PUBLIC basic_runtime
 )

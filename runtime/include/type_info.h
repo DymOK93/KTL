@@ -1,7 +1,6 @@
-﻿#pragma once
-/**
+﻿/**
 * Licensed under the MIT License <http://opensource.org/licenses/MIT>.
-* Copyright (c) 2019-2021 Martin Vejnár (avakar), 2019-2021
+* Copyright (c) 2019-2021 Martin Vejnár (avakar)
 *
 * The type of the `typeid` expression is actually
 * `const ::type_info` rather than `const std::type_info`
@@ -40,6 +39,7 @@
 * the string is a waste of space too.
 * All we really care about is a unique address.
 */
+#pragma once
 
 class type_info final {
   virtual ~type_info() = default;

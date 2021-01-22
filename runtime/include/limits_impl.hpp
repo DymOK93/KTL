@@ -28,9 +28,6 @@ template <>
 struct numeric_limits<wchar_t>;
 
 template <>
-struct numeric_limits<char8_t>;
-
-template <>
 struct numeric_limits<char16_t>;
 
 template <>
@@ -63,9 +60,9 @@ struct numeric_limits<unsigned int> {
   static constexpr bool traps = true;
   static constexpr bool tinyness_before = false;
 
-  static constexpr unsigned int min() noexcept { return 0; };
-  static constexpr unsigned int lowest() noexcept { return min(); };
-  static constexpr unsigned int max() noexcept { return 0xffff'ffff; };
+  static constexpr unsigned int(min)() noexcept { return 0; };
+  static constexpr unsigned int lowest() noexcept { return (min)(); };
+  static constexpr unsigned int(max)() noexcept { return 0xffff'ffff; };
 };
 
 template <>
@@ -75,7 +72,29 @@ template <>
 struct numeric_limits<unsigned long>;
 
 template <>
-struct numeric_limits<long long>;
+struct numeric_limits<long long> {
+  static constexpr bool is_specialized = true;
+  static constexpr bool is_signed = true;
+  static constexpr bool is_integer = true;
+  static constexpr bool is_exact = true;
+  static constexpr bool has_infinity = false;
+  static constexpr bool has_quiet_NaN = false;
+  static constexpr bool has_signaling_NaN = false;
+  static constexpr bool has_denorm = false;
+  static constexpr bool has_denorm_loss = false;
+  static constexpr float_round_style round_style = round_toward_zero;
+  static constexpr bool is_iec599 = false;
+  static constexpr bool is_bounded = true;
+  static constexpr bool is_modulo = false;
+  static constexpr bool traps = true;
+  static constexpr bool tinyness_before = false;
+
+  static constexpr long long(min)() noexcept {
+    return -9223372036854775807ll - 1;
+  };
+  static constexpr long long lowest() noexcept { return (min)(); };
+  static constexpr long long(max)() noexcept { return 9223372036854775807ll; };
+};
 
 template <>
 struct numeric_limits<unsigned long long>;
