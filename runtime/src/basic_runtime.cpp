@@ -1,6 +1,5 @@
 #include <basic_runtime.h>
 #include <crt_runtime.h>
-#include <exception_base.h>
 
 namespace ktl::crt {
 static handler_t destructor_stack[128] = {
@@ -50,7 +49,6 @@ int CRTCALL atexit(ktl::crt::handler_t destructor) {
 
 NTSTATUS KtlDriverEntry(PDRIVER_OBJECT driver_object,
                         PUNICODE_STRING registry_path) {
-  ktl::crt::init_exception_environment();
   ktl::crt::cinit(ktl::crt::INIT_CODE);
   NTSTATUS init_status{DriverEntry(driver_object, registry_path)};
   if (!NT_SUCCESS(init_status)) {
@@ -59,7 +57,6 @@ NTSTATUS KtlDriverEntry(PDRIVER_OBJECT driver_object,
     ktl::crt::custom_driver_unload = driver_object->DriverUnload;
     driver_object->DriverUnload = &KtlDriverUnload;
   }
-  ktl::crt::cleanup_exception_environment();
   return init_status;
 }
 

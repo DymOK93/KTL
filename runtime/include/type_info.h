@@ -42,10 +42,11 @@
 #pragma once
 
 class type_info final {
-  virtual ~type_info() = default;
+  type_info() noexcept;
+  virtual ~type_info();
 
-  void* _undecorated_name;
-  char const decorated_name[1];
+  char* undecorated_name;
+  const char decorated_name[1];
 };
 
 namespace ktl {

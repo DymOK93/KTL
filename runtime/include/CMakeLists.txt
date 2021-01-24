@@ -15,8 +15,7 @@ set(
 		"bugcheck.h"
 		"crt_attributes.h"
 		"crt_runtime.h"
-		"exception_base.h"
-		"funtcional_impl.hpp"
+		"functional_impl.hpp"
 		"heap.h"
 		"irql.h"
 		"limits_impl.hpp"
@@ -34,6 +33,10 @@ add_library(${TARGET_LIB} INTERFACE)
 target_include_directories(
 	${TARGET_LIB} 
 		INTERFACE ${KTL_RUNTIME_INCLUDE_DIR}
+)
+target_link_libraries(
+	${TARGET_LIB} 
+		INTERFACE exc_engine_interface
 )
 target_compile_definitions(
 	${TARGET_LIB} 

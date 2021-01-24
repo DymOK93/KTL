@@ -15,21 +15,25 @@ struct flag_set {
   constexpr explicit operator bool() const noexcept {
     return static_cast<bool>(m_value);
   }
-  constexpr operator value_type() const noexcept { return m_value; }
+  constexpr explicit operator value_type() const noexcept { return m_value; }
 
   constexpr bool has_any_of(flag_set other) const noexcept {
     return m_value & other.m_value;
   }
 
-  template <Enum... ens>
-  constexpr value_type intersection() const noexcept {
-    value_type mask{(static_cast<value_type>(ens) | ...)};
+  template <Enum... flags>
+  constexpr value_type bit_intersection() const noexcept {
+    constexpr value_type mask{(static_cast<value_type>(flags) | ...)};
     return value() & mask;
   }
 
-  template <Enum en>
+  constexpr value_type bit_negation() const noexcept {
+    return ~value();
+  }
+
+  template <Enum flag>
   constexpr value_type get() const noexcept {
-    value_type mask{static_cast<value_type>(en)};
+    constexpr value_type mask{static_cast<value_type>(flag)};
 
     if constexpr ((mask & (mask - 1)) !=
                   0) {  // true, если число - не степень 2
@@ -55,12 +59,12 @@ struct flag_set {
 
 template <typename Enum>
 flag_set<Enum> operator|(flag_set<Enum> lhs, flag_set<Enum> rhs) noexcept {
-  return {lhs.value() | rhs.value()};
+  return lhs.value() | rhs.value();
 }
 
 template <typename Enum>
 flag_set<Enum> operator&(flag_set<Enum> lhs, flag_set<Enum> rhs) noexcept {
-  return {lhs.value() & rhs.value()};
+  return lhs.value() & rhs.value();
 }
 
 template <typename Enum>

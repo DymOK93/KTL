@@ -11,10 +11,10 @@ set(
 		"assert.cpp"
 		"basic_runtime.cpp"
 		"bugcheck.cpp"
-		"exception_base.cpp"
 		"irql.cpp"
 		"heap.cpp"
 		"placement_new.cpp"
+		"type_info.cpp"
 )
 
 set(TARGET_LIB basic_runtime)
@@ -31,12 +31,27 @@ target_compile_definitions(
 		KTL_RUNTIME_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
 )
+
 target_link_libraries(
 	${TARGET_LIB} 
 		PUBLIC cpp_interface
 		PUBLIC basic_runtime_interface
+		PUBLIC exc_engine
 )
+if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+	target_link_libraries(
+		${TARGET_LIB} 
+			PUBLIC exc_x86
+	)
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	target_link_libraries(
+		${TARGET_LIB} 
+			PUBLIC exc_x64
+	)
+endif()
+
 target_link_options(
 	${TARGET_LIB} 
 		PRIVATE "/WHOLEARCHIVE"
 )
+

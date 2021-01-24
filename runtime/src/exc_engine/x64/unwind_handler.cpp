@@ -5,7 +5,7 @@
 EXTERN_C ktl::crt::exc_engine::symbol __ImageBase;
 
 namespace ktl::crt::exc_engine::x64 {
-namespace pe{
+namespace pe {
 template <typename Ty>
 struct dir_header {
   /* 0x00 */ relative_virtual_address<Ty> relative_virtual_address;
@@ -38,7 +38,7 @@ struct dos_exe_header {
   /* 0x3c */ relative_virtual_address<header_x64> image_header;
   /* 0x40 */
 };
-}  // namespace
+}  // namespace pe
 
 static xmm_register& get_xmm(frame_walk_context& ctx, uint8_t idx) noexcept;
 // frame_info unwind_one() noexcept;
@@ -56,7 +56,7 @@ bool frame_walk_pdata::contains_address(const byte* addr) const noexcept {
 }
 
 const function* frame_walk_pdata::find_function_entry(
-    byte const* addr) const noexcept {
+    const byte* addr) const noexcept {
   assert(contains_address(addr));
   auto pc_rva{make_rva(addr, m_image_base)};
   uint32_t left_bound{0};
@@ -81,16 +81,18 @@ frame_walk_pdata::frame_walk_pdata(const byte* image_base) noexcept
   const auto* dos_hdr = reinterpret_cast<const pe::dos_exe_header*>(image_base);
   crt_critical_failure_if_not(dos_hdr->magic == 0x5a4d);
 
-   pe::header_x64 const* pe_hdr = image_base + dos_hdr->image_header;
+  pe::header_x64 const* pe_hdr = image_base + dos_hdr->image_header;
   crt_critical_failure_if_not(pe_hdr->magic == 0x4550);
   crt_critical_failure_if_not(pe_hdr->machine == 0x8664);
   crt_critical_failure_if_not(pe_hdr->opt_magic == 0x20b);
   crt_critical_failure_if_not(pe_hdr->headers_size >=
-         dos_hdr->image_header.value() + sizeof(pe::header_x64));
+                              dos_hdr->image_header.value() +
+                                  sizeof(pe::header_x64));
   crt_critical_failure_if_not(pe_hdr->image_size >= pe_hdr->headers_size);
 
   crt_critical_failure_if_not(pe_hdr->directory_count >= 4);
-  crt_critical_failure_if_not((pe_hdr->exception_table.size % sizeof(function)) == 0);
+  crt_critical_failure_if_not(
+      (pe_hdr->exception_table.size % sizeof(function)) == 0);
 
   m_functions = image_base + pe_hdr->exception_table.relative_virtual_address;
   m_function_count = pe_hdr->exception_table.size / sizeof(function);
@@ -128,7 +130,7 @@ void frame_walk_pdata::unwind(const unwind_info& unwind_info,
         break;
 
       case UnwindCode::AllocLarge:
-        if (entry.info == 0) {
+        if (!entry.info) {
           mach.rsp += unwind_info.data[++idx] * 8;
         } else {
           mach.rsp += unwind_info.data[idx + 1];
@@ -146,8 +148,8 @@ void frame_walk_pdata::unwind(const unwind_info& unwind_info,
         break;
 
       case UnwindCode::SaveNonVolatileReg:
-        ctx.gp(entry.info) =
-            *(uint64_t const*)(mach.rsp + unwind_info.data[++idx] * 8);
+        ctx.gp(entry.info) = *reinterpret_cast<const uint64_t*>(
+            mach.rsp + unwind_info.data[++idx] * 8);
         break;
 
       case UnwindCode::SaveFarNonVolatileReg:

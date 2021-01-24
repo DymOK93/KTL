@@ -13,6 +13,12 @@ set(
 
 set(TARGET_LIB exc_engine)
 
+if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    add_subdirectory(x86)
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    add_subdirectory(x64)
+endif()
+
 wdk_add_library(
 	${TARGET_LIB} OBJECT
 		${KTL_EXC_ENGINE_HEADER_FILES}
@@ -20,32 +26,16 @@ wdk_add_library(
 )
 target_include_directories(
 	${TARGET_LIB} 
-		PUBLIC ${KTL_EXC_ENGINE_DIR}
+		PUBLIC ${KTL_EXC_ENGINE_SOURCE_DIR}
 )
-if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    add_subdirectory(x86)
-	set(KTL_EXC_X64_DIR "${KTL_EXC_ENGINE_DIR}/x86")
-	target_link_libraries(
-		${TARGET_LIB} 
-			PUBLIC basic_runtime_interface
-			PRIVATE x86
-	)
-elseif(CMAKE_SIZEOF_VOID_P  EQUAL 8)
-    add_subdirectory(x64)
-	set(KTL_EXC_X64_DIR "${KTL_EXC_ENGINE_DIR}/x64")
-	target_link_libraries(
-		${TARGET_LIB} 
-			PUBLIC exc_engine_interface
-			PRIVATE x64
-	)
-endif()
-
 target_compile_definitions(
 	${TARGET_LIB} PRIVATE
 		KTL_RUNTIME_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
 )
-target_link_options(
+target_link_libraries(
 	${TARGET_LIB} 
-		PRIVATE "/WHOLEARCHIVE"
+		PUBLIC basic_runtime_interface
+		PUBLIC exc_engine_interface
 )
+

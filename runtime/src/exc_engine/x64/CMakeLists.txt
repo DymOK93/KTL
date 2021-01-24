@@ -16,6 +16,8 @@ set(
 set(
 	KTL_EXC_X64_SOURCE_FILES
 		"catch.cpp"
+		"frame_handler3.cpp"
+		"frame_handler4.cpp"
 		"unwind_handler"
 )
 set(
@@ -37,15 +39,11 @@ target_include_directories(
 )
 target_link_libraries(
 	${TARGET_LIB} 
-		PUBLIC exc_engine_interface
 		PRIVATE basic_runtime_interface
+		PRIVATE exc_engine_interface
 )
 target_compile_definitions(
 	${TARGET_LIB} PRIVATE
 		KTL_RUNTIME_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
-)
-target_link_options(
-	${TARGET_LIB} 
-		PRIVATE "/WHOLEARCHIVE"
 )

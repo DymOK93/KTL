@@ -78,11 +78,13 @@ bool process_catch_block(const byte* image_base,
   if (adjectives.has_any_of(CatchFlag::IsEllipsis)) {
     return true;
   }
-  if (adjectives.intersection<CatchFlag::IsConst, CatchFlag::IsVolatile,
-                              CatchFlag::IsUnaligned>() !=
-      throw_info.attributes
-          .intersection<ThrowFlag::IsConst, ThrowFlag::IsVolatile,
-                        ThrowFlag::IsUnaligned>()) {
+
+  // Вернёт false, если флаг IsConst, IsVolatile или IsUnaligned есть в наборе
+  // throw, но отсутствует у catch
+  if (throw_info.attributes
+          .bit_intersection<ThrowFlag::IsConst, ThrowFlag::IsVolatile,
+                            ThrowFlag::IsUnaligned>() &
+      adjectives.bit_negation()) {  // Приоритет у оператора ~ выше, чем у &
     return false;
   }
   return process_catch_block_unchecked(image_base, adjectives, match_type,
@@ -157,11 +159,10 @@ EXTERN_C const ktl::byte* __cxx_dispatch_exception(
   ci.primary_frame_ptr = 0;
 
   for (;;) {
-    const unwind_info* unwind_info{execute_handler(ctx, cpu_ctx, mach)};
+    const auto* unwind_info{execute_handler(ctx, cpu_ctx, mach)};
     if (ctx.handler) {
       return ctx.handler;
     }
-
     pdata.unwind(*unwind_info, cpu_ctx, mach);
   }
 }
@@ -232,8 +233,9 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
         (static_cast<size_t>(unwind_info->unwind_code_count + 1ull)) & mask;
     auto* frame_handler =
         image_base +
-        *(const relative_virtual_address<win::x64_frame_handler_t>*)&unwind_info
-             ->data[unwind_slots];
+        *reinterpret_cast<
+            const relative_virtual_address<win::x64_frame_handler_t>*>(
+            unwind_info->data + unwind_slots);
 
     assert(frame_handler);
 
