@@ -191,7 +191,8 @@ static bool process_catch_block_unchecked(
               CatchableProperty::ByReferenceOnly) ||
           adjectives.has_any_of(CatchFlag::IsReference)) {
         if (adjectives.has_any_of(CatchFlag::IsReference)) {
-          catch_var = exception_object;
+          auto* catch_var_holder{reinterpret_cast<void**>(catch_var)};
+          *catch_var_holder = exception_object;
         } else {
           if (catchable->properties.has_any_of(
                   CatchableProperty::IsSimpleType)) {
