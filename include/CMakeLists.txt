@@ -26,6 +26,7 @@ set(
 		"raii.hpp"
 		"smart_pointer.hpp"
 		"static_pipeline.hpp"
+		"string.hpp"
 		"string_algorithms.hpp"
 		"string_base.hpp"
 		"type_traits.hpp"
