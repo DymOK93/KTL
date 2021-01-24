@@ -15,6 +15,7 @@ set(
 		"bugcheck.h"
 		"crt_attributes.h"
 		"crt_runtime.h"
+		"exception_base.h"
 		"functional_impl.hpp"
 		"heap.h"
 		"irql.h"

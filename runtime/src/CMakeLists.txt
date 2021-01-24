@@ -11,6 +11,7 @@ set(
 		"assert.cpp"
 		"basic_runtime.cpp"
 		"bugcheck.cpp"
+		"exception_base.cpp"
 		"irql.cpp"
 		"heap.cpp"
 		"placement_new.cpp"

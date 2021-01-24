@@ -47,3 +47,4 @@ target_compile_definitions(
 		KTL_RUNTIME_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
 )
+list(APPEND CMAKE_ASM_MASM_FLAGS "/safeseh")

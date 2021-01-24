@@ -16,7 +16,7 @@ inline constexpr memory_tag_t tag_base{0x20}, tag_paged{tag_base},
 template <memory_tag_t tag>
 constexpr POOL_TYPE PoolTypeFromTag() {
   static_assert(tag >= tag_base, "Invalid tag");
-  constexpr POOL_TYPE pool_type_info[] = {PagedPool, NonPagedPool};
+  constexpr POOL_TYPE pool_type_info[] = {PagedPool, NonPagedPoolNx};
   return pool_type_info[tag - tag_base];
 }
 
