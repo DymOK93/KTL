@@ -1,6 +1,7 @@
 # Not-for-production files and directories
 archive/
 testing/
+lib/
 
 
 # Build system temporary files and directories
