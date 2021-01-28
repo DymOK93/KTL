@@ -97,7 +97,27 @@ struct numeric_limits<long long> {
 };
 
 template <>
-struct numeric_limits<unsigned long long>;
+struct numeric_limits<unsigned long long> {
+  static constexpr bool is_specialized = true;
+  static constexpr bool is_signed = false;
+  static constexpr bool is_integer = true;
+  static constexpr bool is_exact = true;
+  static constexpr bool has_infinity = false;
+  static constexpr bool has_quiet_NaN = false;
+  static constexpr bool has_signaling_NaN = false;
+  static constexpr bool has_denorm = false;
+  static constexpr bool has_denorm_loss = false;
+  static constexpr float_round_style round_style = round_toward_zero;
+  static constexpr bool is_iec599 = false;
+  static constexpr bool is_bounded = true;
+  static constexpr bool is_modulo = true;
+  static constexpr bool traps = true;
+  static constexpr bool tinyness_before = false;
+
+  static constexpr unsigned long long(min)() noexcept { return 0; };
+  static constexpr unsigned long long lowest() noexcept { return (min)(); };
+  static constexpr unsigned long long(max)() noexcept { return 0xFFFFFFFFFFFFFFFFull; };
+};
 
 template <>
 struct numeric_limits<float>;

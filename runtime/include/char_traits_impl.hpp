@@ -1,11 +1,10 @@
 #pragma once
 #include <basic_types.h>
 #include <ntddk.h>
+#include <wchar.h>
 #include <type_traits.hpp>
 
 #define EOF -1
-
-//#include <string>
 
 namespace ktl {
 template <typename CharT, typename IntT>
@@ -60,7 +59,7 @@ struct char_traits_base {
     return 0;
   }
 
-  static static constexpr size_t length(const char_type* str) noexcept {
+  static constexpr size_t length(const char_type* str) noexcept {
     size_t count{0};
     while (*str != char_type{}) {
       ++str;
@@ -113,7 +112,9 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
   using char_type = Elem;
   using int_type = uint16_t;
 
-  static char_type* assign(char_type* ptr, size_t count, char_type ch) {
+  static char_type* assign(char_type* ptr,
+                           size_t count,
+                           char_type ch) noexcept {
     return reinterpret_cast<Elem*>(wmemset(ptr, ch, count));
   }
 
@@ -121,27 +122,31 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
     return lhs == rhs;
   }
 
-  static char_type* move(char_type* dst, const char_type* src, size_t count) {
+  static char_type* move(char_type* dst,
+                         const char_type* src,
+                         size_t count) noexcept {
     return reinterpret_cast<Elem*>(wmemmove(dst, src, count));
   }
 
-  static char_type* copy(char_type* dst, const char_type* src, size_t count) {
+  static constexpr char_type* copy(char_type* dst,
+                                   const char_type* src,
+                                   size_t count) noexcept {
     return reinterpret_cast<Elem*>(wmemcpy(dst, src, count));
   }
 
   static constexpr int compare(const char_type* str1,
                                const char_type* str2,
                                size_t count) {
-    if constexpr (is_same_v<char_type, wchar_t>) {
-      return __builtin_wmemcmp(str1, str2, count);
-    } else {
+    if constexpr (is_same_v<char_type, wchar_t>)
+      noexcept { return __builtin_wmemcmp(str1, str2, count); }
+    else {
       return char_traits_base<char_type, int_type>::compare(str1, str2, count);
     }
   }
 
   static constexpr size_t length(const char_type* str) noexcept {
     if constexpr (is_same_v<char_type, wchar_t>) {
-      return __builtin_wcslen(sre);
+      return __builtin_wcslen(str);
     } else {
       return char_traits_base<char_type, int_type>::length(str);
     }

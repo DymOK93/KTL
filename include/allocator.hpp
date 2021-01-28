@@ -11,6 +11,7 @@ using std::allocator_traits;
 #include <heap.h>
 #include <memory_tools.hpp>
 #include <memory_type_traits.hpp>
+#include <type_traits.hpp>
 
 namespace ktl {
 template <class Ty>
@@ -32,10 +33,11 @@ struct basic_allocator {
   }
 
   Ty* allocate_bytes(size_t bytes_count) {
-    static_assert(always_false_v<Ty>,
-                  "allocate_bytes() is non-virtual");   // static_assert(false, ...)
-                                                        // сработает в независимости от
-                                                        // наличия вызова allocate()
+    static_assert(
+        always_false_v<Ty>,
+        "allocate_bytes() is non-virtual");  // static_assert(false, ...)
+                                             // сработает в независимости от
+                                             // наличия вызова allocate()
   }
 
   void deallocate(Ty* ptr, size_t object_count) {
@@ -150,53 +152,60 @@ struct allocator_traits {
   using rebind_traits = typename get_rebind_traits_type<OtherTy>::type;
 
  public:
-  static constexpr pointer allocate(Alloc& alloc, size_type object_count) {
+  static constexpr pointer
+  allocate(Alloc& alloc, size_type object_count) noexcept(
+      noexcept(alloc.allocate(object_count * sizeof(value_type)))) {
     static_assert(mm::details::has_allocate_v<Alloc, size_type>,
                   "Allocator must provide allocate(size_type) function");
     return alloc.allocate(object_count * sizeof(value_type));
   }
 
-  static constexpr pointer allocate_single_object(Alloc& alloc) {
+  static constexpr pointer allocate_single_object(Alloc& alloc) noexcept(
+      noexcept(alloc.allocate())) {
     static_assert(mm::details::has_allocate_single_object_v<Alloc, size_type>,
                   "Allocator must provide allocate(void) function");
     return alloc.allocate();
   }
 
-  static constexpr void* allocate_bytes(Alloc& alloc, size_type bytes_count) {
+  static constexpr void* allocate_bytes(
+      Alloc& alloc,
+      size_type bytes_count) noexcept(noexcept(alloc.allocate(bytes_count))) {
     static_assert(mm::details::has_allocate_bytes_v<Alloc, size_type>,
                   "Allocator must provide allocate(size_type) function");
     return alloc.allocate(bytes_count);
   }
 
-  static constexpr void deallocate(Alloc& alloc,
-                                   pointer ptr,
-                                   size_type object_count) {
+  static constexpr void
+  deallocate(Alloc& alloc, pointer ptr, size_type object_count) noexcept(
+      noexcept(alloc.deallocate(ptr, object_count * sizeof(value_type)))) {
     static_assert(
         mm::details::has_deallocate_v<Alloc, pointer, size_type>,
         "Allocator must provide deallocate(pointer, size_type) function");
     alloc.deallocate(ptr, object_count * sizeof(value_type));
   }
 
-  static constexpr void deallocate_single_object(Alloc& alloc, pointer ptr) {
-    static_assert(
-        mm::details::has_deallocate_single_object_v<Alloc, pointer>,
+  static constexpr void deallocate_single_object(
+      Alloc& alloc,
+      pointer ptr) noexcept(noexcept(alloc.deallocate(ptr))) {
+    static_assert(mm::details::has_deallocate_single_object_v<Alloc, pointer>,
                   "Allocator must provide deallocate(pointer) function");
     alloc.deallocate(ptr);
   }
 
-  static constexpr void deallocate_bytes(Alloc& alloc,
-                                         void* ptr,
-                                         size_type bytes_count) {
-    static_assert(mm::details::has_deallocate_bytes_v<Alloc, pointer, size_type>,
-                  "Allocator must provide deallocate(pointer ptr, size_type "
-                  "bytes_count) function");
+  static constexpr void
+  deallocate_bytes(Alloc& alloc, void* ptr, size_type bytes_count) noexcept(
+      noexcept(alloc.deallocate(static_cast<pointer>(ptr), bytes_count))) {
+    static_assert(
+        mm::details::has_deallocate_bytes_v<Alloc, pointer, size_type>,
+        "Allocator must provide deallocate(pointer ptr, size_type "
+        "bytes_count) function");
     alloc.deallocate(static_cast<pointer>(ptr), bytes_count);
   }
 
   template <class... Types>
-  static constexpr pointer construct(Alloc& alloc,
-                                     pointer ptr,
-                                     Types&&... args) {
+  static constexpr pointer
+  construct(Alloc& alloc, pointer ptr, Types&&... args) noexcept(
+      is_nothrow_constructible_v<value_type, Types...>) {
     if constexpr (mm::details::has_construct_v<Alloc, pointer, Types...>) {
       return alloc_construct(alloc, ptr, forward<Types>(args)...);
     } else {
@@ -205,7 +214,8 @@ struct allocator_traits {
     }
   }
 
-  static constexpr void destroy(Alloc& alloc, pointer ptr) {
+  static constexpr void destroy(Alloc& alloc,
+                                pointer ptr) {  // TODO: conditional noexcept
     if constexpr (mm::details::has_destroy_v<Alloc, pointer>) {
       alloc_destroy(alloc, ptr);
     } else {

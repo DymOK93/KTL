@@ -37,4 +37,17 @@ struct nothrow_t {};
 inline constexpr nothrow_t nothrow;
 
 using max_align_t = double;  // Most aligned type
+
+#define INT8_C(x) (x)
+#define INT16_C(x) (x)
+#define INT32_C(x) (x)
+#define INT64_C(x) (x##LL)
+
+#define UINT8_C(x) (x)
+#define UINT16_C(x) (x)
+#define UINT32_C(x) (x##U)
+#define UINT64_C(x) (x##ULL)
+
+#define INTMAX_C(x) INT64_C(x)
+#define UINTMAX_C(x) UINT64_C(x)
 #endif

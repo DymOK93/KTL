@@ -31,6 +31,7 @@ target_compile_definitions(
 	${TARGET_LIB} PRIVATE
 		KTL_RUNTIME_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
+		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
 )
 
 target_link_libraries(

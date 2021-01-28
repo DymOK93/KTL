@@ -16,7 +16,7 @@ class bad_alloc : public exception {
   using MyBase = exception;
 
  public:
-  bad_alloc() noexcept
+  constexpr bad_alloc() noexcept
       : MyBase{L"memory allocation fails", constexpr_message_tag{}} {}
 
  protected:
@@ -28,7 +28,7 @@ class bad_array_length : public bad_alloc {
   using MyBase = bad_alloc;
 
  public:
-  bad_array_length() noexcept
+  constexpr bad_array_length() noexcept
       : MyBase{L"bad array length", constexpr_message_tag{}} {}
 };
 }  // namespace ktl
