@@ -4,8 +4,8 @@
 #include <../assert.h>
 #include <../basic_types.h>
 #include <../crt_attributes.h>
+#include <../algorithm_impl.hpp>
 #include <../limits_impl.hpp>
-#include <../type_traits_impl.hpp>
 
 #include <member_ptr.h>
 
@@ -102,7 +102,7 @@ struct relative_virtual_address {
  private:
   static offset_t calculate_offset(Ty* ptr, const void* base) noexcept {
     return convert_narrow<offset_t>(reinterpret_cast<uintptr_t>(ptr) -
-                             reinterpret_cast<uintptr_t>(base));
+                                    reinterpret_cast<uintptr_t>(base));
   }
 
  private:

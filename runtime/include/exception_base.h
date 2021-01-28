@@ -50,30 +50,4 @@ class exception_base {
   const void* m_data;  //!< exception_data* or exc_char_t*
 };
 }  // namespace crt
-
-class exception : public crt::exception_base {
- public:
-  using MyBase = crt::exception_base;
-
- public:
-  using MyBase::MyBase;
-  virtual const exc_char_t* what() const noexcept { return get_message(); }
-};
-
-class bad_alloc : public exception {
- public:
-  using MyBase = exception;
-
- public:
-  bad_alloc() noexcept;
-
- protected:
-  using MyBase::MyBase;
-};
-
-class bad_array_length : public bad_alloc {
- public:
-  bad_array_length() noexcept;
-};
-
 }  // namespace ktl

@@ -13,10 +13,13 @@ set(
 		"basic_runtime.h"
 		"basic_types.h"
 		"bugcheck.h"
+		"char_traits_impl.hpp"
 		"crt_attributes.h"
 		"crt_runtime.h"
 		"exception_base.h"
+		"exception_impl.h"
 		"functional_impl.hpp"
+		"intrinsic.hpp"
 		"heap.h"
 		"irql.h"
 		"limits_impl.hpp"
@@ -40,6 +43,7 @@ target_link_libraries(
 		INTERFACE exc_engine_interface
 )
 target_compile_definitions(
-	${TARGET_LIB} 
-		INTERFACE KTL_ENABLE_EXTENDED_ALIGNED_STORAGE
+	${TARGET_LIB}  INTERFACE 
+		KTL_ENABLE_EXTENDED_ALIGNED_STORAGE
+		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
 )

@@ -11,6 +11,7 @@ using std::allocator_traits;
 #include <heap.h>
 #include <memory_tools.hpp>
 #include <memory_type_traits.hpp>
+#include <type_traits.hpp>
 
 namespace ktl {
 template <class Ty>
@@ -19,7 +20,9 @@ struct basic_allocator {
   using value_type = Ty;
   using size_type = size_t;
   using differense_type = ptrdiff_t;
+  using propagate_on_container_copy_assignment = true_type;
   using propagate_on_container_move_assignment = true_type;
+  using propagate_on_container_swap = true_type;
   using is_always_equal = true_type;
   using enable_delete_null = true_type;
 
@@ -32,10 +35,11 @@ struct basic_allocator {
   }
 
   Ty* allocate_bytes(size_t bytes_count) {
-    static_assert(always_false_v<Ty>,
-                  "allocate_bytes() is non-virtual");   // static_assert(false, ...)
-                                                        // сработает в независимости от
-                                                        // наличия вызова allocate()
+    static_assert(
+        always_false_v<Ty>,
+        "allocate_bytes() is non-virtual");  // static_assert(false, ...)
+                                             // сработает в независимости от
+                                             // наличия вызова allocate()
   }
 
   void deallocate(Ty* ptr, size_t object_count) {
@@ -48,9 +52,13 @@ struct basic_allocator {
 
  protected:
   template <typename NewTag>
-  Ty* allocate_helper(size_t object_count, NewTag new_tag) {
-    return static_cast<Ty*>(operator new(object_count * sizeof(Ty), nothrow,
-                                         new_tag));
+  Ty* allocate_objects_impl(size_t object_count, NewTag new_tag) {
+    return allocate_bytes_impl(object_count * sizeof(Ty), new_tag);
+  }
+
+  template <typename NewTag>
+  Ty* allocate_bytes_impl(size_t bytes_count, NewTag new_tag) {
+    return static_cast<Ty*>(operator new(bytes_count, new_tag));
   }
 };
 
@@ -61,8 +69,12 @@ struct basic_paged_allocator : basic_allocator<Ty> {
   using value_type = typename MyBase::value_type;
   using size_type = typename MyBase::size_type;
   using differense_type = typename MyBase::differense_type;
+  using propagate_on_container_copy_assignment =
+      typename MyBase::propagate_on_container_copy_assignment;
   using propagate_on_container_move_assignment =
       typename MyBase::propagate_on_container_move_assignment;
+  using propagate_on_container_swap =
+      typename MyBase::propagate_on_container_swap;
   using is_always_equal = typename MyBase::is_always_equal;
   using enable_delete_null = typename MyBase::enable_delete_null;
 
@@ -74,11 +86,11 @@ struct basic_paged_allocator : basic_allocator<Ty> {
 
  public:
   Ty* allocate(size_t object_count) {
-    return MyBase::allocate_helper(object_count, paged_new);
+    return MyBase::allocate_objects_impl(object_count, paged_new);
   }
 
   Ty* allocate_bytes(size_t bytes_count) {
-    return MyBase::allocate_helper(bytes_count, paged_new);
+    return MyBase::allocate_bytes_impl(bytes_count, paged_new);
   }
 };
 
@@ -89,8 +101,12 @@ struct basic_non_paged_allocator : basic_allocator<Ty> {
   using value_type = typename MyBase::value_type;
   using size_type = typename MyBase::size_type;
   using differense_type = typename MyBase::differense_type;
+  using propagate_on_container_copy_assignment =
+      typename MyBase::propagate_on_container_copy_assignment;
   using propagate_on_container_move_assignment =
       typename MyBase::propagate_on_container_move_assignment;
+  using propagate_on_container_swap =
+      typename MyBase::propagate_on_container_swap;
   using is_always_equal = typename MyBase::is_always_equal;
   using enable_delete_null = typename MyBase::enable_delete_null;
 
@@ -102,11 +118,11 @@ struct basic_non_paged_allocator : basic_allocator<Ty> {
 
  public:
   Ty* allocate(size_t object_count) {
-    return MyBase::allocate_helper(object_count, non_paged_new);
+    return MyBase::allocate_objects_impl(object_count, non_paged_new);
   }
 
   Ty* allocate_bytes(size_t bytes_count) {
-    return MyBase::allocate_helper(bytes_count, non_paged_new);
+    return MyBase::allocate_bytes_impl(bytes_count, non_paged_new);
   }
 };
 
@@ -150,54 +166,85 @@ struct allocator_traits {
   using rebind_traits = typename get_rebind_traits_type<OtherTy>::type;
 
  public:
-  static constexpr pointer allocate(Alloc& alloc, size_type object_count) {
-    static_assert(mm::details::has_allocate_v<Alloc, size_type>,
+  static constexpr allocator_type select_on_container_copy_construction(
+      const allocator_type& alloc) {
+    if constexpr (mm::details::has_select_on_container_copy_construction_v<
+                      allocator_type>) {
+      return alloc.select_on_container_copy_construction();
+    } else {
+      return alloc;
+    }
+  }
+
+  static constexpr pointer
+  allocate(allocator_type& alloc, size_type object_count) noexcept(
+      noexcept(alloc.allocate(object_count * sizeof(value_type)))) {
+    static_assert(mm::details::has_allocate_v<allocator_type, size_type>,
                   "Allocator must provide allocate(size_type) function");
     return alloc.allocate(object_count * sizeof(value_type));
   }
 
-  static constexpr pointer allocate_single_object(Alloc& alloc) {
-    static_assert(mm::details::has_allocate_single_object_v<Alloc, size_type>,
-                  "Allocator must provide allocate(void) function");
+  static constexpr pointer allocate_single_object(
+      allocator_type& alloc) noexcept(noexcept(alloc.allocate())) {
+    static_assert(
+        mm::details::has_allocate_single_object_v<allocator_type, size_type>,
+        "Allocator must provide allocate(void) function");
     return alloc.allocate();
   }
 
-  static constexpr void* allocate_bytes(Alloc& alloc, size_type bytes_count) {
-    static_assert(mm::details::has_allocate_bytes_v<Alloc, size_type>,
-                  "Allocator must provide allocate(size_type) function");
-    return alloc.allocate(bytes_count);
+  static constexpr pointer allocate_bytes(
+      allocator_type& alloc,
+      size_type bytes_count) noexcept(noexcept(alloc.allocate(bytes_count))) {
+    static_assert(mm::details::has_allocate_bytes_v<allocator_type, size_type>,
+                  "Allocator must provide allocate_bytes(size_type) function");
+    return alloc.allocate_bytes(bytes_count);
   }
 
-  static constexpr void deallocate(Alloc& alloc,
-                                   pointer ptr,
-                                   size_type object_count) {
+  static constexpr void deallocate(
+      allocator_type& alloc,
+      pointer ptr,
+      size_type object_count) noexcept(noexcept(alloc
+                                                    .deallocate(
+                                                        ptr,
+                                                        object_count *
+                                                            sizeof(
+                                                                value_type)))) {
     static_assert(
-        mm::details::has_deallocate_v<Alloc, pointer, size_type>,
+        mm::details::has_deallocate_v<allocator_type, pointer, size_type>,
         "Allocator must provide deallocate(pointer, size_type) function");
     alloc.deallocate(ptr, object_count * sizeof(value_type));
   }
 
-  static constexpr void deallocate_single_object(Alloc& alloc, pointer ptr) {
+  static constexpr void deallocate_single_object(
+      allocator_type& alloc,
+      pointer ptr) noexcept(noexcept(alloc.deallocate(ptr))) {
     static_assert(
-        mm::details::has_deallocate_single_object_v<Alloc, pointer>,
-                  "Allocator must provide deallocate(pointer) function");
+        mm::details::has_deallocate_single_object_v<allocator_type, pointer>,
+        "Allocator must provide deallocate(pointer) function");
     alloc.deallocate(ptr);
   }
 
-  static constexpr void deallocate_bytes(Alloc& alloc,
-                                         void* ptr,
-                                         size_type bytes_count) {
-    static_assert(mm::details::has_deallocate_bytes_v<Alloc, pointer, size_type>,
-                  "Allocator must provide deallocate(pointer ptr, size_type "
-                  "bytes_count) function");
-    alloc.deallocate(static_cast<pointer>(ptr), bytes_count);
+  static constexpr void deallocate_bytes(
+      allocator_type& alloc,
+      void* ptr,
+      size_type bytes_count) noexcept(noexcept(alloc
+                                                   .deallocate(
+                                                       static_cast<pointer>(
+                                                           ptr),
+                                                       bytes_count))) {
+    static_assert(
+        mm::details::has_deallocate_bytes_v<allocator_type, pointer, size_type>,
+        "Allocator must provide deallocate_bytes(pointer ptr, size_type "
+        "bytes_count) function");
+    alloc.deallocate_bytes(static_cast<pointer>(ptr), bytes_count);
   }
 
   template <class... Types>
-  static constexpr pointer construct(Alloc& alloc,
-                                     pointer ptr,
-                                     Types&&... args) {
-    if constexpr (mm::details::has_construct_v<Alloc, pointer, Types...>) {
+  static constexpr pointer
+  construct(allocator_type& alloc, pointer ptr, Types&&... args) noexcept(
+      is_nothrow_constructible_v<value_type, Types...>) {
+    if constexpr (mm::details::has_construct_v<allocator_type, pointer,
+                                               Types...>) {
       return alloc_construct(alloc, ptr, forward<Types>(args)...);
     } else {
       (void)alloc;
@@ -205,8 +252,9 @@ struct allocator_traits {
     }
   }
 
-  static constexpr void destroy(Alloc& alloc, pointer ptr) {
-    if constexpr (mm::details::has_destroy_v<Alloc, pointer>) {
+  static constexpr void destroy(allocator_type& alloc,
+                                pointer ptr) {  // TODO: conditional noexcept
+    if constexpr (mm::details::has_destroy_v<allocator_type, pointer>) {
       alloc_destroy(alloc, ptr);
     } else {
       in_place_destroy(ptr);
@@ -215,7 +263,9 @@ struct allocator_traits {
 
  private:
   template <class... Types>
-  static pointer alloc_construct(Alloc& alloc, pointer ptr, Types&&... args) {
+  static pointer alloc_construct(allocator_type& alloc,
+                                 pointer ptr,
+                                 Types&&... args) {
     return alloc.construct(ptr, forward<Types>(args)...);
   }
 
@@ -224,7 +274,9 @@ struct allocator_traits {
     return construct_at(ptr, forward<Types>(args)...);
   }
 
-  static void alloc_destroy(Alloc& alloc, pointer ptr) { alloc.destroy(ptr); }
+  static void alloc_destroy(allocator_type& alloc, pointer ptr) {
+    alloc.destroy(ptr);
+  }
 
   static void in_place_destroy(pointer ptr) { destroy_at(ptr); }
 };

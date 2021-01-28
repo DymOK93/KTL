@@ -10,6 +10,8 @@ using std::void_t;
 
 using std::declval;
 
+using std::integral_constant;
+
 using std::common_type;
 using std::common_type_t;
 using std::conditional;
@@ -27,7 +29,18 @@ using std::add_rvalue_reference;
 using std::add_rvalue_reference_t;
 using std::remove_reference;
 using std::remove_reference_t;
+using std::remove_const;
+using std::remove_const_t;
+using std::remove_volatile;
+using std::remove_volatile_t;
+using std::remove_cv;
+using std::remove_cv_t;
+using std::remove_extent;
+using std::remove_extent_t;
+using std::remove_all_extents;
+using std::remove_all_extents_t;
 
+using std::is_empty;
 using std::is_constructible;
 using std::is_constructible_v;
 using std::is_convertible;
@@ -114,7 +127,21 @@ template <class Ty>
 Ty&& declval() noexcept;  //Только для SFINAE -
                           //определение не требуется
 
-template <bool enable, class Ty>
+template <class Ty, Ty Value>
+struct integral_constant {
+  static constexpr Ty value = Value;
+
+  using value_type = Ty;
+  using type = integral_constant;
+
+  constexpr operator value_type() const noexcept { return value; }
+
+  [[nodiscard]] constexpr value_type operator()() const noexcept {
+    return value;
+  }
+};
+
+template <bool enable, class Ty = void>
 struct enable_if {};
 
 template <class Ty>
@@ -122,7 +149,7 @@ struct enable_if<true, Ty> {
   using type = Ty;
 };
 
-template <bool enable, class Ty>
+template <bool enable, class Ty = void>
 using enable_if_t = typename enable_if<enable, Ty>::type;
 
 template <bool flag, class Ty1, class Ty2>
@@ -220,6 +247,27 @@ template <class Ty>
 using remove_const_t = typename remove_const<Ty>::type;
 
 template <class Ty>
+struct remove_volatile {
+  using type = Ty;
+};
+
+template <class Ty>
+struct remove_volatile<volatile Ty> {
+  using type = Ty;
+};
+
+template <class Ty>
+using remove_volatile_t = typename remove_volatile<Ty>::type;
+
+template <class Ty>
+struct remove_cv {
+  using type = remove_volatile_t<remove_const_t<Ty> >;
+};
+
+template <class Ty>
+using remove_cv_t = typename remove_cv<Ty>::type;
+
+template <class Ty>
 struct add_const {
   using type = const Ty;
 };
@@ -261,6 +309,15 @@ struct common_type {
 
 template <class... Types>
 using common_type_t = typename common_type<Types...>::type;
+
+
+template <class Ty>
+struct is_empty  {
+  static constexpr bool value = __is_empty(Ty);
+};  
+
+template <class Ty>
+inline constexpr bool is_empty_v = is_empty<Ty>::value;
 
 template <class From, class To, class = void>
 struct is_convertible : false_type {};
@@ -627,7 +684,6 @@ struct aligned_storage {
 template <size_t Size, size_t Align = alignof(max_align_t)>
 using aligned_storage_t = typename aligned_storage<Size, Align>::type;
 
-
 template <class Ty>
 struct is_enum {
   static constexpr bool value = __is_enum(Ty);
@@ -635,6 +691,14 @@ struct is_enum {
 
 template <class Ty>
 inline constexpr bool is_enum_v = is_enum<Ty>::value;
+
+template <class Ty>
+struct is_void {
+  static constexpr bool value = is_same_v<remove_cv_t<Ty>, void>;
+};
+
+template <class Ty>
+inline constexpr bool is_void_v = is_void<Ty>::value;
 
 namespace tt::details {
 template <class Ty, bool = is_enum_v<Ty> >
@@ -652,6 +716,79 @@ struct underlying_type : tt::details::underlying_type_impl<Ty> {
 
 template <class Ty>
 using underlying_type_t = typename underlying_type<Ty>::type;
+
+template <class Ty>
+struct remove_extent {
+  using type = Ty;
+};
+
+template <class Ty, size_t N>
+struct remove_extent<Ty[N]> {
+  using type = Ty;
+};
+
+template <class Ty>
+struct remove_extent<Ty[]> {
+  using type = Ty;
+};
+
+template <class Ty>
+using remove_extent_t = typename remove_extent<Ty>::type;
+
+template <class Ty>
+struct remove_all_extents {
+  using type = Ty;
+};
+
+template <class Ty, size_t N>
+struct remove_all_extents<Ty[N]> {
+  using type = typename remove_all_extents<Ty>::type;
+};
+
+template <class Ty>
+struct remove_all_extents<Ty[]> {
+  using type = typename remove_all_extents<Ty>::type;
+};
+
+template <class Ty>
+using remove_all_extents_t = typename remove_all_extents<Ty>::type;
+
+template <class Ty, class ListHead, class... Typelist>
+struct is_in_typelist {
+  static constexpr bool value =
+      is_same_v<Ty, ListHead> || is_in_typelist<Ty, Typelist...>::value;
+};
+
+template <class Ty, class ListTail>
+struct is_in_typelist<Ty, ListTail> {
+  static constexpr bool value = is_same_v<Ty, ListTail>;
+};
+
+template <class Ty, class... Types>
+inline constexpr bool is_in_typelist_v = is_in_typelist<Ty, Types...>::value;
+
+template <class Ty>
+struct is_integral {
+  static constexpr bool value = is_in_typelist_v<remove_cv_t<Ty>,
+                                                 bool,
+                                                 char,
+                                                 signed char,
+                                                 unsigned char,
+                                                 wchar_t,
+                                                 char16_t,
+                                                 char32_t,
+                                                 short,
+                                                 unsigned short,
+                                                 int,
+                                                 unsigned int,
+                                                 long,
+                                                 unsigned long,
+                                                 long long,
+                                                 unsigned long long>;
+};
+
+template <class Ty>
+inline constexpr bool is_integral_v = is_integral<Ty>::value;
 
 }  // namespace ktl
 #endif

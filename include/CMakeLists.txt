@@ -16,6 +16,7 @@ set(
 		"exception.hpp"
 		"functional.hpp"
 		"iterator.hpp"
+		"limits.hpp"
 		"memory.hpp"
 		"memory_tools.hpp"
 		"memory_type_traits.hpp"
@@ -26,10 +27,14 @@ set(
 		"raii.hpp"
 		"smart_pointer.hpp"
 		"static_pipeline.hpp"
+		"string.hpp"
 		"string_algorithms.hpp"
 		"string_base.hpp"
 		"type_traits.hpp"
 		"unicode_string_view.hpp"
+		"unordered_container_impl.hpp"
+		"unordered_map.hpp"
+		"unordered_set.hpp"
 		"utility.hpp"
 		"vector.hpp"
 )
@@ -37,6 +42,10 @@ set(
 set(TARGET_LIB cpp_interface)
 
 add_library(${TARGET_LIB} INTERFACE)
+target_compile_definitions(
+	${TARGET_LIB}  INTERFACE 
+		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
+)
 target_include_directories(
 	${TARGET_LIB} 
 		INTERFACE ${KTL_INCLUDE_DIR}

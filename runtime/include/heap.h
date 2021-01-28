@@ -14,7 +14,7 @@ inline constexpr memory_tag_t tag_base{0x20}, tag_paged{tag_base},
     tag_non_paged{tag_base + 1};
 
 template <memory_tag_t tag>
-constexpr POOL_TYPE PoolTypeFromTag() {
+constexpr POOL_TYPE PoolTypeFromTag() noexcept {
   static_assert(tag >= tag_base, "Invalid tag");
   constexpr POOL_TYPE pool_type_info[] = {PagedPool, NonPagedPoolNx};
   return pool_type_info[tag - tag_base];
@@ -32,10 +32,11 @@ struct alignas(allocation_alignment) MemoryBlockHeader {
   memory_tag_t tag{0};
 };
 
-inline void* zero_fill(void* ptr, size_t size);
+inline void* zero_fill(void* ptr, size_t size) noexcept;
 
 template <memory_tag_t tag, class KernelAllocFunction>
-void* allocate_impl(KernelAllocFunction alloc_func, size_t bytes_count) {
+void* allocate_impl(KernelAllocFunction alloc_func,
+                    size_t bytes_count) noexcept {
   if (!bytes_count) {
     return nullptr;
   }
@@ -55,14 +56,14 @@ void* allocate_impl(KernelAllocFunction alloc_func, size_t bytes_count) {
   return memory_block;
 }
 
-void deallocate_impl(void* memory_block);
+void deallocate_impl(void* memory_block) noexcept;
 
 }  // namespace crt
 
-void* alloc_paged(size_t bytes_count);
-void* alloc_non_paged(size_t bytes_count);
-void deallocate(void* memory_block);
-void free(void* ptr, size_t bytes = 0);
-wchar_t* allocate_wide_string(size_t length_in_bytes);
-void deallocate_wide_string(wchar_t* str, size_t capacity);
+void* alloc_paged(size_t bytes_count) noexcept;
+void* alloc_non_paged(size_t bytes_count) noexcept;
+void deallocate(void* memory_block) noexcept;
+void free(void* ptr, size_t bytes = 0) noexcept;
+wchar_t* allocate_wide_string(size_t length_in_bytes) noexcept;
+void deallocate_wide_string(wchar_t* str, size_t capacity) noexcept;
 }  // namespace ktl

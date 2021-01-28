@@ -4,16 +4,20 @@
 #include <utility>
 
 namespace ktl {
+using std::addressof;
 using std::exchange;
 using std::forward;
 using std::move;
 using std::swap;
-using std::addressof;
 
 using std::size;
+
+using std::make_pair;
+using std::pair;
 }  // namespace ktl
 
 #else
+#include <intrinsic.hpp>
 #include <type_traits.hpp>
 
 namespace ktl {
@@ -59,12 +63,147 @@ const Ty* addressof(const Ty&&) = delete;
 
 template <class Ty>
 constexpr const Ty* as_const(Ty* ptr) {
-  return static_cast<add_pointer_t<add_const_t<Ty> > >(ptr);
+  return static_cast<add_pointer_t<add_const_t<Ty>>>(ptr);
 }
 
 template <class Ty>
 constexpr const Ty& as_const(Ty& val) {
-  return static_cast<add_lvalue_reference_t<add_const_t<Ty> > >(val);
+  return static_cast<add_lvalue_reference_t<add_const_t<Ty>>>(val);
+}
+
+template <class Container>
+constexpr auto size(const Container& cont) -> decltype(cont.size()) {
+  return cont.size();
+}
+
+template <class Ty, size_t N>
+constexpr size_t size(const Ty (&arr)[N]) {
+  return N;
+}
+
+// A custom pair implementation is used in the map because ktl::pair is not
+// is_trivially_copyable, which means it would  not be allowed to be used in
+// memcpy. This struct is copyable, which is also tested.
+template <typename T1, typename T2>
+struct pair {
+  using first_type = T1;
+  using second_type = T2;
+
+  template <typename U1 = T1,
+            typename U2 = T2,
+            typename = typename ktl::enable_if_t<
+                ktl::is_default_constructible_v<U1> &&
+                ktl::is_default_constructible_v<U2>>::type>
+  constexpr pair() noexcept(noexcept(U1()) && noexcept(U2()))
+      : first(), second() {}
+
+  constexpr pair(T1&& a, T2&& b) noexcept(noexcept(
+      T1(move(declval<T1&&>()))) && noexcept(T2(move(declval<T2&&>()))))
+      : first(move(a)), second(move(b)) {}
+
+  template <typename U1, typename U2>
+  constexpr pair(U1&& a, U2&& b) noexcept(noexcept(T1(forward<U1>(
+      declval<U1&&>()))) && noexcept(T2(forward<U2>(declval<U2&&>()))))
+      : first(forward<U1>(a)), second(forward<U2>(b)) {}
+
+  // template <typename... U1, typename... U2>
+  // constexpr pair(
+  //    ktl::piecewise_construct_t /*unused*/,
+  //    ktl::tuple<U1...> a,
+  //    ktl::tuple<U2...>
+  //        b) noexcept(noexcept(pair(declval<ktl::tuple<U1...>&>(),
+  //                                  declval<ktl::tuple<U2...>&>(),
+  //                                  ROBIN_HOOD_STD::index_sequence_for<U1...>(),
+  //                                  ROBIN_HOOD_STD::index_sequence_for<
+  //                                      U2...>())))
+  //    : pair(a,
+  //           b,
+  //           ROBIN_HOOD_STD::index_sequence_for<U1...>(),
+  //           ROBIN_HOOD_STD::index_sequence_for<U2...>()) {}
+
+  //// constructor called from the ktl::piecewise_construct_t ctor
+  // template <typename... U1, size_t... I1, typename... U2, size_t... I2>
+  // pair(ktl::tuple<U1...>& a, ktl::tuple<U2...>& b,
+  // ROBIN_HOOD_STD::index_sequence<I1...> /*unused*/,
+  // ROBIN_HOOD_STD::index_sequence<I2...> /*unused*/) noexcept(
+  //    noexcept(T1(forward<U1>(ktl::get<I1>(
+  //        declval<ktl::tuple<
+  //            U1...>&>()))...)) && noexcept(T2(ktl::
+  //                                                 forward<U2>(ktl::get<I2>(
+  //                                                     declval<ktl::tuple<
+  //                                                         U2...>&>()))...)))
+  //    : first(forward<U1>(ktl::get<I1>(a))...),
+  //      second(forward<U2>(ktl::get<I2>(b))...) {
+  //  // make visual studio compiler happy about warning about unused a & b.
+  //  // Visual studio's pair implementation disables warning 4100.
+  //  (void)a;
+  //  (void)b;
+  //}
+
+  void swap(pair<T1, T2>& o) noexcept(
+      is_nothrow_swappable_v<T1>&& is_nothrow_swappable_v<T2>) {
+    swap(first, o.first);
+    swap(second, o.second);
+  }
+
+  T1 first;   // NOLINT(misc-non-private-member-variables-in-classes)
+  T2 second;  // NOLINT(misc-non-private-member-variables-in-classes)
+};
+
+template <typename A, typename B>
+void swap(pair<A, B>& a, pair<A, B>& b) noexcept(
+    noexcept(declval<pair<A, B>&>().swap(declval<pair<A, B>&>()))) {
+  a.swap(b);
+}
+
+template <typename A, typename B>
+constexpr bool operator==(pair<A, B> const& x, pair<A, B> const& y) {
+  return (x.first == y.first) && (x.second == y.second);
+}
+template <typename A, typename B>
+constexpr bool operator!=(pair<A, B> const& x, pair<A, B> const& y) {
+  return !(x == y);
+}
+template <typename A, typename B>
+constexpr bool operator<(pair<A, B> const& x, pair<A, B> const& y) noexcept(
+    noexcept(declval<A const&>() <
+             declval<A const&>()) && noexcept(declval<B const&>() <
+                                              declval<B const&>())) {
+  return x.first < y.first || (!(y.first < x.first) && x.second < y.second);
+}
+template <typename A, typename B>
+constexpr bool operator>(pair<A, B> const& x, pair<A, B> const& y) {
+  return y < x;
+}
+template <typename A, typename B>
+constexpr bool operator<=(pair<A, B> const& x, pair<A, B> const& y) {
+  return !(x > y);
+}
+template <typename A, typename B>
+inline constexpr bool operator>=(pair<A, B> const& x, pair<A, B> const& y) {
+  return !(x < y);
+}
+
+namespace tt::details {
+template <class Ty>
+struct uncvref {
+  using type = remove_cv_t<remove_reference_t<Ty>>;
+};
+template <class Ty>
+using uncvref_t = typename uncvref<Ty>::type;
+}  // namespace tt::details
+
+template <class Ty1, class Ty2>
+[[nodiscard]] constexpr pair<tt::details::uncvref_t<Ty1>,
+                             tt::details::uncvref_t<Ty2>>
+make_pair(Ty1&& first, Ty2&& second) noexcept(
+    is_nothrow_constructible_v<tt::details::uncvref_t<Ty1>, Ty1>&&
+        is_nothrow_constructible_v<tt::details::uncvref_t<Ty2>,
+                                   Ty2>) /* strengthened */ {
+  // return pair composed from arguments
+  using pair_type =
+      pair<tt::details::uncvref_t<Ty1>, tt::details::uncvref_t<Ty2>>;
+  return pair_type(forward<Ty1>(first), forward<Ty2>(second));
 }
 }  // namespace ktl
 #endif
@@ -74,8 +213,8 @@ template <class Ty, class U>
 constexpr auto* pointer_cast(U* ptr) noexcept {
   using pvoid_type = conditional_t<is_const_v<U>, const void*, void*>;
   using pointer_type =
-      conditional_t<is_const_v<U>, add_pointer_t<add_const_t<Ty> >,
-                    add_pointer_t<Ty> >;
+      conditional_t<is_const_v<U>, add_pointer_t<add_const_t<Ty>>,
+                    add_pointer_t<Ty>>;
 
   return static_cast<pointer_type>(static_cast<pvoid_type>(ptr));
 }
@@ -86,13 +225,30 @@ constexpr bool bool_cast(Ty&& val) noexcept(
   return static_cast<bool>(forward<Ty>(val));
 }
 
-template <class Container>
-constexpr auto size(const Container& cont) -> decltype(cont.size()) {
-  return cont.size();
+template <typename T>
+T rotr(T x, unsigned k) {
+  return (x >> k) | (x << (8U * sizeof(T) - k));
 }
 
-template <class Ty, size_t N>
-constexpr size_t size(const Ty(&arr)[N]) {
-  return N;
+// This cast gets rid of warnings like "cast from 'uint8_t*' {aka 'unsigned
+// char*'} to 'uint64_t*' {aka 'long unsigned int*'} increases required
+// alignment of target type". Use with care!
+template <typename Ty>
+constexpr Ty reinterpret_cast_no_cast_align_warning(void* ptr) noexcept {
+  return reinterpret_cast<Ty>(ptr);
+}
+
+template <typename Ty>
+constexpr Ty reinterpret_cast_no_cast_align_warning(const void* ptr) noexcept {
+  return reinterpret_cast<Ty>(ptr);
+}
+
+template <typename Ty>
+Ty unaligned_load(const void* ptr) noexcept {
+  // Using memcpy so we don't get into unaligned load problems.
+  // Compiler should optimize this very well anyways.
+  Ty value;
+  memcpy(addressof(value), ptr, sizeof(Ty));
+  return value;
 }
 }  // namespace ktl

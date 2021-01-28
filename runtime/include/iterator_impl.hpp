@@ -15,7 +15,7 @@ using std::output_iterator_tag;
 using std::random_access_iterator_tag;
 #else
 #include <functional_impl.hpp>
-#include <memory_type_traits.hpp>
+#include <memory_type_traits_impl.hpp>
 
 namespace ktl {
 struct input_iterator_tag {};

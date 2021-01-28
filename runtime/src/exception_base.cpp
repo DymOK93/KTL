@@ -2,13 +2,12 @@
 #include <exception_base.h>
 #include <heap.h>
 #include <placement_new.h>
+#include <char_traits_impl.hpp>
 
-#include <ntddk.h>
-
-namespace ktl {
-namespace crt {
+namespace ktl::crt {
 exception_base::exception_base(const exc_char_t* msg)
-    : m_data{create_masked_shared_data(msg, wcslen(msg))} {}
+    : m_data{create_masked_shared_data(msg,
+                                       char_traits<exc_char_t>::length(msg))} {}
 
 exception_base::exception_base(const exc_char_t* msg, size_t msg_length)
     : m_data{create_masked_shared_data(msg, msg_length)} {}
@@ -71,7 +70,7 @@ exception_data* exception_base::create_shared_data(const exc_char_t* msg,
   crt_critical_failure_if_not(buffer);  // terminate if allocation fails
 
   auto* msg_ptr{reinterpret_cast<exc_char_t*>(buffer + sizeof(exception_data))};
-  wcsncpy(msg_ptr, msg, msg_length);
+  char_traits<exc_char_t>::copy(msg_ptr, msg, msg_length);
 
   return new (buffer) exception_data{msg_ptr, 1};
 }
@@ -79,9 +78,4 @@ exception_data* exception_base::create_shared_data(const exc_char_t* msg,
 void exception_base::destroy_shared_data(exception_data* target) noexcept {
   ktl::free(target);
 }
-}  // namespace crt
-
-bad_alloc::bad_alloc() noexcept
-    : MyBase{L"memory allocation fails", constexpr_message_tag{}} {}
-
-}  // namespace ktl
+}  // namespace ktl::crt
