@@ -32,6 +32,9 @@ set(
 		"string_base.hpp"
 		"type_traits.hpp"
 		"unicode_string_view.hpp"
+		"unordered_container_impl.hpp"
+		"unordered_map.hpp"
+		"unordered_set.hpp"
 		"utility.hpp"
 		"vector.hpp"
 )

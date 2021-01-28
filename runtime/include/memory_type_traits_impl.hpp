@@ -103,9 +103,19 @@ template <class Target>
 using get_propagate_on_container_swap_t =
     typename get_propagate_on_container_swap<Target>::type;
 
+template <class Target, bool empty>
+struct get_always_equal_helper : false_type {};
+
+template <class Target>
+struct get_always_equal_helper<Target, true> : true_type {};
+
+template <class Target, bool empty>
+using get_always_equal_helper_t =
+    typename get_always_equal_helper<Target, empty>::type;
+
 template <class Target, class = void>
 struct get_always_equal {
-  using type = false_type;
+  using type = get_always_equal_helper_t<Target, is_empty_v<Target>>;
 };
 
 template <class Target>
@@ -228,6 +238,19 @@ struct has_destroy<
 
 template <class Alloc, class Pointer>
 inline constexpr bool has_destroy_v = has_destroy<Alloc, Pointer>::value;
+
+template <class Alloc, class = void>
+struct has_select_on_container_copy_construction : false_type {};
+
+template <class Alloc>
+struct has_select_on_container_copy_construction<
+    Alloc,
+    void_t<decltype(declval<Alloc>().select_on_container_copy_construction())>>
+    : true_type {};
+
+template <class Alloc>
+inline constexpr bool has_select_on_container_copy_construction_v =
+    has_select_on_container_copy_construction<Alloc>::value;
 
 template <class Deleter, class = void>
 struct get_enable_delete_null : false_type {};

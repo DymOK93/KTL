@@ -40,7 +40,7 @@ using std::remove_extent_t;
 using std::remove_all_extents;
 using std::remove_all_extents_t;
 
-
+using std::is_empty;
 using std::is_constructible;
 using std::is_constructible_v;
 using std::is_convertible;
@@ -149,7 +149,7 @@ struct enable_if<true, Ty> {
   using type = Ty;
 };
 
-template <bool enable, class Ty>
+template <bool enable, class Ty = void>
 using enable_if_t = typename enable_if<enable, Ty>::type;
 
 template <bool flag, class Ty1, class Ty2>
@@ -309,6 +309,15 @@ struct common_type {
 
 template <class... Types>
 using common_type_t = typename common_type<Types...>::type;
+
+
+template <class Ty>
+struct is_empty  {
+  static constexpr bool value = __is_empty(Ty);
+};  
+
+template <class Ty>
+inline constexpr bool is_empty_v = is_empty<Ty>::value;
 
 template <class From, class To, class = void>
 struct is_convertible : false_type {};

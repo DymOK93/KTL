@@ -11,9 +11,13 @@ using std::move;
 using std::swap;
 
 using std::size;
+
+using std::make_pair;
+using std::pair;
 }  // namespace ktl
 
 #else
+#include <intrinsic.hpp>
 #include <type_traits.hpp>
 
 namespace ktl {
@@ -66,25 +70,6 @@ template <class Ty>
 constexpr const Ty& as_const(Ty& val) {
   return static_cast<add_lvalue_reference_t<add_const_t<Ty>>>(val);
 }
-}  // namespace ktl
-#endif
-
-namespace ktl {
-template <class Ty, class U>
-constexpr auto* pointer_cast(U* ptr) noexcept {
-  using pvoid_type = conditional_t<is_const_v<U>, const void*, void*>;
-  using pointer_type =
-      conditional_t<is_const_v<U>, add_pointer_t<add_const_t<Ty>>,
-                    add_pointer_t<Ty>>;
-
-  return static_cast<pointer_type>(static_cast<pvoid_type>(ptr));
-}
-
-template <class Ty>
-constexpr bool bool_cast(Ty&& val) noexcept(
-    noexcept(static_cast<bool>(forward<Ty>(val)))) {
-  return static_cast<bool>(forward<Ty>(val));
-}
 
 template <class Container>
 constexpr auto size(const Container& cont) -> decltype(cont.size()) {
@@ -106,24 +91,11 @@ struct pair {
 
   template <typename U1 = T1,
             typename U2 = T2,
-            typename = typename ktl::enable_if<
-                ktl::is_default_constructible<U1>::value &&
-                ktl::is_default_constructible<U2>::value>::type>
+            typename = typename ktl::enable_if_t<
+                ktl::is_default_constructible_v<U1> &&
+                ktl::is_default_constructible_v<U2>>::type>
   constexpr pair() noexcept(noexcept(U1()) && noexcept(U2()))
       : first(), second() {}
-
-  //// pair constructors are explicit so we don't accidentally call this ctor
-  /// when we don't have to.
-  // explicit constexpr pair(ktl::pair<T1, T2> const& o) noexcept(
-  //    noexcept(T1(declval<T1 const&>())) && noexcept(T2(declval<T2
-  //    const&>()))) : first(o.first) , second(o.second) {}
-
-  //// pair constructors are explicit so we don't accidentally call this ctor
-  /// when we don't have to.
-  // explicit constexpr pair(ktl::pair<T1, T2>&& o) noexcept(noexcept(
-  //    T1(move(declval<T1&&>()))) &&
-  //    noexcept(T2(move(declval<T2&&>())))) :
-  //    first(move(o.first)) , second(move(o.second)) {}
 
   constexpr pair(T1&& a, T2&& b) noexcept(noexcept(
       T1(move(declval<T1&&>()))) && noexcept(T2(move(declval<T2&&>()))))
@@ -168,9 +140,8 @@ struct pair {
   //  (void)b;
   //}
 
-  void swap(pair<T1, T2>& o) noexcept((detail::swappable::nothrow<T1>::value) &&
-                                      (detail::swappable::nothrow<T2>::value)) {
-    using ktl::swap;
+  void swap(pair<T1, T2>& o) noexcept(
+      is_nothrow_swappable_v<T1>&& is_nothrow_swappable_v<T2>) {
     swap(first, o.first);
     swap(second, o.second);
   }
@@ -180,33 +151,32 @@ struct pair {
 };
 
 template <typename A, typename B>
-inline void swap(pair<A, B>& a, pair<A, B>& b) noexcept(
+void swap(pair<A, B>& a, pair<A, B>& b) noexcept(
     noexcept(declval<pair<A, B>&>().swap(declval<pair<A, B>&>()))) {
   a.swap(b);
 }
 
 template <typename A, typename B>
-inline constexpr bool operator==(pair<A, B> const& x, pair<A, B> const& y) {
+constexpr bool operator==(pair<A, B> const& x, pair<A, B> const& y) {
   return (x.first == y.first) && (x.second == y.second);
 }
 template <typename A, typename B>
-inline constexpr bool operator!=(pair<A, B> const& x, pair<A, B> const& y) {
+constexpr bool operator!=(pair<A, B> const& x, pair<A, B> const& y) {
   return !(x == y);
 }
 template <typename A, typename B>
-inline constexpr bool
-operator<(pair<A, B> const& x, pair<A, B> const& y) noexcept(
+constexpr bool operator<(pair<A, B> const& x, pair<A, B> const& y) noexcept(
     noexcept(declval<A const&>() <
              declval<A const&>()) && noexcept(declval<B const&>() <
                                               declval<B const&>())) {
   return x.first < y.first || (!(y.first < x.first) && x.second < y.second);
 }
 template <typename A, typename B>
-inline constexpr bool operator>(pair<A, B> const& x, pair<A, B> const& y) {
+constexpr bool operator>(pair<A, B> const& x, pair<A, B> const& y) {
   return y < x;
 }
 template <typename A, typename B>
-inline constexpr bool operator<=(pair<A, B> const& x, pair<A, B> const& y) {
+constexpr bool operator<=(pair<A, B> const& x, pair<A, B> const& y) {
   return !(x > y);
 }
 template <typename A, typename B>
@@ -234,5 +204,51 @@ make_pair(Ty1&& first, Ty2&& second) noexcept(
   using pair_type =
       pair<tt::details::uncvref_t<Ty1>, tt::details::uncvref_t<Ty2>>;
   return pair_type(forward<Ty1>(first), forward<Ty2>(second));
+}
+}  // namespace ktl
+#endif
+
+namespace ktl {
+template <class Ty, class U>
+constexpr auto* pointer_cast(U* ptr) noexcept {
+  using pvoid_type = conditional_t<is_const_v<U>, const void*, void*>;
+  using pointer_type =
+      conditional_t<is_const_v<U>, add_pointer_t<add_const_t<Ty>>,
+                    add_pointer_t<Ty>>;
+
+  return static_cast<pointer_type>(static_cast<pvoid_type>(ptr));
+}
+
+template <class Ty>
+constexpr bool bool_cast(Ty&& val) noexcept(
+    noexcept(static_cast<bool>(forward<Ty>(val)))) {
+  return static_cast<bool>(forward<Ty>(val));
+}
+
+template <typename T>
+T rotr(T x, unsigned k) {
+  return (x >> k) | (x << (8U * sizeof(T) - k));
+}
+
+// This cast gets rid of warnings like "cast from 'uint8_t*' {aka 'unsigned
+// char*'} to 'uint64_t*' {aka 'long unsigned int*'} increases required
+// alignment of target type". Use with care!
+template <typename Ty>
+constexpr Ty reinterpret_cast_no_cast_align_warning(void* ptr) noexcept {
+  return reinterpret_cast<Ty>(ptr);
+}
+
+template <typename Ty>
+constexpr Ty reinterpret_cast_no_cast_align_warning(const void* ptr) noexcept {
+  return reinterpret_cast<Ty>(ptr);
+}
+
+template <typename Ty>
+Ty unaligned_load(const void* ptr) noexcept {
+  // Using memcpy so we don't get into unaligned load problems.
+  // Compiler should optimize this very well anyways.
+  Ty value;
+  memcpy(addressof(value), ptr, sizeof(Ty));
+  return value;
 }
 }  // namespace ktl
