@@ -84,27 +84,53 @@ constexpr size_t size(const Ty (&arr)[N]) {
 // A custom pair implementation is used in the map because ktl::pair is not
 // is_trivially_copyable, which means it would  not be allowed to be used in
 // memcpy. This struct is copyable, which is also tested.
-template <typename T1, typename T2>
+template <typename Ty1, typename Ty2>
 struct pair {
-  using first_type = T1;
-  using second_type = T2;
+  using first_type = Ty1;
+  using second_type = Ty2;
 
-  template <typename U1 = T1,
-            typename U2 = T2,
+  template <typename U1 = Ty1,
+            typename U2 = Ty2,
             typename = typename ktl::enable_if_t<
                 ktl::is_default_constructible_v<U1> &&
                 ktl::is_default_constructible_v<U2>>::type>
-  constexpr pair() noexcept(noexcept(U1()) && noexcept(U2()))
+  constexpr pair() noexcept(is_nothrow_default_constructible_v<U1>&& noexcept(
+      is_nothrow_default_constructible_v<U2>))
       : first(), second() {}
 
-  constexpr pair(T1&& a, T2&& b) noexcept(noexcept(
-      T1(move(declval<T1&&>()))) && noexcept(T2(move(declval<T2&&>()))))
+  constexpr pair(Ty1&& a,
+                 Ty2&& b) noexcept(is_nothrow_move_constructible_v<Ty1>&&
+                                       is_nothrow_move_constructible_v<Ty2>)
       : first(move(a)), second(move(b)) {}
 
-  template <typename U1, typename U2>
-  constexpr pair(U1&& a, U2&& b) noexcept(noexcept(T1(forward<U1>(
-      declval<U1&&>()))) && noexcept(T2(forward<U2>(declval<U2&&>()))))
+  template <
+      typename U1,
+      typename U2,
+      enable_if_t<is_constructible_v<Ty1, U1> && is_constructible_v<Ty2, U2>,
+                  int> = 0>
+  constexpr pair(U1&& a, U2&& b) noexcept(
+      is_nothrow_constructible_v<Ty1, U1>&& is_nothrow_constructible_v<Ty2, U2>)
       : first(forward<U1>(a)), second(forward<U2>(b)) {}
+
+  template <
+      class U1,
+      class U2,
+      enable_if_t<is_constructible_v<Ty1, U1> && is_constructible_v<Ty2, U2>,
+                  int> = 0>
+  constexpr pair(const pair<U1, U2>& other) noexcept(
+      is_nothrow_constructible_v<Ty1, const U1&>&&
+          is_nothrow_constructible_v<Ty2, const U2&>)
+      : first(other.first), second(other.second) {}
+
+  template <
+      class U1,
+      class U2,
+      enable_if_t<is_constructible_v<Ty1, U1> && is_constructible_v<Ty2, U2>,
+                  int> = 0>
+  constexpr pair(pair<U1, U2>&& other) noexcept(
+      is_nothrow_constructible_v<Ty1, U1&&>&&
+          is_nothrow_constructible_v<Ty2, U2&&>)
+      : first(move(other.first)), second(move(other.second)) {}
 
   // template <typename... U1, typename... U2>
   // constexpr pair(
@@ -113,22 +139,22 @@ struct pair {
   //    ktl::tuple<U2...>
   //        b) noexcept(noexcept(pair(declval<ktl::tuple<U1...>&>(),
   //                                  declval<ktl::tuple<U2...>&>(),
-  //                                  ROBIN_HOOD_STD::index_sequence_for<U1...>(),
-  //                                  ROBIN_HOOD_STD::index_sequence_for<
+  //                                  ROBIN_HOOD_STyD::index_sequence_for<U1...>(),
+  //                                  ROBIN_HOOD_STyD::index_sequence_for<
   //                                      U2...>())))
   //    : pair(a,
   //           b,
-  //           ROBIN_HOOD_STD::index_sequence_for<U1...>(),
-  //           ROBIN_HOOD_STD::index_sequence_for<U2...>()) {}
+  //           ROBIN_HOOD_STyD::index_sequence_for<U1...>(),
+  //           ROBIN_HOOD_STyD::index_sequence_for<U2...>()) {}
 
   //// constructor called from the ktl::piecewise_construct_t ctor
   // template <typename... U1, size_t... I1, typename... U2, size_t... I2>
   // pair(ktl::tuple<U1...>& a, ktl::tuple<U2...>& b,
-  // ROBIN_HOOD_STD::index_sequence<I1...> /*unused*/,
-  // ROBIN_HOOD_STD::index_sequence<I2...> /*unused*/) noexcept(
-  //    noexcept(T1(forward<U1>(ktl::get<I1>(
+  // ROBIN_HOOD_STyD::index_sequence<I1...> /*unused*/,
+  // ROBIN_HOOD_STyD::index_sequence<I2...> /*unused*/) noexcept(
+  //    noexcept(Ty1(forward<U1>(ktl::get<I1>(
   //        declval<ktl::tuple<
-  //            U1...>&>()))...)) && noexcept(T2(ktl::
+  //            U1...>&>()))...)) && noexcept(Ty2(ktl::
   //                                                 forward<U2>(ktl::get<I2>(
   //                                                     declval<ktl::tuple<
   //                                                         U2...>&>()))...)))
@@ -140,47 +166,49 @@ struct pair {
   //  (void)b;
   //}
 
-  void swap(pair<T1, T2>& o) noexcept(
-      is_nothrow_swappable_v<T1>&& is_nothrow_swappable_v<T2>) {
+  void swap(pair<Ty1, Ty2>& o) noexcept(
+      is_nothrow_swappable_v<Ty1>&& is_nothrow_swappable_v<Ty2>) {
     swap(first, o.first);
     swap(second, o.second);
   }
 
-  T1 first;   // NOLINT(misc-non-private-member-variables-in-classes)
-  T2 second;  // NOLINT(misc-non-private-member-variables-in-classes)
+  Ty1 first;   // NOLINTy(misc-non-private-member-variables-in-classes)
+  Ty2 second;  // NOLINTy(misc-non-private-member-variables-in-classes)
 };
 
-template <typename A, typename B>
-void swap(pair<A, B>& a, pair<A, B>& b) noexcept(
-    noexcept(declval<pair<A, B>&>().swap(declval<pair<A, B>&>()))) {
+template <typename Ty1, typename Ty2>
+void swap(pair<Ty1, Ty2>& a, pair<Ty1, Ty2>& b) noexcept(
+    noexcept(declval<pair<Ty1, Ty2>&>().swap(declval<pair<Ty1, Ty2>&>()))) {
   a.swap(b);
 }
 
-template <typename A, typename B>
-constexpr bool operator==(pair<A, B> const& x, pair<A, B> const& y) {
+template <typename Ty1, typename Ty2>
+constexpr bool operator==(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) {
   return (x.first == y.first) && (x.second == y.second);
 }
-template <typename A, typename B>
-constexpr bool operator!=(pair<A, B> const& x, pair<A, B> const& y) {
+template <typename Ty1, typename Ty2>
+constexpr bool operator!=(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) {
   return !(x == y);
 }
-template <typename A, typename B>
-constexpr bool operator<(pair<A, B> const& x, pair<A, B> const& y) noexcept(
-    noexcept(declval<A const&>() <
-             declval<A const&>()) && noexcept(declval<B const&>() <
-                                              declval<B const&>())) {
+template <typename Ty1, typename Ty2>
+constexpr bool
+operator<(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) noexcept(
+    noexcept(declval<Ty1 const&>() <
+             declval<Ty1 const&>()) && noexcept(declval<Ty2 const&>() <
+                                                declval<Ty2 const&>())) {
   return x.first < y.first || (!(y.first < x.first) && x.second < y.second);
 }
-template <typename A, typename B>
-constexpr bool operator>(pair<A, B> const& x, pair<A, B> const& y) {
+template <typename Ty1, typename Ty2>
+constexpr bool operator>(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) {
   return y < x;
 }
-template <typename A, typename B>
-constexpr bool operator<=(pair<A, B> const& x, pair<A, B> const& y) {
+template <typename Ty1, typename Ty2>
+constexpr bool operator<=(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) {
   return !(x > y);
 }
-template <typename A, typename B>
-inline constexpr bool operator>=(pair<A, B> const& x, pair<A, B> const& y) {
+template <typename Ty1, typename Ty2>
+inline constexpr bool operator>=(pair<Ty1, Ty2> const& x,
+                                 pair<Ty1, Ty2> const& y) {
   return !(x < y);
 }
 

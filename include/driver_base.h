@@ -5,11 +5,11 @@
 
 namespace ktl {
 struct DeviceInfo {
-  unsigned long extension_size{0},  //Дополнительная память, выделямое под
-                                    //устройство (+ к sizeof(device))
-      type{FILE_DEVICE_UNKNOWN},  //Тип устройства
-      characteristics{0};  //Для некоторых специфических драйверов
-  bool exclusive{false};  //Кол-во клиентов драйвера
+  unsigned long extension_size{0},  //пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
+                                    //пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (+ пїЅ sizeof(device))
+      type{FILE_DEVICE_UNKNOWN},  //пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      characteristics{0};  //пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+  bool exclusive{false};  //пїЅпїЅпїЅ-пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 };
 
 struct DeviceIoResponse {
@@ -19,7 +19,7 @@ struct DeviceIoResponse {
 
 template <class Driver>
 Driver* GetDriverFromDeviceExtension(PDEVICE_OBJECT device_object) {
-  return static_cast<ktl::add_pointer_t<ktl::remove_reference_t<Driver>>>(
+  return static_cast<add_pointer_t<remove_reference_t<Driver>>>(
       device_object->DeviceExtension);
 }
 

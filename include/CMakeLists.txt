@@ -28,10 +28,10 @@ set(
 		"smart_pointer.hpp"
 		"static_pipeline.hpp"
 		"string.hpp"
+		"string_view.hpp"
 		"string_algorithms.hpp"
 		"string_base.hpp"
 		"type_traits.hpp"
-		"unicode_string_view.hpp"
 		"unordered_container_impl.hpp"
 		"unordered_map.hpp"
 		"unordered_set.hpp"
@@ -44,7 +44,7 @@ set(TARGET_LIB cpp_interface)
 add_library(${TARGET_LIB} INTERFACE)
 target_compile_definitions(
 	${TARGET_LIB}  INTERFACE 
-		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
+		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ CRT
 )
 target_include_directories(
 	${TARGET_LIB} 

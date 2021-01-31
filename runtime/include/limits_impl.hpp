@@ -1,4 +1,5 @@
 #pragma once
+#include <limits.h>
 
 namespace ktl {
 enum float_round_style {
@@ -62,7 +63,7 @@ struct numeric_limits<unsigned int> {
 
   static constexpr unsigned int(min)() noexcept { return 0; };
   static constexpr unsigned int lowest() noexcept { return (min)(); };
-  static constexpr unsigned int(max)() noexcept { return 0xffff'ffff; };
+  static constexpr unsigned int(max)() noexcept { return UINT_MAX; };
 };
 
 template <>
@@ -89,11 +90,9 @@ struct numeric_limits<long long> {
   static constexpr bool traps = true;
   static constexpr bool tinyness_before = false;
 
-  static constexpr long long(min)() noexcept {
-    return -9223372036854775807ll - 1;
-  };
+  static constexpr long long(min)() noexcept { return LLONG_MIN; };
   static constexpr long long lowest() noexcept { return (min)(); };
-  static constexpr long long(max)() noexcept { return 9223372036854775807ll; };
+  static constexpr long long(max)() noexcept { return LLONG_MAX; };
 };
 
 template <>
@@ -116,7 +115,7 @@ struct numeric_limits<unsigned long long> {
 
   static constexpr unsigned long long(min)() noexcept { return 0; };
   static constexpr unsigned long long lowest() noexcept { return (min)(); };
-  static constexpr unsigned long long(max)() noexcept { return 0xFFFFFFFFFFFFFFFFull; };
+  static constexpr unsigned long long(max)() noexcept { return ULLONG_MAX; };
 };
 
 template <>

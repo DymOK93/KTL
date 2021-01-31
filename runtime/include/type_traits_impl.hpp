@@ -27,20 +27,20 @@ using std::add_pointer;
 using std::add_pointer_t;
 using std::add_rvalue_reference;
 using std::add_rvalue_reference_t;
-using std::remove_reference;
-using std::remove_reference_t;
+using std::decay;
+using std::remove_all_extents;
+using std::remove_all_extents_t;
 using std::remove_const;
 using std::remove_const_t;
-using std::remove_volatile;
-using std::remove_volatile_t;
 using std::remove_cv;
 using std::remove_cv_t;
 using std::remove_extent;
 using std::remove_extent_t;
-using std::remove_all_extents;
-using std::remove_all_extents_t;
+using std::remove_reference;
+using std::remove_reference_t;
+using std::remove_volatile;
+using std::remove_volatile_t;
 
-using std::is_empty;
 using std::is_constructible;
 using std::is_constructible_v;
 using std::is_convertible;
@@ -49,6 +49,7 @@ using std::is_copy_constructible;
 using std::is_copy_constructible_v;
 using std::is_default_constructible;
 using std::is_default_constructible_v;
+using std::is_empty;
 using std::is_move_constructible;
 using std::is_move_constructible_v;
 using std::is_nothrow_constructible;
@@ -79,6 +80,7 @@ using std::is_swappable;
 using std::is_swappable_v;
 
 using std::is_array;
+using std::is_function;
 using std::is_lvalue_reference;
 using std::is_lvalue_reference_v;
 using std::is_pointer;
@@ -140,6 +142,9 @@ struct integral_constant {
     return value;
   }
 };
+
+template <bool Value>
+struct bool_constant : integral_constant<bool, Value> {};
 
 template <bool enable, class Ty = void>
 struct enable_if {};
@@ -268,6 +273,24 @@ template <class Ty>
 using remove_cv_t = typename remove_cv<Ty>::type;
 
 template <class Ty>
+struct remove_pointer_const {
+  using type = Ty;
+};
+
+template <class Ty>
+struct remove_pointer_const<Ty*> {
+  using type = Ty*;
+};
+
+template <class Ty>
+struct remove_pointer_const<const Ty*> {
+  using type = Ty*;
+};
+
+template <class Ty>
+using remove_pointer_const_t = typename remove_pointer_const<Ty>::type;
+
+template <class Ty>
 struct add_const {
   using type = const Ty;
 };
@@ -310,11 +333,10 @@ struct common_type {
 template <class... Types>
 using common_type_t = typename common_type<Types...>::type;
 
-
 template <class Ty>
-struct is_empty  {
+struct is_empty {
   static constexpr bool value = __is_empty(Ty);
-};  
+};
 
 template <class Ty>
 inline constexpr bool is_empty_v = is_empty<Ty>::value;
@@ -500,14 +522,28 @@ struct is_nothrow_swappable {
 template <class Ty>
 inline constexpr bool is_nothrow_swappable_v = is_nothrow_swappable<Ty>::value;
 
-template <class Ty>
-struct is_array : false_type {};
+template <class>
+inline constexpr bool is_array_v = false;
+
+template <class Ty, size_t N>
+inline constexpr bool is_array_v<Ty[N]> = true;
 
 template <class Ty>
-struct is_array<Ty[]> : true_type {};
+inline constexpr bool is_array_v<Ty[]> = true;
 
 template <class Ty>
-inline constexpr bool is_array_v = is_array<Ty>::value;
+struct is_array : bool_constant<is_array_v<Ty> > {};
+
+template <class Ty>
+struct is_function {
+  static constexpr bool value =
+      !is_const_v<const Ty> &&
+      !is_reference_v<Ty>;  // only function types and reference types can't be
+                            // const qualified
+};
+
+template <class Ty>
+inline constexpr bool is_function_v = is_function<Ty>::value;
 
 template <class Ty>
 struct is_pointer : false_type {};
@@ -752,6 +788,22 @@ struct remove_all_extents<Ty[]> {
 
 template <class Ty>
 using remove_all_extents_t = typename remove_all_extents<Ty>::type;
+
+template <class Ty>
+struct decay {
+ private:
+  using unref_t = remove_reference_t<Ty>;
+
+ public:
+  using type = conditional_t<is_array_v<unref_t>,
+                             add_pointer_t<remove_extent_t<unref_t> >,
+                             conditional_t<is_function_v<unref_t>,
+                                           add_pointer_t<unref_t>,
+                                           remove_cv_t<unref_t> > >;
+};
+
+template <class Ty>
+using decay_t = typename decay<Ty>::type;
 
 template <class Ty, class ListHead, class... Typelist>
 struct is_in_typelist {
