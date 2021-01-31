@@ -62,37 +62,41 @@ namespace un::details {
 // in the destructor, and keeps a linked list of the allocated memory around.
 // Overhead per allocation is the size of a pointer.
 template <class Ty,
+          template <typename...>
           class BasicBytesAllocator,
           size_t MinNumAllocs = 4,
           size_t MaxNumAllocs = 256>
 class BulkPoolAllocator {
+ public:
+  using allocator_type = BasicBytesAllocator<Ty>;
+
  private:
-  using AlBytesTraits = allocator_traits<BasicBytesAllocator>;
+  using AlBytesTraits = allocator_traits<allocator_type>;
 
  public:
-  template <class BytesAlloc = BasicBytesAllocator>
+  template <class BytesAlloc = allocator_type>
   BulkPoolAllocator(BytesAlloc&& alloc = BytesAlloc{}) noexcept(
-      is_nothrow_constructible_v<BasicBytesAllocator, BytesAlloc>)
+      is_nothrow_constructible_v<allocator_type, BytesAlloc>)
       : m_bytes_alc{forward<BytesAlloc>(alloc)} {
     static_assert(AlBytesTraits::propagate_on_container_move_assignment::value,
-                  "BasicBytesAllocator must be move assignable");
+                  "bytes allocator must be move assignable");
     static_assert(AlBytesTraits::propagate_on_container_swap::value,
-                  "BasicBytesAllocator must be swappable");
+                  "bytes allocator must be swappable");
   }
 
   // does not copy anything, just creates a new allocator.
   BulkPoolAllocator([[maybe_unused]] const BulkPoolAllocator& other) noexcept(
-      is_nothrow_default_constructible_v<BasicBytesAllocator>)
+      is_nothrow_default_constructible_v<allocator_type>)
       : mHead(nullptr), mListForFree(nullptr) {}
 
   BulkPoolAllocator(BulkPoolAllocator&& other) noexcept(
-      is_nothrow_move_constructible_v<BasicBytesAllocator>)
+      is_nothrow_move_constructible_v<allocator_type>)
       : m_bytes_alc{move(other.m_bytes_alc)},
         mHead{exchange(o.mHead, nullptr)},
         mListForFree{(o.mListForFree, nullptr)} {}
 
   BulkPoolAllocator& operator=(BulkPoolAllocator&& other) noexcept(
-      is_nothrow_move_assignable_v<BasicBytesAllocator>) {
+      is_nothrow_move_assignable_v<allocator_type>) {
     reset();
     m_bytes_alc = move(other.m_bytes_alc);
     mHead = exchange(other.mHead, nullptr);
@@ -103,7 +107,7 @@ class BulkPoolAllocator {
   BulkPoolAllocator&
   // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp)
   operator=(const BulkPoolAllocator& other) noexcept(
-      is_nothrow_default_constructible_v<BasicBytesAllocator>) {
+      is_nothrow_default_constructible_v<allocator_type>) {
     return *this;
   }
 
@@ -113,7 +117,7 @@ class BulkPoolAllocator {
   void reset() noexcept {
     while (mListForFree) {
       Ty* tmp = *mListForFree;
-      free(mListForFree);
+      AlBytesTraits::deallocate_bytes(m_bytes_alc, mListForFree, ALIGNED_SIZE);
       mListForFree = reinterpret_cast_no_cast_align_warning<Ty**>(tmp);
     }
     mHead = nullptr;
@@ -132,6 +136,10 @@ class BulkPoolAllocator {
     return tmp;
   }
 
+  Ty* allocate_bytes(size_t bytes_count) {
+    return AlBytesTraits::allocate_bytes(m_bytes_alc, bytes_count);
+  }
+
   // does not actually deallocate but puts it in store.
   // make sure you have already called the destructor! e.g. with
   //  obj->~Ty();
@@ -141,15 +149,22 @@ class BulkPoolAllocator {
     mHead = obj;
   }
 
+  // deallocate
+  // make sure you have already called the destructor! e.g. with
+  //  obj->~Ty();
+  void deallocate_bytes(void* ptr, size_t bytes_count) {
+    AlBytesTraits::deallocate_bytes(m_bytes_alc, ptr, bytes_count);
+  }
+
   // Adds an already allocated block of memory to the allocator. This allocator
   // is from now on responsible for freeing the data (with free()). If the
   // provided data is not large enough to make use of, it is immediately freed.
   // Otherwise it is reused and freed in the destructor.
-  void addOrFree(void* ptr, const size_t numBytes) noexcept {
+  void addOrFree(void* ptr, size_t numBytes) noexcept {
     // calculate number of available elements in ptr
     if (numBytes < ALIGNMENT + ALIGNED_SIZE) {
       // not enough data for at least one element. Free and return.
-      AlBytesTraits::deallocate_bytes(m_bytes_alc, ptr, numBytes);
+      deallocate_bytes(ptr, numBytes);
     } else {
       add(ptr, numBytes);
     }
@@ -157,14 +172,12 @@ class BulkPoolAllocator {
 
   void swap(
       BulkPoolAllocator<Ty, BasicBytesAllocator, MinNumAllocs, MaxNumAllocs>&
-          other) noexcept(is_nothrow_swappable_v<BasicBytesAllocator>) {
+          other) noexcept(is_nothrow_swappable_v<allocator_type>) {
+    using ktl::swap;
     swap(m_bytes_alloc, other.m_bytes_alloc);
     swap(mHead, other.mHead);
     swap(mListForFree, other.mListForFree);
   }
-
- protected:
-  BasicBytesAllocator& getBytesAlloc() noexcept { return m_bytes_alc; }
 
  private:
   // iterates the list of allocated memory to calculate how many to alloc next.
@@ -221,7 +234,7 @@ class BulkPoolAllocator {
 
     // alloc new memory: [prev |Ty, Ty, ... Ty]
     size_t const bytes = ALIGNMENT + ALIGNED_SIZE * numElementsToAlloc;
-    add(AlBytesTraits::allocate_bytes(m_bytes_alc, bytes), bytes);
+    add(allocate_bytes(bytes), bytes);
     return mHead;
   }
 
@@ -238,28 +251,64 @@ class BulkPoolAllocator {
   static_assert(ALIGNMENT >= sizeof(Ty*), "ALIGNMENT");
 
  private:
-  BasicBytesAllocator m_bytes_alc;
+  allocator_type m_bytes_alc;
   Ty* mHead{nullptr};
   Ty** mListForFree{nullptr};
 };
 
 template <class Ty,
+          template <typename...>
           class BasicBytesAllocator,
           size_t MinSize,
           size_t MaxSize,
           bool IsFlat>
 struct NodeAllocator;
 
-// dummy allocator that does nothing
-template <class Ty, class BasicBytesAllocator, size_t MinSize, size_t MaxSize>
-struct NodeAllocator<Ty, BasicBytesAllocator, MinSize, MaxSize, true> {
+template <class Ty,
+          template <typename...>
+          class BasicBytesAllocator,
+          size_t MinSize,
+          size_t MaxSize>
+class NodeAllocator<Ty, BasicBytesAllocator, MinSize, MaxSize, true> {
+ public:
+  using allocator_type = BasicBytesAllocator<Ty>;
+
+ private:
+  using AlBytesTraits = allocator_traits<allocator_type>;
+
+ public:
+  template <class BytesAlloc = allocator_type>
+  NodeAllocator(BytesAlloc&& alloc = BytesAlloc{}) noexcept(
+      is_nothrow_constructible_v<allocator_type, BytesAlloc>)
+      : m_bytes_alc{forward<BytesAlloc>(alloc)} {
+    static_assert(AlBytesTraits::propagate_on_container_move_assignment::value,
+                  "bytes allocator must be move assignable");
+    static_assert(AlBytesTraits::propagate_on_container_swap::value,
+                  "bytes allocator must be swappable");
+  }
+
+  Ty* allocate_bytes(size_t bytes_count) {
+    return AlBytesTraits::allocate_bytes(m_bytes_alc, bytes_count);
+  }
+
+  void deallocate_bytes(void* ptr, size_t bytes_count) {
+    return AlBytesTraits::allocate_bytes(m_bytes_alc, bytes_count);
+  }
+
   // we are not using the data, so just free it.
   void addOrFree(void* ptr, [[maybe_unused]] size_t bytes_count) noexcept {
-    free(ptr);
+    deallocate_bytes(ptr, bytes_count);
   }
+
+ private:
+  allocator_type m_bytes_alc;
 };
 
-template <class Ty, class BasicBytesAllocator, size_t MinSize, size_t MaxSize>
+template <class Ty,
+          template <typename...>
+          class BasicBytesAllocator,
+          size_t MinSize,
+          size_t MaxSize>
 struct NodeAllocator<Ty, BasicBytesAllocator, MinSize, MaxSize, false>
     : public BulkPoolAllocator<Ty, BasicBytesAllocator, MinSize, MaxSize> {};
 
@@ -341,6 +390,7 @@ template <bool IsFlat,
           typename Ty,
           typename Hash,
           typename KeyEqual,
+          template <typename...>
           class BasicBytesAlloc,
           size_t MaxLoadFactor100>
 class Table
@@ -364,24 +414,20 @@ class Table
 
   using key_type = Key;
   using mapped_type = Ty;
-  using value_type = typename conditional<
+  using value_type = typename conditional_t<
       is_set,
       Key,
-      pair<typename conditional<is_flat, Key, Key const>::type, Ty>>::type;
+      pair<typename conditional_t<is_flat, Key, Key const>, Ty>>;
   using size_type = size_t;
   using hasher = Hash;
   using key_equal = KeyEqual;
-  using bytes_allocator_type = BasicBytesAlloc;
   using Self = Table<IsFlat,
                      key_type,
                      mapped_type,
                      hasher,
                      key_equal,
-                     bytes_allocator_type,
+                     BasicBytesAlloc,
                      MaxLoadFactor100>;
-
- private:
-  using AlBytesTraits = allocator_traits<bytes_allocator_type>;
 
  private:
   static_assert(MaxLoadFactor100 > 10 && MaxLoadFactor100 < 100,
@@ -398,8 +444,7 @@ class Table
   static constexpr uint8_t InitialInfoInc = 1U << InitialInfoNumBits;
   static constexpr size_t InfoMask = InitialInfoInc - 1U;
   static constexpr uint8_t InitialInfoHashShift = 0;
-  using DataPool =
-      NodeAllocator<value_type, bytes_allocator_type, 4, 16384, IsFlat>;
+  using DataPool = NodeAllocator<value_type, BasicBytesAlloc, 4, 16384, IsFlat>;
 
   // type needs to be wider than uint8_t.
   using InfoType = uint32_t;
@@ -493,11 +538,11 @@ class Table
 
     void destroy(M& map) noexcept {
       // don't deallocate, just put it into list of datapool.
-      mData->~value_type();
+      destroy_at(mData);
       map.deallocate(mData);
     }
 
-    void destroyDoNotDeallocate() noexcept { mData->~value_type(); }
+    void destroyDoNotDeallocate() noexcept { destroy_at(mData); }
 
     value_type const* operator->() const noexcept { return mData; }
 
@@ -541,7 +586,7 @@ class Table
     }
 
     void swap(DataNode<M, false>& o) noexcept {
-      using swap;
+      using ktl::swap;
       swap(mData, o.mData);
     }
 
@@ -598,7 +643,7 @@ class Table
 
       for (size_t i = 0; i < numElementsWithBuffer; ++i) {
         if (t.mInfo[i]) {
-          ::new (static_cast<void*>(t.mKeyVals + i)) Node(t, *s.mKeyVals[i]);
+          construct_at(t.mKeyVals + i, t, *s.mKeyVals[i]);
         }
       }
     }
@@ -628,7 +673,7 @@ class Table
         if (0 != m.mInfo[idx]) {
           Node& n = m.mKeyVals[idx];
           n.destroy(m);
-          n.~Node();
+          destroy_at(addressof(n));
         }
       }
     }
@@ -642,7 +687,7 @@ class Table
         if (0 != m.mInfo[idx]) {
           Node& n = m.mKeyVals[idx];
           n.destroyDoNotDeallocate();
-          n.~Node();
+          destroy_at(addressof(n));
         }
       }
     }
@@ -662,7 +707,6 @@ class Table
    public:
     using difference_type = ptrdiff_t;
     using value_type = typename Self::value_type;
-    using bytes_allocator_type = typename Self::bytes_allocator_type;
     using reference =
         typename conditional<IsConst, value_type const&, value_type&>::type;
     using pointer =
@@ -749,7 +793,7 @@ class Table
                        mapped_type,
                        hasher,
                        key_equal,
-                       bytes_allocator_type,
+                       BasicBytesAlloc,
                        MaxLoadFactor100>;
     NodePtr mKeyVals{nullptr};
     uint8_t const* mInfo{nullptr};
@@ -791,7 +835,7 @@ class Table
   void shiftUp(size_t startIdx, size_t const insertion_idx) noexcept(
       is_nothrow_move_assignable<Node>::value) {
     auto idx = startIdx;
-    ::new (static_cast<void*>(mKeyVals + idx)) Node(move(mKeyVals[idx - 1]));
+    construct_at(mKeyVals + idx, move(mKeyVals[idx - 1]));
     while (--idx != insertion_idx) {
       mKeyVals[idx] = move(mKeyVals[idx - 1]);
     }
@@ -823,7 +867,7 @@ class Table
     mInfo[idx] = 0;
     // don't destroy, we've moved it
     // mKeyVals[idx].destroy(*this);
-    mKeyVals[idx].~Node();
+    destroy_at(mKeyVals + idx);
   }
 
   // copy of find(), except that it returns iterator instead of const_iterator.
@@ -926,7 +970,16 @@ class Table
       const Hash& h = Hash{},
       const KeyEqual& equal =
           KeyEqual{}) noexcept(noexcept(Hash(h)) && noexcept(KeyEqual(equal)))
-      : WHash(h), WKeyEqual(equal) {}
+      : WHash(h), WKeyEqual(equal), NodeAllocator() {}
+
+  template <class BytesAlloc>
+  explicit Table(
+      [[maybe_unused]] size_t bucket_count,
+      const Hash& h = Hash{},
+      const KeyEqual& equal = KeyEqual{},
+      BytesAlloc&& alloc =
+          BytesAlloc{}) noexcept(noexcept(Hash(h)) && noexcept(KeyEqual(equal)))
+      : WHash(h), WKeyEqual(equal), NodeAllocator(forward<BytesAlloc>(alloc)) {}
 
   template <typename Iter>
   Table(Iter first,
@@ -938,6 +991,18 @@ class Table
     insert(first, last);
   }
 
+  template <typename Iter, class BytesAlloc>
+  Table(Iter first,
+        Iter last,
+        [[maybe_unused]] size_t bucket_count = 0,
+        const Hash& h = Hash{},
+        const KeyEqual& equal = KeyEqual{},
+        BytesAlloc&& alloc = BytesAlloc{})
+      : WHash(h), WKeyEqual(equal), NodeAllocator(forward<BytesAlloc>(alloc)) {
+    insert(first, last);
+  }
+
+  // initializer_list hasn't been implemented in kernel yet
   // Table(initializer_list<value_type> initlist,
   //      size_t ROBIN_HOOD_UNUSED(bucket_count) /*unused*/ = 0,
   //      const Hash& h = Hash{},
@@ -1000,8 +1065,7 @@ class Table
 
       auto const numElementsWithBuffer = calcNumElementsWithBuffer(o.mMask + 1);
       auto const numBytesTotal = calcNumBytesTotal(numElementsWithBuffer);
-      mKeyVals = static_cast<Node*>(
-          AlBytesTraits::allocate_bytes(getBytesAlloc(), numBytesTotal));
+      mKeyVals = reinterpret_cast<Node*>(allocate_bytes(numBytesTotal));
       // no need for calloc because clonData does memcpy
       mInfo = reinterpret_cast<uint8_t*>(mKeyVals + numElementsWithBuffer);
       mNumElements = o.mNumElements;
@@ -1050,12 +1114,12 @@ class Table
       // realloc.
       if (0 != mMask) {
         // only deallocate if we actually have data!
-        free(mKeyVals);
+        deallocate_bytes(mKeyVals, mNumElements * sizeof(Node));
       }
 
       auto const numElementsWithBuffer = calcNumElementsWithBuffer(o.mMask + 1);
       auto const numBytesTotal = calcNumBytesTotal(numElementsWithBuffer);
-      mKeyVals = AlBytesTraits::allocate_bytes(getBytesAlloc(), numBytesTotal);
+      mKeyVals = reinterpret_cast<Node*>(allocate_bytes(numBytesTotal));
 
       // no need for calloc here because cloneData performs a memcpy.
       mInfo = reinterpret_cast<uint8_t*>(mKeyVals + numElementsWithBuffer);
@@ -1075,10 +1139,7 @@ class Table
   }
 
   // Swaps everything between the two maps.
-  void swap(Table& o) {
-    using swap;
-    swap(o, *this);
-  }
+  void swap(Table& o) { swap(o, *this); }
 
   // Clears all data, without resizing.
   void clear() {
@@ -1513,7 +1574,7 @@ class Table
         if (oldInfo[i] != 0) {
           insert_move(move(oldKeyVals[i]));
           // destroy the node but DON'Ty destroy the data.
-          oldKeyVals[i].~Node();
+          destroy_at(oldKeyVals + i);
         }
       }
 
@@ -1562,8 +1623,7 @@ class Table
 
     // calloc also zeroes everything
     auto const numBytesTotal = calcNumBytesTotal(numElementsWithBuffer);
-    mKeyVals = static_cast<Node*>(
-        AlBytesTraits::allocate_bytes(getBytesAlloc(), numBytesTotal));
+    mKeyVals = reinterpret_cast<Node*>(allocate_bytes(numBytesTotal));
     mInfo = reinterpret_cast<uint8_t*>(mKeyVals + numElementsWithBuffer);
 
     // set sentinel
@@ -1747,7 +1807,7 @@ class Table
     // non-heap object 'fm'
     // [-Werror=free-nonheap-object]
     if (mKeyVals != reinterpret_cast_no_cast_align_warning<Node*>(&mMask)) {
-      free(mKeyVals);
+      deallocate_bytes(mKeyVals, mNumElements * sizeof(Node));
     }
   }
 

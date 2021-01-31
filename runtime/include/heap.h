@@ -41,12 +41,14 @@ void* allocate_impl(KernelAllocFunction alloc_func,
     return nullptr;
   }
   constexpr size_t header_size{sizeof(MemoryBlockHeader)};
+  const size_t summary_size{bytes_count + header_size};
+
   auto* memory_block_header{
-      alloc_func(PoolTypeFromTag<tag>(), bytes_count + header_size, tag)};
+      alloc_func(PoolTypeFromTag<tag>(), summary_size, tag)};
   void* memory_block{nullptr};
 
   if (memory_block_header) {
-    new (zero_fill(memory_block_header, bytes_count)) MemoryBlockHeader{tag};
+    new (zero_fill(memory_block_header, summary_size)) MemoryBlockHeader{tag};
     memory_block = static_cast<byte*>(memory_block_header) + header_size;
 #ifdef KTL_RUNTIME_DBG
     NT_ASSERT(reinterpret_cast<size_t>(memory_block) % allocation_alignment ==

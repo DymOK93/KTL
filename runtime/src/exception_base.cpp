@@ -66,13 +66,15 @@ void* exception_base::create_masked_shared_data(const exc_char_t* msg,
 exception_data* exception_base::create_shared_data(const exc_char_t* msg,
                                                    size_t msg_length) noexcept {
   auto* buffer{static_cast<byte*>(alloc_non_paged(
-      sizeof(exception_data) + msg_length * sizeof(exc_char_t)))};
+      sizeof(exception_data) +
+      (msg_length + 1) * sizeof(exc_char_t)))};  // ƒлина с учЄтом нуль-символа
   crt_critical_failure_if_not(buffer);  // terminate if allocation fails
 
-  auto* msg_ptr{reinterpret_cast<exc_char_t*>(buffer + sizeof(exception_data))};
-  char_traits<exc_char_t>::copy(msg_ptr, msg, msg_length);
+  auto* msg_buf{reinterpret_cast<exc_char_t*>(buffer + sizeof(exception_data))};
+  char_traits<exc_char_t>::copy(msg_buf, msg, msg_length);
+  msg_buf[msg_length] = static_cast<exc_char_t>(0);
 
-  return new (buffer) exception_data{msg_ptr, 1};
+  return new (buffer) exception_data{msg_buf, 1};
 }
 
 void exception_base::destroy_shared_data(exception_data* target) noexcept {

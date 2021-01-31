@@ -103,18 +103,30 @@ struct pair {
                                        is_nothrow_move_constructible_v<Ty2>)
       : first(move(a)), second(move(b)) {}
 
-  template <typename U1, typename U2>
+  template <
+      typename U1,
+      typename U2,
+      enable_if_t<is_constructible_v<Ty1, U1> && is_constructible_v<Ty2, U2>,
+                  int> = 0>
   constexpr pair(U1&& a, U2&& b) noexcept(
       is_nothrow_constructible_v<Ty1, U1>&& is_nothrow_constructible_v<Ty2, U2>)
       : first(forward<U1>(a)), second(forward<U2>(b)) {}
 
-  template <class U1, class U2>
+  template <
+      class U1,
+      class U2,
+      enable_if_t<is_constructible_v<Ty1, U1> && is_constructible_v<Ty2, U2>,
+                  int> = 0>
   constexpr pair(const pair<U1, U2>& other) noexcept(
       is_nothrow_constructible_v<Ty1, const U1&>&&
           is_nothrow_constructible_v<Ty2, const U2&>)
       : first(other.first), second(other.second) {}
 
-  template <class U1, class U2>
+  template <
+      class U1,
+      class U2,
+      enable_if_t<is_constructible_v<Ty1, U1> && is_constructible_v<Ty2, U2>,
+                  int> = 0>
   constexpr pair(pair<U1, U2>&& other) noexcept(
       is_nothrow_constructible_v<Ty1, U1&&>&&
           is_nothrow_constructible_v<Ty2, U2&&>)

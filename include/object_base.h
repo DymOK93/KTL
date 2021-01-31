@@ -2,6 +2,8 @@
 #include <ntddk.h>
 #include <utility.hpp>
 
+// deprecated
+
 namespace ktl {
 class ObjectBase {
  public:
@@ -11,7 +13,7 @@ class ObjectBase {
  protected:
   NTSTATUS set_status(NTSTATUS status) const {
     return exchange(m_status,
-                    status);  //Устанавливает новый статус и возвращает старый
+                    status);  //пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
   }
 
  private:

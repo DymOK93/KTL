@@ -26,7 +26,7 @@ using intmax_t = int32_t;
 using uintmax_t = uint32_t;
 #define BITNESS 32
 #else
-#error Unknown platform
+#error Unsupported platform
 #endif
 
 using size_t = decltype(sizeof(int));
