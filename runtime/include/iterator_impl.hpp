@@ -138,7 +138,7 @@ constexpr void advance(InputIt& it, Distance offset) {
   using category = typename iterator_traits<InputIt>::iterator_category;
   auto distance{
       static_cast<typename iterator_traits<InputIt>::difference_type>(offset)};
-  it::details::advance_impl(it, offset, category{});
+  it::details::advance_impl(it, distance, category{});
 }
 
 namespace it::details {

@@ -8,7 +8,7 @@ using std::max;
 #include <utility.hpp>
 namespace ktl {
 template <class Ty1, class Ty2>
-constexpr decltype(auto)(min)(Ty1&& lhs,
+constexpr decltype(auto) (min)(Ty1&& lhs,
                              Ty2&& rhs) noexcept(noexcept(forward<Ty2>(rhs) <
                                                           forward<Ty1>(lhs))) {
   return forward<Ty2>(rhs) < forward<Ty1>(lhs) ? forward<Ty2>(rhs)

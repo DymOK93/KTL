@@ -1,5 +1,6 @@
 #include <basic_runtime.h>
 #include <crt_runtime.h>
+#include <heap.h>
 
 namespace ktl::crt {
 static handler_t destructor_stack[128] = {
@@ -13,7 +14,6 @@ constexpr int INIT_CODE = 0x4b544caU;
 constexpr int EXIT_CODE = 0x4b544ceU;
 
 void CRTCALL doexit(_In_ int) {
-  KdPrint(("Destructor count: %u\n", destructor_count));
   if (ktl::crt::destructor_count) {
     do {
       auto& destructor{
@@ -23,7 +23,6 @@ void CRTCALL doexit(_In_ int) {
       destructor();
     } while (ktl::crt::destructor_count);
   }
-  KdPrint(("Doexit() cleaning was successful\n"));
 }
 
 int CRTCALL cinit(_In_ int) {  //Вызов конструкторов
@@ -49,6 +48,7 @@ int CRTCALL atexit(ktl::crt::handler_t destructor) {
 
 NTSTATUS KtlDriverEntry(PDRIVER_OBJECT driver_object,
                         PUNICODE_STRING registry_path) {
+  ktl::crt::construct_heap();
   ktl::crt::cinit(ktl::crt::INIT_CODE);
   NTSTATUS init_status{DriverEntry(driver_object, registry_path)};
   if (!NT_SUCCESS(init_status)) {
@@ -65,4 +65,5 @@ void KtlDriverUnload(PDRIVER_OBJECT driver_object) {
     ktl::crt::custom_driver_unload(driver_object);
   }
   ktl::crt::doexit(ktl::crt::EXIT_CODE);
+  ktl::crt::destroy_heap();
 }

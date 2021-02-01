@@ -15,6 +15,7 @@ set(
 		"driver_base.h"
 		"exception.hpp"
 		"functional.hpp"
+		"initializer_list.hpp"
 		"iterator.hpp"
 		"limits.hpp"
 		"memory.hpp"

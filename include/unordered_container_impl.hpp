@@ -43,6 +43,7 @@
 #include <exception.hpp>
 #include <functional.hpp>
 #include <hash.hpp>
+#include <initializer_list.hpp>
 #include <intrinsic.hpp>
 #include <limits.hpp>
 #include <type_traits.hpp>
@@ -1002,15 +1003,24 @@ class Table
     insert(first, last);
   }
 
-  // initializer_list hasn't been implemented in kernel yet
-  // Table(initializer_list<value_type> initlist,
-  //      size_t ROBIN_HOOD_UNUSED(bucket_count) /*unused*/ = 0,
-  //      const Hash& h = Hash{},
-  //      const KeyEqual& equal = KeyEqual{})
-  //    : WHash(h), WKeyEqual(equal) {
-  //  ROBIN_HOOD_TRACE(this)
-  //  insert(initlist.begin(), initlist.end());
-  //}
+  // initializer_list hasn't been fully implemented yet
+ /* Table(initializer_list<value_type> init_list,
+        [[maybe_unused]] size_t bucket_count = 0,
+        const Hash& h = Hash{},
+        const KeyEqual& equal = KeyEqual{})
+      : WHash(h), WKeyEqual(equal), NodeAllocator() {
+    insert(init_list.begin(), init_list.end());
+  }
+
+  template <class BytesAlloc>
+  Table(initializer_list<value_type> init_list,
+        [[maybe_unused]] size_t bucket_count = 0,
+        const Hash& h = Hash{},
+        const KeyEqual& equal = KeyEqual{},
+        BytesAlloc&& alloc = BytesAlloc{})
+      : WHash(h), WKeyEqual(equal), NodeAllocator(forward<BytesAlloc>(alloc)) {
+    insert(init_list.begin(), init_list.end());
+  }*/
 
   Table(Table&& o) noexcept
       : WHash(move(static_cast<WHash&>(o))),
@@ -1624,6 +1634,7 @@ class Table
     // calloc also zeroes everything
     auto const numBytesTotal = calcNumBytesTotal(numElementsWithBuffer);
     mKeyVals = reinterpret_cast<Node*>(allocate_bytes(numBytesTotal));
+    memset(mKeyVals, 0, numBytesTotal);
     mInfo = reinterpret_cast<uint8_t*>(mKeyVals + numElementsWithBuffer);
 
     // set sentinel

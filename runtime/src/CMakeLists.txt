@@ -11,6 +11,7 @@ set(
 		"assert.cpp"
 		"basic_runtime.cpp"
 		"bugcheck.cpp"
+		"concurrent_node_allocator"
 		"exception_base.cpp"
 		"irql.cpp"
 		"heap.cpp"

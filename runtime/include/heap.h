@@ -1,71 +1,123 @@
 #pragma once
+#include <assert.h>
 #include <basic_types.h>
+#include <concurrent_node_allocator.h>
 #include <crt_attributes.h>
 #include <placement_new.h>
+#include <heap_impl.hpp>
+#include <intrinsic.hpp>
+#include <limits_impl.hpp>
+#include <type_traits_impl.hpp>
 
 #include <ntddk.h>
 
 namespace ktl {
 namespace crt {
-// MSDN: Each ASCII character in the tag must be a value in the range 0x20
-// (space) to 0x7E (tilde)
-using memory_tag_t = uint16_t;
-inline constexpr memory_tag_t tag_base{0x20}, tag_paged{tag_base},
-    tag_non_paged{tag_base + 1};
+using memory_pool_index_t = uint8_t;
 
-template <memory_tag_t tag>
-constexpr POOL_TYPE PoolTypeFromTag() noexcept {
-  static_assert(tag >= tag_base, "Invalid tag");
-  constexpr POOL_TYPE pool_type_info[] = {PagedPool, NonPagedPoolNx};
-  return pool_type_info[tag - tag_base];
-}
-
-#if defined(_WIN64)
-inline constexpr size_t allocation_alignment{16};
-#elif defined(_WIN32)
-inline constexpr size_t allocation_alignment{8};
-#else
-#error Unsupported platform
-#endif
-
-struct alignas(allocation_alignment) MemoryBlockHeader {
-  memory_tag_t tag{0};
+struct MemoryBlockHeader {
+  memory_pool_index_t not_from_pool : 1;
+  memory_pool_index_t list_index : 3;
+  memory_pool_index_t pool_index : 4;
 };
 
-inline void* zero_fill(void* ptr, size_t size) noexcept;
+/**
+ * Pool index layout:
+ * [7 6 5 4 3 2 1 0]
+ * bist 7 - not-a-pool tag
+ * bits [6..4] - pool list index (0111 is bad index)
+ * bits [3...0] - pool index in list
+ */
 
-template <memory_tag_t tag, class KernelAllocFunction>
-void* allocate_impl(KernelAllocFunction alloc_func,
-                    size_t bytes_count) noexcept {
+inline constexpr size_t MAX_POOL_LISTS_COUNT{(1u << 3) - 1},
+    MAX_POOLS_IN_LIST_COUNT{(1u << 4) - 1},
+    DEFAULT_POOL_LIST_COUNT{static_cast<size_t>(memory_pool_type::_Count)},
+    DEFAULT_POOLS_IN_LIST_COUNT{8}, MIN_POOL_NODE_SIZE_IN_PWR_OF_TWO{5},
+    MIN_POOL_NODE_SIZE_IN_BYTES{1u << MIN_POOL_NODE_SIZE_IN_PWR_OF_TWO};
+
+struct memory_pool_list {
+  concurrent_node_allocator* pools;
+  memory_pool_index_t index;
+};
+
+memory_pool_list get_memory_pool_list_by_index(
+    memory_pool_index_t idx) noexcept;
+
+template <memory_pool_type type>
+memory_pool_list get_memory_pool_list_by_type() noexcept {
+  return get_memory_pool_list_by_index(static_cast<size_t>(type));
+}
+
+memory_pool_index_t get_memory_pool_index(size_t bytes_count) noexcept;
+
+template <memory_pool_type type>
+void* allocate_impl(size_t bytes_count, align_val_t alignment) noexcept {
   if (!bytes_count) {
     return nullptr;
   }
-  constexpr size_t header_size{sizeof(MemoryBlockHeader)};
+
+  const size_t header_size{static_cast<size_t>(alignment)};
   const size_t summary_size{bytes_count + header_size};
 
-  auto* memory_block_header{
-      alloc_func(PoolTypeFromTag<tag>(), summary_size, tag)};
+  void* memory_block_header{nullptr};
+  MemoryBlockHeader header{};
+
+  if (summary_size >= MEMORY_PAGE_SIZE ||
+      header_size > static_cast<size_t>(MAX_ALLOCATION_ALIGNMENT)) {
+    memory_block_header = ExAllocatePoolWithTag(to_native_pool_type(type),
+                                                summary_size, KTL_MEMORY_TAG);
+    header.not_from_pool = 1;
+  } else {
+    memory_pool_index_t pool_idx{get_memory_pool_index(summary_size)};
+    auto [pool_list_ptr, pool_list_idx]{get_memory_pool_list_by_type<type>()};
+    memory_block_header = pool_list_ptr[pool_idx].allocate();
+    header.list_index = pool_list_idx;
+    header.pool_index = pool_idx;
+  }
+
   void* memory_block{nullptr};
 
   if (memory_block_header) {
-    new (zero_fill(memory_block_header, summary_size)) MemoryBlockHeader{tag};
+    new (memory_block_header) MemoryBlockHeader{header};
     memory_block = static_cast<byte*>(memory_block_header) + header_size;
-#ifdef KTL_RUNTIME_DBG
-    NT_ASSERT(reinterpret_cast<size_t>(memory_block) % allocation_alignment ==
-              0);
-#endif
   }
+
   return memory_block;
 }
 
-void deallocate_impl(void* memory_block) noexcept;
+void deallocate_impl(void* memory_block, align_val_t alignment) noexcept;
+
+template <class Handler>
+void pool_storage_walker(Handler handler) {
+  for (memory_pool_index_t pool_list_idx = 0;
+       pool_list_idx < DEFAULT_POOL_LIST_COUNT; ++pool_list_idx) {
+    auto pool_type{static_cast<memory_pool_type>(pool_list_idx)};
+    auto [pool_list, _]{get_memory_pool_list_by_index(pool_list_idx)};
+    for (memory_pool_index_t pool_idx = 0;
+         pool_idx < DEFAULT_POOLS_IN_LIST_COUNT; ++pool_idx) {
+      handler(pool_type, pool_idx, pool_list[pool_idx]);
+    }
+  }
+}
+
+void construct_heap();  // Должна быть вызвана перед любыми аллокациями памяти
+void destroy_heap() noexcept;  // Должна быть вызвана по завершении работы
 
 }  // namespace crt
 
-void* alloc_paged(size_t bytes_count) noexcept;
-void* alloc_non_paged(size_t bytes_count) noexcept;
-void deallocate(void* memory_block) noexcept;
-void free(void* ptr, size_t bytes = 0) noexcept;
-wchar_t* allocate_wide_string(size_t length_in_bytes) noexcept;
-void deallocate_wide_string(wchar_t* str, size_t capacity) noexcept;
+void* alloc_paged(
+    size_t bytes_count,
+    align_val_t alignment = crt::DEFAULT_ALLOCATION_ALIGNMENT) noexcept;
+
+void* alloc_non_paged(
+    size_t bytes_count,
+    align_val_t alignment = crt::DEFAULT_ALLOCATION_ALIGNMENT) noexcept;
+
+void deallocate(
+    void* memory_block,
+    align_val_t alignment = crt::DEFAULT_ALLOCATION_ALIGNMENT) noexcept;
+
+void free(void* ptr,
+          size_t bytes = 0,
+          align_val_t alignment = crt::DEFAULT_ALLOCATION_ALIGNMENT) noexcept;
 }  // namespace ktl

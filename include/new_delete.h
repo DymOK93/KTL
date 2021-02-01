@@ -15,14 +15,19 @@ using new_handler = void (*)();
 new_handler get_new_handler() noexcept;
 new_handler set_new_handler(new_handler new_h) noexcept;
 
+inline constexpr align_val_t DEFAULT_NEW_ALIGNMENT{
+    crt::DEFAULT_ALLOCATION_ALIGNMENT};
+
 namespace mm::details {
 inline new_handler shared_new_handler;
 
 template <class AllocFunc>
-void* operator_new_impl(size_t bytes, AllocFunc alloc_func) {
+void* operator_new_impl(AllocFunc alloc_func,
+                        size_t bytes_count,
+                        align_val_t alignment) {
   void* allocated{nullptr};
   for (;;) {
-    allocated = alloc_func(bytes);
+    allocated = alloc_func(bytes_count, alignment);
     if (allocated) {
       break;
     } else if (auto new_handler = get_new_handler(); new_handler) {
@@ -45,6 +50,18 @@ void* CRTCALL
 operator new(size_t bytes,
              ktl::non_paged_new_tag_t);  // throw ktl::bad_alloc if fails
 
+void* CRTCALL
+operator new(size_t bytes,
+             ktl::align_val_t alignment);  // throw ktl::bad_alloc if fails
+void* CRTCALL
+operator new(size_t bytes,
+             ktl::align_val_t alignment,
+             ktl::paged_new_tag_t);  // throw ktl::bad_alloc if fails
+void* CRTCALL
+operator new(size_t bytes,
+             ktl::align_val_t alignment,
+             ktl::non_paged_new_tag_t);  // throw ktl::bad_alloc if fails
+
 void* CRTCALL operator new(size_t bytes, const nothrow_t&) noexcept;
 void* CRTCALL operator new(size_t bytes,
                            const nothrow_t&,
@@ -53,5 +70,20 @@ void* CRTCALL operator new(size_t bytes,
                            const nothrow_t&,
                            ktl::non_paged_new_tag_t) noexcept;
 
+void* CRTCALL operator new(size_t bytes,
+                           ktl::align_val_t alignment,
+                           const nothrow_t&) noexcept;
+void* CRTCALL operator new(size_t bytes,
+                           ktl::align_val_t alignment,
+                           const nothrow_t&,
+                           ktl::paged_new_tag_t) noexcept;
+void* CRTCALL operator new(size_t bytes,
+                           ktl::align_val_t alignment,
+                           const nothrow_t&,
+                           ktl::non_paged_new_tag_t) noexcept;
+
+void CRTCALL operator delete(void* ptr,
+                             size_t bytes_count,
+                             ktl::align_val_t alignment) noexcept;
 void CRTCALL operator delete(void* ptr, size_t bytes_count) noexcept;
 void CRTCALL operator delete(void* ptr) noexcept;
