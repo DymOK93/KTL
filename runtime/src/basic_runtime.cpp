@@ -1,5 +1,6 @@
 #include <basic_runtime.h>
 #include <crt_runtime.h>
+#include <heap.h>
 
 namespace ktl::crt {
 static handler_t destructor_stack[128] = {
@@ -13,7 +14,6 @@ constexpr int INIT_CODE = 0x4b544caU;
 constexpr int EXIT_CODE = 0x4b544ceU;
 
 void CRTCALL doexit(_In_ int) {
-  KdPrint(("Destructor count: %u\n", destructor_count));
   if (ktl::crt::destructor_count) {
     do {
       auto& destructor{
@@ -23,7 +23,6 @@ void CRTCALL doexit(_In_ int) {
       destructor();
     } while (ktl::crt::destructor_count);
   }
-  KdPrint(("Doexit() cleaning was successful\n"));
 }
 
 int CRTCALL cinit(_In_ int) {  //Вызов конструкторов

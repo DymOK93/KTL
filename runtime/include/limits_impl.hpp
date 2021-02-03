@@ -23,7 +23,27 @@ template <>
 struct numeric_limits<signed char>;
 
 template <>
-struct numeric_limits<unsigned char>;
+struct numeric_limits<unsigned char> {
+  static constexpr bool is_specialized = true;
+  static constexpr bool is_signed = false;
+  static constexpr bool is_integer = true;
+  static constexpr bool is_exact = true;
+  static constexpr bool has_infinity = false;
+  static constexpr bool has_quiet_NaN = false;
+  static constexpr bool has_signaling_NaN = false;
+  static constexpr bool has_denorm = false;
+  static constexpr bool has_denorm_loss = false;
+  static constexpr float_round_style round_style = round_toward_zero;
+  static constexpr bool is_iec599 = false;
+  static constexpr bool is_bounded = true;
+  static constexpr bool is_modulo = true;
+  static constexpr bool traps = true;
+  static constexpr bool tinyness_before = false;
+
+  static constexpr unsigned int(min)() noexcept { return 0; };
+  static constexpr unsigned int lowest() noexcept { return (min)(); };
+  static constexpr unsigned int(max)() noexcept { return UCHAR_MAX; };
+};
 
 template <>
 struct numeric_limits<wchar_t>;

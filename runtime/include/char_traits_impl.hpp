@@ -118,6 +118,10 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
     return reinterpret_cast<Elem*>(wmemset(ptr, ch, count));
   }
 
+  static constexpr void assign(char_type& dst, const char_type& src) noexcept {
+    dst = src;
+  }
+
   static constexpr bool eq(char_type lhs, char_type rhs) noexcept {
     return lhs == rhs;
   }

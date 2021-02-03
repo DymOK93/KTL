@@ -27,6 +27,7 @@ set(
 		"placement_new.h"
 		"type_info.h"
 		"type_traits_impl.hpp"
+		"utility_impl.hpp"
 )
 
 set(TARGET_LIB basic_runtime_interface)

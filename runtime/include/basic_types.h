@@ -2,6 +2,7 @@
 
 namespace ktl {
 using byte = unsigned char;
+enum class align_val_t : size_t {};
 }
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
