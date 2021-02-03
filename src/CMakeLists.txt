@@ -8,7 +8,8 @@ set(KTL_SOURCE_DIR "${KTL_DIR}/src")
 
 set(
 	KTL_SOURCE_FILES
-		"${KTL_SOURCE_DIR}/new_delete.cpp"
+		"exception.cpp"
+		"new_delete.cpp"
 )
 
 set(TARGET_LIB cpp_runtime)

@@ -40,7 +40,7 @@
 #include <basic_types.h>
 #include <algorithm.hpp>
 #include <allocator.hpp>
-#include <exception.hpp>
+#include <exception.h>
 #include <functional.hpp>
 #include <hash.hpp>
 #include <initializer_list.hpp>

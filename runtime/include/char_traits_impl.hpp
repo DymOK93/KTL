@@ -12,7 +12,7 @@ struct char_traits_base {
   using char_type = CharT;
   using int_type = IntT;
 
-  static char_type* assign(char_type* const dst,
+  static char_type* assign(char_type* dst,
                            size_t count,
                            const char_type ch) noexcept {
     for (char_type* place = dst; count > 0; --count, ++place) {
@@ -102,8 +102,7 @@ struct char_traits_base {
       const int_type& meta) noexcept {
     return meta != eof() ? meta : !eof();
   }
-
-};  // namespace ktl
+};
 
 namespace str::details {
 template <typename Elem>
@@ -193,7 +192,7 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
 }  // namespace str::details
 
 template <typename CharT>
-class char_traits;
+struct char_traits;
 
 template <>
 struct char_traits<wchar_t> : str::details::wide_char_traits<wchar_t> {};
