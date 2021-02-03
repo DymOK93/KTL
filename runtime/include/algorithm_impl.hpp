@@ -1,5 +1,6 @@
 #pragma once
 #include <iterator_impl.hpp>
+#include <utility_impl.hpp>
 
 namespace ktl {
 template <class ForwardIt, class T, class Predicate>
@@ -25,5 +26,21 @@ constexpr bool binary_search(ForwardIt first,
 template <class ForwardIt, class Ty>
 constexpr bool binary_search(ForwardIt first, ForwardIt last, const Ty& value) {
   return binary_search(first, last, value, less<>{});
+}
+
+template <class Ty1, class Ty2>
+constexpr decltype(auto)(min)(Ty1&& lhs,
+                              Ty2&& rhs) noexcept(noexcept(forward<Ty2>(rhs) <
+                                                           forward<Ty1>(lhs))) {
+  return forward<Ty2>(rhs) < forward<Ty1>(lhs) ? forward<Ty2>(rhs)
+                                               : forward<Ty1>(lhs);
+}
+
+template <class Ty1, class Ty2>
+constexpr decltype(auto)(max)(Ty1&& lhs,
+                              Ty2&& rhs) noexcept(noexcept(forward<Ty1>(lhs) <
+                                                           forward<Ty2>(lhs))) {
+  return forward<Ty1>(lhs) < forward<Ty2>(rhs) ? forward<Ty2>(rhs)
+                                               : forward<Ty1>(lhs);
 }
 }  // namespace ktl

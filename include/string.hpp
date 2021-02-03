@@ -287,7 +287,9 @@ class basic_unicode_string {
     return bytes_count_to_ch(m_str.Length);
   }
 
-  constexpr size_type max_size() const noexcept { return npos - 1; }
+  constexpr size_type max_size() const noexcept {
+    return bytes_count_to_ch(npos - 1);
+  }
 
   void reserve(size_type new_capacity = 0) {
     if (new_capacity > size()) {

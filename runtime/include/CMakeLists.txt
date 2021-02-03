@@ -14,7 +14,6 @@ set(
 		"basic_types.h"
 		"bugcheck.h"
 		"char_traits_impl.hpp"
-		"concurrent_node_allocator"
 		"crt_attributes.h"
 		"crt_runtime.h"
 		"exception_base.h"
@@ -22,13 +21,13 @@ set(
 		"functional_impl.hpp"
 		"intrinsic.hpp"
 		"heap.h"
-		"heap_impl.hpp"
 		"irql.h"
 		"limits_impl.hpp"
 		"memory_type_traits_impl.hpp"
 		"placement_new.h"
 		"type_info.h"
 		"type_traits_impl.hpp"
+		"utility_impl.hpp"
 )
 
 set(TARGET_LIB basic_runtime_interface)

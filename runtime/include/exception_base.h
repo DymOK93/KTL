@@ -21,11 +21,16 @@ class exception_base {
   exception_base(const exc_char_t* msg, size_t length);
 
   template <size_t N>
-  constexpr exception_base(const exc_char_t (&msg)[N])
+  explicit constexpr exception_base(const exc_char_t (&msg)[N])
       : exception_base(msg, N) {}
 
   constexpr exception_base(const exc_char_t* msg,
                            constexpr_message_tag) noexcept
+      : m_data{msg} {}
+
+  template <size_t N>
+  explicit constexpr exception_base(const exc_char_t (&msg)[N],
+                                    constexpr_message_tag)
       : m_data{msg} {}
 
   exception_base(const exception_base& other);
