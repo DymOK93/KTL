@@ -61,7 +61,7 @@ class basic_unicode_string {
                        Allocator&& alloc = Allocator{})
       : m_alc(forward<Allocator>(alloc)) {
     become_small();
-    construct_from_character_unchecked(count, ch);
+    concat(&fill_helper, count, ch);
   }
 
   template <size_t BufferSize,
@@ -119,7 +119,7 @@ class basic_unicode_string {
                        Allocator&& alloc = Allocator{})
       : m_alc{forward<Allocator>(alloc)} {
     become_small();
-    append_range_impl(
+    append_range_impl<false_type>(
         first, last,
         is_same<typename iterator_traits<InputIt>::iterator_category,
                 random_access_iterator_tag>{});
@@ -133,6 +133,19 @@ class basic_unicode_string {
     become_small();
     concat(&copy_helper, bytes_count_to_ch(nt_str.Length), nt_str.Buffer);
   }
+
+  template <size_t BufferSize,
+            template <typename... CharType>
+            class ChTraits,
+            template <typename... CharType>
+            class ChAlloc,
+            enable_if_t<BufferSize != SSO_BUFFER_CH_COUNT, int> = 0>
+  basic_unicode_string(
+      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other)
+      : basic_unicode_string(
+            *other.raw_str(),
+            allocator_traits_type::select_on_container_copy_construction(
+                other.m_alc)) {}
 
   basic_unicode_string(const basic_unicode_string& other)
       : basic_unicode_string(
@@ -207,10 +220,28 @@ class basic_unicode_string {
   template <class InputIt>
   basic_unicode_string& assign(InputIt first, InputIt last) {
     clear();
-    append_range_impl(
+    append_range_impl<false_type>(
         first, last,
         is_same<typename iterator_traits<InputIt>::iterator_category,
                 random_access_iterator_tag>{});
+    return *this;
+  }
+
+  template <size_t BufferSize,
+            template <typename... CharType>
+            class ChTraits,
+            template <typename... CharType>
+            class ChAlloc,
+            enable_if_t<BufferSize != SSO_BUFFER_CH_COUNT, int> = 0>
+  basic_unicode_string& operator=(
+      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other) {
+    using propagate_on_copy_assignment_t =
+        typename allocator_traits_type::propagate_on_container_copy_assignment;
+
+    if (this != addressof(other)) {
+      copy_assignment_impl<propagate_on_copy_assignment_t::value>(other);
+    }
+
     return *this;
   }
 
@@ -221,6 +252,7 @@ class basic_unicode_string {
     if (this != addressof(other)) {
       copy_assignment_impl<propagate_on_copy_assignment_t::value>(other);
     }
+
     return *this;
   }
 
@@ -332,17 +364,7 @@ class basic_unicode_string {
 
   void reserve(size_type new_capacity = 0) {
     if (new_capacity > size()) {
-      auto& alc{get_alloc()};
-      value_type* old_buffer{data()};
-      value_type* new_buffer{new_capacity <= SsoBufferChCount
-                                 ? m_buffer
-                                 : allocate_buffer(alc, new_capacity)};
-      traits_type::copy(new_buffer, old_buffer, size());
-      if (!is_small()) {
-        deallocate_buffer(alc, old_buffer, capacity());
-      }
-      m_str.Buffer = new_buffer;
-      m_str.MaximumLength = ch_count_to_bytes(new_capacity);
+      grow_and_shift_unckecked(new_capacity);
     }
   }
 
@@ -383,7 +405,7 @@ class basic_unicode_string {
   void push_back(value_type ch) {
     const size_type old_size{size()}, old_capacity{capacity()};
     if (old_capacity == old_size) {
-      reserve(calc_growth(old_capacity));
+      grow_and_shift_unckecked(calc_growth(old_capacity));
     }
     traits_type::assign(data()[old_size], ch);
     m_str.Length += ch_count_to_bytes(1);
@@ -392,7 +414,7 @@ class basic_unicode_string {
   constexpr void pop_back() noexcept { m_str.Length -= ch_count_to_bytes(1); }
 
   basic_unicode_string& append(size_type count, value_type ch) {
-    concat(&fill_helper, count, ch);
+    concat_with_optimal_growth(&fill_helper, count, ch);
     return *this;
   }
 
@@ -411,7 +433,7 @@ class basic_unicode_string {
   }
 
   basic_unicode_string& append(const value_type* str, size_type count) {
-    concat(&copy_helper, count, str);
+    concat_with_optimal_growth(&copy_helper, count, str);
     return *this;
   }
 
@@ -435,7 +457,7 @@ class basic_unicode_string {
 
   template <class InputIt>
   basic_unicode_string& append(InputIt first, InputIt last) {
-    append_range_impl(
+    append_range_impl<true_type>(
         first, last,
         is_same<typename iterator_traits<InputIt>::iterator_category,
                 random_access_iterator_tag>{});
@@ -465,7 +487,7 @@ class basic_unicode_string {
     return append(null_terminated_str);
   }
 
-  //basic_unicode_string& insert(size_type index,
+  // basic_unicode_string& insert(size_type index,
   //                             size_type count,
   //                             value_type ch) {
   //  if (index == size()) {
@@ -473,29 +495,28 @@ class basic_unicode_string {
   //  }
   //}
 
-  //basic_unicode_string& insert(size_type index,
-  //                             const value_type* str,
-  //                             size_type count) {
-  //  if (index == size()) {
-  //    return append(str, count);
-  //  }
-  //}
+  basic_unicode_string& insert(size_type index,
+                               const value_type* str,
+                               size_type count) {
+    if (index == size()) {
+      return append(str, count);
+    }
+  }
 
-  //basic_unicode_string& insert(size_type index,
-  //                             const value_type* null_terminated_str) {
-  //  if (index == size()) {
-  //    return append(null_terminated_str);
-  //  }
-  //}
+  basic_unicode_string& insert(size_type index,
+                               const value_type* null_terminated_str) {
+    return insert(index, null_terminated_str,
+                  traits_type::length(null_terminated_str));
+  }
 
-  //basic_unicode_string& insert(size_type index,
+  // basic_unicode_string& insert(size_type index,
   //                             const native_unicode_str_t& nt_str) {
   //  if (index == size()) {
   //    return append(nt_str);
   //  }
   //}
 
-  //basic_unicode_string& insert(size_type index,
+  // basic_unicode_string& insert(size_type index,
   //                             const basic_unicode_string& other) {
   //  if (index == size()) {
   //    return append(other);
@@ -536,24 +557,31 @@ class basic_unicode_string {
       size_type count) {
     if (pos < other.size()) {
       const auto length{static_cast<size_type>(other.size() - pos)};
-      concat(&copy_helper, (min)(length, count), other.data() + pos);
+      concat_with_optimal_growth(&copy_helper, (min)(length, count),
+                                 other.data() + pos);
     }
   }
 
-  void construct_from_character_unchecked(size_type count, value_type ch) {
-    concat(&fill_helper, count, ch);
-  }
-
-  template <class InputIt>
+  template <typename GrowthTag, class InputIt>
   void append_range_impl(InputIt first, InputIt last, false_type) {
     for (; first != last; first = next(first)) {
       push_back(*first);
     }
   }
 
-  template <class RandomAcceccIt>
+  template <typename OptimalGrowthTag, class RandomAcceccIt>
   void append_range_impl(RandomAcceccIt first, RandomAcceccIt last, true_type) {
     const auto range_length{static_cast<size_type>(distance(first, last))};
+    append_range_by_random_access_iterators(first, last, range_length,
+                                            OptimalGrowthTag{});
+  }
+
+  template <class RandomAcceccIt>
+  void append_range_by_random_access_iterators(
+      RandomAcceccIt first,
+      [[maybe_unused]] RandomAcceccIt last,
+      size_type range_length,
+      false_type) {
     if constexpr (is_pointer_v<RandomAcceccIt>) {
       concat(&copy_helper, range_length, first);
     } else {
@@ -561,8 +589,27 @@ class basic_unicode_string {
     }
   }
 
-  template <bool CopyAlloc>
-  void copy_assignment_impl(const basic_unicode_string& other) {
+  template <class RandomAcceccIt>
+  void append_range_by_random_access_iterators(
+      RandomAcceccIt first,
+      [[maybe_unused]] RandomAcceccIt last,
+      size_type range_length,
+      true_type) {
+    if constexpr (is_pointer_v<RandomAcceccIt>) {
+      concat_with_optimal_growth(&copy_helper, range_length, first);
+    } else {
+      concat_with_optimal_growth(&copy_range_helper, range_length, first, last);
+    }
+  }
+
+  template <bool CopyAlloc,
+            size_t BufferSize,
+            template <typename... CharType>
+            class ChTraits,
+            template <typename... CharType>
+            class ChAlloc>
+  void copy_assignment_impl(
+      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other) {
     clear();
     destroy();
     if constexpr (CopyAlloc) {
@@ -600,11 +647,64 @@ class basic_unicode_string {
   }
 
   template <class Handler, typename... Types>
+  void concat_with_optimal_growth(Handler handler,
+                                  size_type count,
+                                  const Types&... args) {
+    concat_impl(
+        handler,
+        []([[maybe_unused]] size_type old_cap, size_type required) {
+          return required;
+        },
+        count, args...);
+  }
+
+  template <class Handler, typename... Types>
   void concat(Handler handler, size_type count, const Types&... args) {
+    concat_impl(
+        handler,
+        []([[maybe_unused]] size_type old_cap, size_type required) {
+          return calc_growth(old_cap, required);
+        },
+        count, args...);
+  }
+
+  template <class Handler, class CapacityCalculator, typename... Types>
+  void concat_impl(Handler handler,
+                   CapacityCalculator cap_calc,
+                   size_type count,
+                   const Types&... args) {
     size_type old_size{size()};
-    reserve(old_size + count);
+    reserve(cap_calc(capacity(), old_size + count));
     handler(data() + old_size, count, args...);
     m_str.Length += ch_count_to_bytes(count);
+  }
+
+  template <class Handler, typename... Types>
+  void insert_impl(size_type index,
+                   Handler handler,
+                   size_type count,
+                   const Types&... args) {
+    const size_type old_size{size()};
+    if (old_size + count >= capacity()) {
+      // grow_and_shift_unckecked()
+    }
+  }
+
+  void grow_and_shift_unckecked(size_type new_capacity,
+                                pair<size_type, size_type> bounds = {}) {
+    auto& alc{get_alloc()};
+    value_type* old_buffer{data()};
+    const size_type old_size{size()};
+    value_type* new_buffer{new_capacity <= SSO_BUFFER_CH_COUNT
+                               ? m_buffer
+                               : allocate_buffer(alc, new_capacity)};
+    shift_right_helper(&copy_helper, new_buffer, old_buffer, old_size, bounds);
+    if (!is_small()) {
+      deallocate_buffer(alc, old_buffer, capacity());
+    }
+    m_str.Buffer = new_buffer;
+    m_str.Length = ch_count_to_bytes(old_size + (bounds.second - bounds.first));
+    m_str.MaximumLength = ch_count_to_bytes(new_capacity);
   }
 
   void destroy() noexcept {
@@ -620,6 +720,16 @@ class basic_unicode_string {
     throw_exception_if_not<out_of_range>(idx < size, "index is out of range",
                                          constexpr_message_tag{});
     return buf[idx];
+  }
+
+  template <class Handler>
+  static void shift_right_helper(Handler handler,
+                                 value_type* dst,
+                                 const value_type* src,
+                                 size_type count,
+                                 pair<size_type, size_type> bounds) {
+    handler(dst, bounds.first, src);
+    handler(dst + bounds.second, count - bounds.first, src + bounds.first);
   }
 
   static void copy_helper(value_type* dst,
@@ -667,6 +777,11 @@ class basic_unicode_string {
 
   static constexpr size_type calc_growth(size_type old_capacity) noexcept {
     return old_capacity * GROWTH_MULTIPLIER;
+  }
+
+  static constexpr size_type calc_growth(size_type old_capacity,
+                                         size_type required) noexcept {
+    return (max)(calc_growth(old_capacity), required);
   }
 
  private:

@@ -54,7 +54,7 @@ struct pair {
             typename U2 = Ty2,
             typename = typename ktl::enable_if_t<
                 ktl::is_default_constructible_v<U1> &&
-                ktl::is_default_constructible_v<U2>>::type>
+                ktl::is_default_constructible_v<U2>>>
   constexpr pair() noexcept(is_nothrow_default_constructible_v<U1>&& noexcept(
       is_nothrow_default_constructible_v<U2>))
       : first(), second() {}
