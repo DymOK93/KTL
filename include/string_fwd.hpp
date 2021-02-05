@@ -3,17 +3,125 @@
 #include <char_traits.hpp>
 
 namespace ktl {
+using native_ansi_str_t = ANSI_STRING;
+using native_unicode_str_t = UNICODE_STRING;
+
+namespace str::details {
+template <typename NativeStrTy>
+class native_string_traits_base {
+ public:
+  using value_type = remove_pointer_t<decltype(NativeStrTy{}.Buffer)>;
+  using size_type = decltype(NativeStrTy{}.Length);
+
+ public:
+  static constexpr value_type* get_buffer(NativeStrTy& str) noexcept {
+    return str.Buffer;
+  }
+
+  static constexpr const value_type* get_buffer(
+      const NativeStrTy& str) noexcept {
+    return str.Buffer;
+  }
+
+  static constexpr void set_buffer(NativeStrTy& str,
+                                   value_type* buffer) noexcept {
+    str.Buffer = buffer;
+  }
+
+  static constexpr size_type get_size(const NativeStrTy& str) noexcept {
+    return bytes_count_to_ch(str.Length);
+  }
+
+  static constexpr void set_size(NativeStrTy& str,
+                                 size_type ch_count) noexcept {
+    str.Length = ch_count_to_bytes(ch_count);
+  }
+
+  static constexpr void increase_size(NativeStrTy& str,
+                                      size_type addendum) noexcept {
+    str.Length += ch_count_to_bytes(addendum);
+  }
+
+  static constexpr void decrease_size(NativeStrTy& str,
+                                      size_type subtrahend) noexcept {
+    str.Length -= ch_count_to_bytes(subtrahend);
+  }
+
+  static constexpr size_type get_capacity(const NativeStrTy& str) noexcept {
+    return bytes_count_to_ch(str.MaximumLength);
+  }
+
+  static constexpr void set_capacity(NativeStrTy& str,
+                                     size_type new_capacity) noexcept {
+    str.MaximumLength = ch_count_to_bytes(new_capacity);
+  }
+
+  static constexpr size_type get_max_size() noexcept {
+    return bytes_count_to_ch(static_cast<size_type>(-1));
+  }
+
+ private:
+  static constexpr size_type bytes_count_to_ch(size_type bytes_count) noexcept {
+    return bytes_count / sizeof(value_type);
+  }
+
+  static constexpr size_type ch_count_to_bytes(size_type ch_count) noexcept {
+    return ch_count * sizeof(value_type);
+  }
+};
+
+template <typename NativeStrTy>
+struct native_string_traits;
+
+template <>
+struct native_string_traits<native_unicode_str_t>
+    : public native_string_traits_base<native_unicode_str_t> {};
+
+template <>
+struct native_string_traits<native_ansi_str_t>
+    : public native_string_traits_base<native_ansi_str_t> {};
+
+template <size_t SsoBufferChCount,
+          typename NativeStrTy,
+          template <typename... CharT>
+          class Traits,
+          template <typename... CharT>
+          class Alloc>
+class basic_winnt_string;
+
+inline constexpr size_t DEFAULT_SSO_CH_BUFFER_COUNT{16};
+}  // namespace str::details
+
 template <size_t SsoBufferChCount,
           template <typename... CharT>
           class Traits,
           template <typename... CharT>
           class Alloc>
-class basic_unicode_string;
+using basic_ansi_string = str::details::
+    basic_winnt_string<SsoBufferChCount, native_ansi_str_t, Traits, Alloc>;
+
+using ansi_string = basic_ansi_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
+                                      char_traits,
+                                      basic_paged_allocator>;
+using ansi_string_non_paged =
+    basic_ansi_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
+                      char_traits,
+                      basic_non_paged_allocator>;
+
+template <size_t SsoBufferChCount,
+          template <typename... CharT>
+          class Traits,
+          template <typename... CharT>
+          class Alloc>
+using basic_unicode_string = str::details::
+    basic_winnt_string<SsoBufferChCount, native_unicode_str_t, Traits, Alloc>;
 
 using unicode_string =
-    basic_unicode_string<16, char_traits, basic_paged_allocator>;
+    basic_unicode_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
+                         char_traits,
+                         basic_paged_allocator>;
 using unicode_string_non_paged =
-    basic_unicode_string<16, char_traits, basic_non_paged_allocator>;
-
-using native_unicode_str_t = UNICODE_STRING;
+    basic_unicode_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
+                         char_traits,
+                         basic_non_paged_allocator>;
 }  // namespace ktl

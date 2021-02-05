@@ -34,6 +34,14 @@ class out_of_range : public logic_error {
   using MyBase::MyBase;
 };
 
+class length_error : public logic_error {
+ public:
+  using MyBase = logic_error;
+
+ public:
+  using MyBase::MyBase;
+};
+
 class runtime_error : public exc::details::unicode_string_exception_base {
  public:
   using MyBase = exc::details::unicode_string_exception_base;
@@ -63,6 +71,5 @@ static void throw_exception_if_not(const Ty& cond, Types&&... args) {
   if (!cond) {
     throw_exception<Exc>(forward<Types>(args)...);
   }
-  return cond;
 }
 }  // namespace ktl

@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <exception.h>
 #include <new_delete.h>
 #include <algorithm.hpp>
 #include <allocator.hpp>
@@ -10,45 +11,53 @@
 #include <ntddk.h>
 
 namespace ktl {
+namespace str::details {
 template <size_t SsoBufferChCount,
+          typename NativeStrTy,
           template <typename... CharT>
           class Traits,
           template <typename... CharT>
           class Alloc>
-class basic_unicode_string {
+class basic_winnt_string {
  public:
-  using value_type = wchar_t;
+  using native_string_type = NativeStrTy;
+  using native_string_traits_type = native_string_traits<NativeStrTy>;
+
+  using value_type = typename native_string_traits_type::value_type;
+  using size_type = typename native_string_traits_type::size_type;
+
   using traits_type = Traits<value_type>;
+
   using allocator_type = Alloc<value_type>;
   using allocator_traits_type = allocator_traits<allocator_type>;
-  using size_type = uint16_t;  // Ограничение UNICODE_STRING
+
   using difference_type = typename allocator_traits_type::difference_type;
+
   using reference = typename allocator_traits<allocator_type>::reference;
   using const_reference = typename allocator_traits_type::const_reference;
   using pointer = typename allocator_traits_type::pointer;
   using const_pointer = typename allocator_traits_type::const_pointer;
+
   using iterator = pointer;
   using const_iterator = const_pointer;
 
  public:
   static constexpr size_type SSO_BUFFER_CH_COUNT{SsoBufferChCount};
+  static constexpr auto npos{static_cast<size_type>(-1)};
 
  private:
   static constexpr size_type GROWTH_MULTIPLIER{2};
 
  public:
-  static constexpr auto npos{static_cast<size_type>(-1)};
+  constexpr basic_winnt_string() noexcept { become_small(); }
 
- public:
-  constexpr basic_unicode_string() noexcept { become_small(); }
-
-  explicit constexpr basic_unicode_string(const allocator_type& alloc) noexcept(
+  explicit constexpr basic_winnt_string(const allocator_type& alloc) noexcept(
       is_nothrow_copy_constructible_v<allocator_type>)
       : m_alc(alloc) {
     become_small();
   }
 
-  explicit constexpr basic_unicode_string(allocator_type&& alloc) noexcept(
+  explicit constexpr basic_winnt_string(allocator_type&& alloc) noexcept(
       is_nothrow_move_constructible_v<allocator_type>)
       : m_alc(move(alloc)) {
     become_small();
@@ -56,12 +65,12 @@ class basic_unicode_string {
 
   template <class Allocator = allocator_type,
             enable_if_t<is_constructible_v<allocator_type, Allocator>, int> = 0>
-  basic_unicode_string(size_type count,
-                       value_type ch,
-                       Allocator&& alloc = Allocator{})
+  basic_winnt_string(size_type count,
+                     value_type ch,
+                     Allocator&& alloc = Allocator{})
       : m_alc(forward<Allocator>(alloc)) {
     become_small();
-    concat(&fill_helper, count, ch);
+    construct(&fill_helper, count, ch);
   }
 
   template <size_t BufferSize,
@@ -69,10 +78,12 @@ class basic_unicode_string {
             class ChTraits,
             template <typename... CharType>
             class ChAlloc>
-  basic_unicode_string(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other,
-      size_type pos)
-      : basic_unicode_string(other, pos, other.size() - pos) {
+  basic_winnt_string(const basic_winnt_string<BufferSize,
+                                              native_string_type,
+                                              ChTraits,
+                                              ChAlloc>& other,
+                     size_type pos)
+      : basic_winnt_string(other, pos, other.size() - pos) {
   }  // Переполнение беззнакового числа допустимо
 
   template <size_t BufferSize,
@@ -80,10 +91,12 @@ class basic_unicode_string {
             class ChTraits,
             template <typename... CharType>
             class ChAlloc>
-  basic_unicode_string(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other,
-      size_type pos,
-      size_type count)
+  basic_winnt_string(const basic_winnt_string<BufferSize,
+                                              native_string_type,
+                                              ChTraits,
+                                              ChAlloc>& other,
+                     size_type pos,
+                     size_type count)
       : m_alc{allocator_traits_type::select_on_container_copy_construction(
             other.m_alc)} {
     become_small();
@@ -92,31 +105,31 @@ class basic_unicode_string {
 
   template <class Allocator = allocator_type,
             enable_if_t<is_constructible_v<allocator_type, Allocator>, int> = 0>
-  basic_unicode_string(const value_type* str,
-                       size_type length,
-                       Allocator&& alloc = Allocator{})
+  basic_winnt_string(const value_type* str,
+                     size_type length,
+                     Allocator&& alloc = Allocator{})
       : m_alc(forward<Allocator>(alloc)) {
     become_small();
-    concat(&copy_helper, length, str);
+    construct(&copy_helper, length, str);
   }
 
   template <class Allocator = allocator_type,
             enable_if_t<is_constructible_v<allocator_type, Allocator>, int> = 0>
-  basic_unicode_string(const value_type* null_terminated_str,
-                       Allocator&& alloc = Allocator{})
+  basic_winnt_string(const value_type* null_terminated_str,
+                     Allocator&& alloc = Allocator{})
       : m_alc{forward<Allocator>(alloc)} {
     become_small();
-    concat(&copy_helper,
-           static_cast<size_type>(traits_type::length(null_terminated_str)),
-           null_terminated_str);
+    construct(&copy_helper,
+              static_cast<size_type>(traits_type::length(null_terminated_str)),
+              null_terminated_str);
   }
 
   template <class InputIt,
             class Allocator = allocator_type,
             enable_if_t<is_constructible_v<allocator_type, Allocator>, int> = 0>
-  basic_unicode_string(InputIt first,
-                       InputIt last,
-                       Allocator&& alloc = Allocator{})
+  basic_winnt_string(InputIt first,
+                     InputIt last,
+                     Allocator&& alloc = Allocator{})
       : m_alc{forward<Allocator>(alloc)} {
     become_small();
     append_range_impl<false_type>(
@@ -127,11 +140,12 @@ class basic_unicode_string {
 
   template <class Allocator = allocator_type,
             enable_if_t<is_constructible_v<allocator_type, Allocator>, int> = 0>
-  basic_unicode_string(const native_unicode_str_t& nt_str,
-                       Allocator&& alloc = Allocator{})
+  basic_winnt_string(const native_string_type& native_str,
+                     Allocator&& alloc = Allocator{})
       : m_alc{forward<Allocator>(alloc)} {
     become_small();
-    concat(&copy_helper, bytes_count_to_ch(nt_str.Length), nt_str.Buffer);
+    construct(&copy_helper, native_string_traits_type::get_size(native_str),
+              native_str.Buffer);
   }
 
   template <size_t BufferSize,
@@ -140,39 +154,42 @@ class basic_unicode_string {
             template <typename... CharType>
             class ChAlloc,
             enable_if_t<BufferSize != SSO_BUFFER_CH_COUNT, int> = 0>
-  basic_unicode_string(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other)
-      : basic_unicode_string(
+  basic_winnt_string(const basic_winnt_string<BufferSize,
+                                              native_string_type,
+                                              ChTraits,
+                                              ChAlloc>& other)
+      : basic_winnt_string(
             *other.raw_str(),
             allocator_traits_type::select_on_container_copy_construction(
                 other.m_alc)) {}
 
-  basic_unicode_string(const basic_unicode_string& other)
-      : basic_unicode_string(
+  basic_winnt_string(const basic_winnt_string& other)
+      : basic_winnt_string(
             *other.raw_str(),
             allocator_traits_type::select_on_container_copy_construction(
                 other.m_alc)) {}
 
-  basic_unicode_string(basic_unicode_string&& other) noexcept(
+  basic_winnt_string(basic_winnt_string&& other) noexcept(
       is_nothrow_move_constructible_v<allocator_type>)
       : m_alc{move(other.m_alc)}, m_str{other.m_str} {
     if (other.is_small()) {
-      m_str.Buffer = m_buffer;
+      native_string_traits_type::set_buffer(m_str, m_buffer);
       traits_type::copy(data(), other.data(), other.size());
     }
     other.become_small();
   }
 
-  basic_unicode_string& assign(size_type count, value_type ch) {
+  basic_winnt_string& assign(size_type count, value_type ch) {
     clear();
     resize(count, ch);
     return *this;
   }
 
-  basic_unicode_string& assign(const native_unicode_str_t& nt_str) {
-    if (raw_str() != addressof(nt_str)) {
+  basic_winnt_string& assign(const native_string_type& native_str) {
+    if (raw_str() != addressof(native_str)) {
       clear();
-      concat(&copy_helper, bytes_count_to_ch(nt_str.Length), nt_str.Buffer);
+      construct(&copy_helper, native_string_traits_type::get_size(native_str),
+                native_str.Buffer);
     }
     return *this;
   }
@@ -182,12 +199,14 @@ class basic_unicode_string {
             class ChTraits,
             template <typename... CharType>
             class ChAlloc>
-  basic_unicode_string& assign(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other) {
+  basic_winnt_string& assign(const basic_winnt_string<BufferSize,
+                                                      native_string_type,
+                                                      ChTraits,
+                                                      ChAlloc>& other) {
     return assign(*other.raw_str());  // Not a full equialent to *this = other
   }
 
-  basic_unicode_string& assign(basic_unicode_string&& other) {
+  basic_winnt_string& assign(basic_winnt_string&& other) {
     return *this = move(other);
   }
 
@@ -196,29 +215,31 @@ class basic_unicode_string {
             class ChTraits,
             template <typename... CharType>
             class ChAlloc>
-  basic_unicode_string& assign(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other,
-      size_type pos,
-      size_type count = npos) {
+  basic_winnt_string& assign(const basic_winnt_string<BufferSize,
+                                                      native_string_type,
+                                                      ChTraits,
+                                                      ChAlloc>& other,
+                             size_type pos,
+                             size_type count = npos) {
     clear();
     append_by_pos_and_count(other, pos, count);
     return *this;
   }
 
-  basic_unicode_string& assign(const value_type* str, size_type ch_count) {
+  basic_winnt_string& assign(const value_type* str, size_type ch_count) {
     clear();
-    concat(&move_helper, ch_count, str);
+    construct(&move_helper, ch_count, str);
     return *this;
   }
 
-  basic_unicode_string& assign(const value_type* null_terminated_str) {
+  basic_winnt_string& assign(const value_type* null_terminated_str) {
     return assign(
         null_terminated_str,
         static_cast<size_type>(traits_type::length(null_terminated_str)));
   }
 
   template <class InputIt>
-  basic_unicode_string& assign(InputIt first, InputIt last) {
+  basic_winnt_string& assign(InputIt first, InputIt last) {
     clear();
     append_range_impl<false_type>(
         first, last,
@@ -233,8 +254,10 @@ class basic_unicode_string {
             template <typename... CharType>
             class ChAlloc,
             enable_if_t<BufferSize != SSO_BUFFER_CH_COUNT, int> = 0>
-  basic_unicode_string& operator=(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other) {
+  basic_winnt_string& operator=(const basic_winnt_string<BufferSize,
+                                                         native_string_type,
+                                                         ChTraits,
+                                                         ChAlloc>& other) {
     using propagate_on_copy_assignment_t =
         typename allocator_traits_type::propagate_on_container_copy_assignment;
 
@@ -245,7 +268,7 @@ class basic_unicode_string {
     return *this;
   }
 
-  basic_unicode_string& operator=(const basic_unicode_string& other) {
+  basic_winnt_string& operator=(const basic_winnt_string& other) {
     using propagate_on_copy_assignment_t =
         typename allocator_traits_type::propagate_on_container_copy_assignment;
 
@@ -256,7 +279,7 @@ class basic_unicode_string {
     return *this;
   }
 
-  basic_unicode_string& operator=(basic_unicode_string&& other) noexcept(
+  basic_winnt_string& operator=(basic_winnt_string&& other) noexcept(
       is_same_v<typename allocator_traits_type::is_always_equal, true_type> ||
       is_same_v<typename allocator_traits_type::
                     propagate_on_container_move_assignment,
@@ -276,23 +299,23 @@ class basic_unicode_string {
     return *this;
   }
 
-  basic_unicode_string& operator=(const value_type* null_terminated_str) {
+  basic_winnt_string& operator=(const value_type* null_terminated_str) {
     assign(null_terminated_str);
     return *this;
   }
 
-  basic_unicode_string& operator=(const native_unicode_str_t& nt_str) {
-    assign(nt_str);
+  basic_winnt_string& operator=(const native_string_type& native_str) {
+    assign(native_str);
     return *this;
   }
 
-  basic_unicode_string& operator=(value_type ch) {
+  basic_winnt_string& operator=(value_type ch) {
     traits_type::assign(data(), 1, ch);
-    m_str.Length = ch_count_to_bytes(1);
+    native_string_traits_type::set_size(m_str, 1);
     return *this;
   }
 
-  ~basic_unicode_string() noexcept { destroy(); }
+  ~basic_winnt_string() noexcept { destroy(); }
 
   constexpr const allocator_type& get_allocator() const noexcept {
     return m_alc;
@@ -324,15 +347,17 @@ class basic_unicode_string {
     return data()[size() - 1];
   }
 
-  constexpr value_type* data() noexcept { return m_str.Buffer; }
-
-  constexpr const value_type* data() const noexcept { return m_str.Buffer; }
-
-  constexpr native_unicode_str_t* raw_str() noexcept {
-    return addressof(m_str);
+  constexpr value_type* data() noexcept {
+    return native_string_traits_type::get_buffer(m_str);
   }
 
-  constexpr const native_unicode_str_t* raw_str() const noexcept {
+  constexpr const value_type* data() const noexcept {
+    return native_string_traits_type::get_buffer(m_str);
+  }
+
+  constexpr native_string_type* raw_str() noexcept { return addressof(m_str); }
+
+  constexpr const native_string_type* raw_str() const noexcept {
     return addressof(m_str);
   }
 
@@ -351,35 +376,35 @@ class basic_unicode_string {
   constexpr bool empty() const noexcept { return size() == 0; }
 
   constexpr size_type size() const noexcept {
-    return bytes_count_to_ch(m_str.Length);
+    return native_string_traits_type::get_size(m_str);
   }
 
   constexpr size_type length() const noexcept {
-    return bytes_count_to_ch(m_str.Length);
+    return native_string_traits_type::get_size(m_str);
   }
 
   constexpr size_type max_size() const noexcept {
-    return bytes_count_to_ch(npos - 1);
+    return native_string_traits_type::get_max_size();
   }
 
   void reserve(size_type new_capacity = 0) {
     if (new_capacity > size()) {
-      grow_and_shift_unckecked(new_capacity);
+      grow<true>(new_capacity);
     }
   }
 
   constexpr size_type capacity() const noexcept {
-    return bytes_count_to_ch(m_str.MaximumLength);
+    return native_string_traits_type::get_capacity(m_str);
   }
 
-  void resize(size_type count) { resize(count, value_type{}); }
+  void resize(size_type new_size) { resize(new_size, value_type{}); }
 
-  void resize(size_type count, value_type ch) {
-    reserve(count);
-    if (size() < count) {
-      traits_type::assign(data(), count - size(), ch);
+  void resize(size_type new_size, value_type ch) {
+    reserve(new_size);
+    if (size() < new_size) {
+      traits_type::assign(data(), new_size - size(), ch);
     }
-    m_str.Length = ch_count_to_bytes(count);
+    native_string_traits_type::set_size(m_str, new_size);
   }
 
   void shrink_to_fit() {
@@ -393,8 +418,8 @@ class basic_unicode_string {
           new_buffer = allocate_buffer(m_alc, current_size);
         }
         traits_type::copy(new_buffer, old_buffer, current_size);
-        m_str.Buffer = new_buffer;
-        m_str.MaximumLength = current_size;
+        native_string_traits_type::set_buffer(m_str, new_buffer);
+        native_string_traits_type::set_capacity(m_str, current_size);
         deallocate_buffer(m_alc, old_buffer, current_capacity);
       }
     }
@@ -405,15 +430,17 @@ class basic_unicode_string {
   void push_back(value_type ch) {
     const size_type old_size{size()}, old_capacity{capacity()};
     if (old_capacity == old_size) {
-      grow_and_shift_unckecked(calc_growth(old_capacity));
+      grow<true>(calc_growth(old_capacity));
     }
     traits_type::assign(data()[old_size], ch);
-    m_str.Length += ch_count_to_bytes(1);
+    native_string_traits_type::increase_size(m_str, 1);
   }
 
-  constexpr void pop_back() noexcept { m_str.Length -= ch_count_to_bytes(1); }
+  constexpr void pop_back() noexcept {
+    native_string_traits_type::decrease_size(m_str, 1);
+  }
 
-  basic_unicode_string& append(size_type count, value_type ch) {
+  basic_winnt_string& append(size_type count, value_type ch) {
     concat_with_optimal_growth(&fill_helper, count, ch);
     return *this;
   }
@@ -423,16 +450,19 @@ class basic_unicode_string {
             class ChTraits,
             template <typename... CharType>
             class ChAlloc>
-  basic_unicode_string& append(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& str) {
+  basic_winnt_string& append(const basic_winnt_string<BufferSize,
+                                                      native_string_type,
+                                                      ChTraits,
+                                                      ChAlloc>& str) {
     return append(*str.raw_str());
   }
 
-  basic_unicode_string& append(const native_unicode_str_t& nt_str) {
-    return append(nt_str.Buffer, bytes_count_to_ch(nt_str.Length));
+  basic_winnt_string& append(const native_string_type& native_str) {
+    return append(native_str.Buffer,
+                  native_string_traits_type::get_size(native_str));
   }
 
-  basic_unicode_string& append(const value_type* str, size_type count) {
+  basic_winnt_string& append(const value_type* str, size_type count) {
     concat_with_optimal_growth(&copy_helper, count, str);
     return *this;
   }
@@ -442,21 +472,23 @@ class basic_unicode_string {
             class ChTraits,
             template <typename... CharType>
             class ChAlloc>
-  basic_unicode_string& append(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& str,
-      size_type pos,
-      size_type count) {
+  basic_winnt_string& append(const basic_winnt_string<BufferSize,
+                                                      native_string_type,
+                                                      ChTraits,
+                                                      ChAlloc>& str,
+                             size_type pos,
+                             size_type count) {
     append_by_pos_and_count(str, pos, count);
     return *this;
   }
 
-  basic_unicode_string& append(const value_type* null_terminated_str) {
+  basic_winnt_string& append(const value_type* null_terminated_str) {
     return append(null_terminated_str,
                   traits_type::length(null_terminated_str));
   }
 
   template <class InputIt>
-  basic_unicode_string& append(InputIt first, InputIt last) {
+  basic_winnt_string& append(InputIt first, InputIt last) {
     append_range_impl<true_type>(
         first, last,
         is_same<typename iterator_traits<InputIt>::iterator_category,
@@ -464,7 +496,7 @@ class basic_unicode_string {
     return *this;
   }
 
-  basic_unicode_string& operator+=(value_type ch) {
+  basic_winnt_string& operator+=(value_type ch) {
     push_back(ch);
     return *this;
   }
@@ -474,20 +506,22 @@ class basic_unicode_string {
             class ChTraits,
             template <typename... CharType>
             class ChAlloc>
-  basic_unicode_string& operator+=(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& str) {
+  basic_winnt_string& operator+=(const basic_winnt_string<BufferSize,
+                                                          native_string_type,
+                                                          ChTraits,
+                                                          ChAlloc>& str) {
     return append(str);
   }
 
-  basic_unicode_string& operator+=(const native_unicode_str_t& str) {
+  basic_winnt_string& operator+=(const native_string_type& str) {
     return append(str);
   }
 
-  basic_unicode_string& operator+=(const value_type* null_terminated_str) {
+  basic_winnt_string& operator+=(const value_type* null_terminated_str) {
     return append(null_terminated_str);
   }
 
-  // basic_unicode_string& insert(size_type index,
+  // basic_winnt_string& insert(size_type index,
   //                             size_type count,
   //                             value_type ch) {
   //  if (index == size()) {
@@ -495,29 +529,29 @@ class basic_unicode_string {
   //  }
   //}
 
-  basic_unicode_string& insert(size_type index,
-                               const value_type* str,
-                               size_type count) {
+  basic_winnt_string& insert(size_type index,
+                             const value_type* str,
+                             size_type count) {
     if (index == size()) {
       return append(str, count);
     }
   }
 
-  basic_unicode_string& insert(size_type index,
-                               const value_type* null_terminated_str) {
+  basic_winnt_string& insert(size_type index,
+                             const value_type* null_terminated_str) {
     return insert(index, null_terminated_str,
                   traits_type::length(null_terminated_str));
   }
 
-  // basic_unicode_string& insert(size_type index,
-  //                             const native_unicode_str_t& nt_str) {
+  // basic_winnt_string& insert(size_type index,
+  //                             const native_string_type& native_str) {
   //  if (index == size()) {
-  //    return append(nt_str);
+  //    return append(native_str);
   //  }
   //}
 
-  // basic_unicode_string& insert(size_type index,
-  //                             const basic_unicode_string& other) {
+  // basic_winnt_string& insert(size_type index,
+  //                             const basic_winnt_string& other) {
   //  if (index == size()) {
   //    return append(other);
   //  }
@@ -535,9 +569,9 @@ class basic_unicode_string {
 
  private:
   constexpr void become_small(size_type size = 0) noexcept {
-    m_str.Buffer = m_buffer;
-    m_str.Length = ch_count_to_bytes(size);
-    m_str.MaximumLength = SSO_BUFFER_CH_COUNT;
+    native_string_traits_type::set_buffer(m_str, m_buffer);
+    native_string_traits_type::set_size(m_str, size);
+    native_string_traits_type::set_capacity(m_str, SSO_BUFFER_CH_COUNT);
   }
 
   constexpr bool is_small() const noexcept {
@@ -551,10 +585,12 @@ class basic_unicode_string {
             class ChTraits,
             template <typename... CharType>
             class ChAlloc>
-  void append_by_pos_and_count(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other,
-      size_type pos,
-      size_type count) {
+  void append_by_pos_and_count(const basic_winnt_string<BufferSize,
+                                                        native_string_type,
+                                                        ChTraits,
+                                                        ChAlloc>& other,
+                               size_type pos,
+                               size_type count) {
     if (pos < other.size()) {
       const auto length{static_cast<size_type>(other.size() - pos)};
       concat_with_optimal_growth(&copy_helper, (min)(length, count),
@@ -608,30 +644,31 @@ class basic_unicode_string {
             class ChTraits,
             template <typename... CharType>
             class ChAlloc>
-  void copy_assignment_impl(
-      const basic_unicode_string<BufferSize, ChTraits, ChAlloc>& other) {
+  void copy_assignment_impl(const basic_winnt_string<BufferSize,
+                                                     native_string_type,
+                                                     ChTraits,
+                                                     ChAlloc>& other) {
     clear();
-    destroy();
+    construct(&copy_helper, other.size(), other.data());
     if constexpr (CopyAlloc) {
       m_alc = other.m_alc;
     }
-    concat(&copy_helper, other.size(), other.data());
   }
 
   template <bool AllocIsAlwaysEqual>
-  void move_assignment_impl(basic_unicode_string&& other, false_type) {
+  void move_assignment_impl(basic_winnt_string&& other, false_type) {
     if constexpr (AllocIsAlwaysEqual) {
       move_assignment_impl<false>(move(other), true_type{});
     } else {
       copy_assignment_impl<false>(
-          static_cast<const basic_unicode_string&>(other));
+          static_cast<const basic_winnt_string&>(other));
       other.destroy();
       other.become_small();
     }
   }
 
   template <bool MoveAlloc>
-  void move_assignment_impl(basic_unicode_string&& other, true_type) {
+  void move_assignment_impl(basic_winnt_string&& other, true_type) {
     destroy();
     if (!other.is_small()) {
       m_str = other.m_str;
@@ -652,8 +689,8 @@ class basic_unicode_string {
                                   const Types&... args) {
     concat_impl(
         handler,
-        []([[maybe_unused]] size_type old_cap, size_type required) {
-          return required;
+        [this](size_type required) {
+          reserve(calc_growth(capacity(), required));
         },
         count, args...);
   }
@@ -661,50 +698,61 @@ class basic_unicode_string {
   template <class Handler, typename... Types>
   void concat(Handler handler, size_type count, const Types&... args) {
     concat_impl(
-        handler,
-        []([[maybe_unused]] size_type old_cap, size_type required) {
-          return calc_growth(old_cap, required);
-        },
-        count, args...);
-  }
-
-  template <class Handler, class CapacityCalculator, typename... Types>
-  void concat_impl(Handler handler,
-                   CapacityCalculator cap_calc,
-                   size_type count,
-                   const Types&... args) {
-    size_type old_size{size()};
-    reserve(cap_calc(capacity(), old_size + count));
-    handler(data() + old_size, count, args...);
-    m_str.Length += ch_count_to_bytes(count);
+        handler, [this](size_type required) { reserve(required); }, count,
+        args...);
   }
 
   template <class Handler, typename... Types>
-  void insert_impl(size_type index,
-                   Handler handler,
-                   size_type count,
-                   const Types&... args) {
-    const size_type old_size{size()};
-    if (old_size + count >= capacity()) {
-      // grow_and_shift_unckecked()
-    }
+  void construct(Handler handler, size_type count, const Types&... args) {
+    concat_impl(
+        handler, [this](size_type required) { grow<false>(required); }, count,
+        args...);
   }
 
-  void grow_and_shift_unckecked(size_type new_capacity,
-                                pair<size_type, size_type> bounds = {}) {
+  template <class Handler, class Reallocator, typename... Types>
+  void concat_impl(Handler handler,
+                   Reallocator reallocator,
+                   size_type count,
+                   const Types&... args) {
+    size_type old_size{size()};
+    reallocator(old_size + count);
+    handler(data() + old_size, count, args...);
+    native_string_traits_type::increase_size(m_str, count);
+  }
+
+  // template <class Handler, typename... Types>
+  // void insert_impl(size_type index,
+  //                 Handler handler,
+  //                 size_type count,
+  //                 const Types&... args) {
+  //  const size_type old_size{size()};
+  //  if (old_size + count >= capacity()) {
+  //    // grow()
+  //  }
+  //}
+
+  template <bool TransferData>
+  void grow(size_type new_capacity, pair<size_type, size_type> bounds = {}) {
+    throw_exception_if_not<length_error>(new_capacity <= max_size(),
+                                         L"string too long");
+
     auto& alc{get_alloc()};
     value_type* old_buffer{data()};
     const size_type old_size{size()};
     value_type* new_buffer{new_capacity <= SSO_BUFFER_CH_COUNT
                                ? m_buffer
                                : allocate_buffer(alc, new_capacity)};
-    shift_right_helper(&copy_helper, new_buffer, old_buffer, old_size, bounds);
+    if constexpr (TransferData) {
+      shift_right_helper(&copy_helper, new_buffer, old_buffer, old_size,
+                         bounds);
+    }
     if (!is_small()) {
       deallocate_buffer(alc, old_buffer, capacity());
     }
-    m_str.Buffer = new_buffer;
-    m_str.Length = ch_count_to_bytes(old_size + (bounds.second - bounds.first));
-    m_str.MaximumLength = ch_count_to_bytes(new_capacity);
+    native_string_traits_type::set_buffer(m_str, new_buffer);
+    native_string_traits_type::set_size(
+        m_str, old_size + (bounds.second - bounds.first));
+    native_string_traits_type::set_capacity(m_str, new_capacity);
   }
 
   void destroy() noexcept {
@@ -757,14 +805,6 @@ class basic_unicode_string {
     traits_type::assign(dst, count, character);
   }
 
-  static constexpr size_type bytes_count_to_ch(size_type bytes_count) noexcept {
-    return bytes_count / sizeof(value_type);
-  }
-
-  static constexpr size_type ch_count_to_bytes(size_type ch_count) noexcept {
-    return ch_count * sizeof(value_type);
-  }
-
   static value_type* allocate_buffer(allocator_type& alc, size_type ch_count) {
     return allocator_traits_type::allocate(alc, ch_count);
   }
@@ -786,9 +826,10 @@ class basic_unicode_string {
 
  private:
   allocator_type m_alc{};
-  native_unicode_str_t m_str{};
+  native_string_type m_str{};
   value_type m_buffer[SsoBufferChCount]{value_type{}};
 };
+}  // namespace str::details
 
 namespace literals {
 inline unicode_string operator""_us(const wchar_t* str, size_t length) {
