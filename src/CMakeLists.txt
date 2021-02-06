@@ -9,6 +9,7 @@ set(KTL_SOURCE_DIR "${KTL_DIR}/src")
 set(
 	KTL_SOURCE_FILES
 		"exception.cpp"
+		"literals.cpp"
 		"new_delete.cpp"
 )
 

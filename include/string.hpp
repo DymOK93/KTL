@@ -2,16 +2,13 @@
 #include <exception.h>
 #include <new_delete.h>
 #include <algorithm.hpp>
-#include <allocator.hpp>
-#include <char_traits_impl.hpp>
 #include <string_fwd.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
 #include <ntddk.h>
 
-namespace ktl {
-namespace str::details {
+namespace ktl::str::details {
 template <size_t SsoBufferChCount,
           typename NativeStrTy,
           template <typename... CharT>
@@ -829,17 +826,4 @@ class basic_winnt_string {
   native_string_type m_str{};
   value_type m_buffer[SsoBufferChCount]{value_type{}};
 };
-}  // namespace str::details
-
-namespace literals {
-inline unicode_string operator""_us(const wchar_t* str, size_t length) {
-  return unicode_string(str, static_cast<unicode_string::size_type>(length));
-}
-
-inline unicode_string_non_paged operator""_usnp(const wchar_t* str,
-                                                size_t length) {
-  return unicode_string_non_paged(
-      str, static_cast<unicode_string::size_type>(length));
-}
-}  // namespace literals
-}  // namespace ktl
+}  // namespace ktl::str::details
