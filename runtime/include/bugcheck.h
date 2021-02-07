@@ -1,5 +1,6 @@
 #pragma once
 #include <basic_types.h>
+#include <crt_attributes.h>
 
 namespace ktl::crt {
 using bugcheck_code_t = uint32_t;
@@ -46,3 +47,5 @@ struct Bsod {
 [[noreturn]] void crt_critical_failure();
 void crt_critical_failure_if_not(bool cond);
 }  // namespace ktl::crt
+
+EXTERN_C [[noreturn]] void terminate();

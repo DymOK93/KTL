@@ -26,3 +26,7 @@ void crt_critical_failure_if_not(bool cond) {
   }
 }
 }  // namespace ktl::crt
+
+EXTERN_C [[noreturn]] void terminate() {
+  ktl::crt::crt_critical_failure();
+}
