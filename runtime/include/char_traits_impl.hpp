@@ -2,7 +2,7 @@
 #include <basic_types.h>
 #include <ntddk.h>
 #include <wchar.h>
-#include <type_traits.hpp>
+#include <type_traits_impl.hpp>
 
 #define EOF -1
 
@@ -53,7 +53,7 @@ struct char_traits_base {
                                              size_t count) noexcept {
     for (; count > 0; --count, ++str1, ++str2) {
       if (*str1 != *str2) {
-        return *str < *str2 ? -1 : +1;
+        return *str < *str2 ? -1 : 1;
       }
     }
     return 0;
@@ -109,12 +109,12 @@ template <typename Elem>
 struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
  public:
   using char_type = Elem;
-  using int_type = uint16_t;
+  using int_type = int;
 
   static char_type* assign(char_type* ptr,
                            size_t count,
                            char_type ch) noexcept {
-    return reinterpret_cast<Elem*>(memset(ptr, ch, count));
+    return reinterpret_cast<char_type*>(memset(ptr, ch, count));
   }
 
   static constexpr void assign(char_type& dst, const char_type& src) noexcept {
@@ -128,13 +128,13 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
   static char_type* move(char_type* dst,
                          const char_type* src,
                          size_t count) noexcept {
-    return reinterpret_cast<Elem*>(memmove(dst, src, count));
+    return reinterpret_cast<char_type*>(memmove(dst, src, count));
   }
 
   static constexpr char_type* copy(char_type* dst,
                                    const char_type* src,
                                    size_t count) noexcept {
-    return reinterpret_cast<Elem*>(memcpy(dst, src, count));
+    return reinterpret_cast<char_type*>(memcpy(dst, src, count));
   }
 
   static constexpr int compare(const char_type* str1,
@@ -158,7 +158,7 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
   [[nodiscard]] static constexpr const char_type*
   find(const char_type* str, size_t count, const char_type& ch) noexcept {
     if constexpr (is_same_v<char_type, wchar_t>) {
-      return __builtin_memchr(str, ch, count);
+      return __builtin_char_memchr(str, ch, count);
     } else {
       return char_traits_base<char_type, int_type>::find(str, count, ch);
     }
@@ -194,12 +194,12 @@ template <typename Elem>
 struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
  public:
   using char_type = Elem;
-  using int_type = uint16_t;
+  using int_type = unsigned short;
 
   static char_type* assign(char_type* ptr,
                            size_t count,
                            char_type ch) noexcept {
-    return reinterpret_cast<Elem*>(wmemset(ptr, ch, count));
+    return reinterpret_cast<char_type*>(wmemset(ptr, ch, count));
   }
 
   static constexpr void assign(char_type& dst, const char_type& src) noexcept {
@@ -213,7 +213,7 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
   static char_type* move(char_type* dst,
                          const char_type* src,
                          size_t count) noexcept {
-    return reinterpret_cast<Elem*>(wmemmove(dst, src, count));
+    return reinterpret_cast<char_type*>(wmemmove(dst, src, count));
   }
 
   static constexpr char_type* copy(char_type* dst,
@@ -281,8 +281,8 @@ struct char_traits;
 
 template <>
 struct char_traits<char> : str::details::narrow_char_traits<char> {};
-//template <>
-//struct char_traits<char8_t> : str::details::narrow_char_traits<char8_t> {};
+// template <>
+// struct char_traits<char8_t> : str::details::narrow_char_traits<char8_t> {};
 
 template <>
 struct char_traits<wchar_t> : str::details::wide_char_traits<wchar_t> {};

@@ -1,7 +1,14 @@
 #pragma once
+#ifndef KTL_NO_CXX_STANDARD_LIBRARY
+#include <algorithm>
+namespace ktl {
+using std::max;
+using std::min;
+using std::binary_search;
+}  // namespace ktl
+#else
 #include <iterator_impl.hpp>
 #include <utility_impl.hpp>
-
 namespace ktl {
 template <class ForwardIt, class T, class Predicate>
 constexpr bool binary_search(ForwardIt first,
@@ -44,3 +51,4 @@ constexpr decltype(auto)(max)(Ty1&& lhs,
                                                : forward<Ty1>(lhs);
 }
 }  // namespace ktl
+#endif

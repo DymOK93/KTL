@@ -125,10 +125,6 @@ struct true_type {
 template <class...>
 using void_t = void;
 
-template <class Ty>
-Ty&& declval() noexcept;  //Только для SFINAE -
-                          //определение не требуется
-
 template <class Ty, Ty Value>
 struct integral_constant {
   static constexpr Ty value = Value;
@@ -302,6 +298,10 @@ struct add_const<const Ty> {
 
 template <class Ty>
 using add_const_t = typename add_const<Ty>::type;
+
+template <class Ty>
+add_rvalue_reference_t<Ty> declval() noexcept;  //Только для SFINAE -
+                                                //определение не требуется
 
 namespace tt::details {
 template <class... Types>

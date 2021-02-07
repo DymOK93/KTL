@@ -125,12 +125,13 @@ using unicode_string_non_paged =
                          char_traits,
                          basic_non_paged_allocator>;
 
-namespace literals {
+inline namespace literals {
+inline namespace string_literals {
 ansi_string operator""_as(const char* str, size_t length);
 ansi_string_non_paged operator""_asnp(const char* str, size_t length);
 
 unicode_string operator""_us(const wchar_t* str, size_t length);
-unicode_string_non_paged operator""_usnp(const wchar_t* str,
-                                                size_t length);
+unicode_string_non_paged operator""_usnp(const wchar_t* str, size_t length);
+}  // namespace string_literals
 }  // namespace literals
 }  // namespace ktl

@@ -4,12 +4,6 @@
 #include <utility>
 
 namespace ktl {
-using std::addressof;
-using std::exchange;
-using std::forward;
-using std::move;
-using std::swap;
-
 using std::size;
 
 using std::make_pair;
@@ -42,9 +36,7 @@ constexpr size_t size(const Ty (&arr)[N]) {
   return N;
 }
 
-// A custom pair implementation is used in the map because ktl::pair is not
-// is_trivially_copyable, which means it would  not be allowed to be used in
-// memcpy. This struct is copyable, which is also tested.
+// A custom pair implementation 
 template <typename Ty1, typename Ty2>
 struct pair {
   using first_type = Ty1;
