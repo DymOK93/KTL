@@ -10,6 +10,7 @@ set(
 	KTL_RUNTIME_HEADER_FILES
 		"algorithm.hpp"
 		"allocator.hpp"
+		"assert.hpp"
 		"atomic.hpp"
 		"chrono.hpp"
 		"driver_base.h"

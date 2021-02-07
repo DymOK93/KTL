@@ -238,16 +238,16 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
             const relative_virtual_address<win::x64_frame_handler_t>*>(
             unwind_info->data + unwind_slots);
 
-    assert(frame_handler);
+    crt_assert(frame_handler);
 
     ctx.extra_data = &unwind_info->data[unwind_slots + 2];  // Why 2?
     byte* frame_ptr = reinterpret_cast<byte*>(
         unwind_info->frame_reg ? cpu_ctx.gp(unwind_info->frame_reg) : mach.rsp);
     auto exc_action{frame_handler(nullptr, frame_ptr, nullptr, &ctx)};
 
-    assert(exc_action ==
-           win::ExceptionDisposition::CxxHandler);  // Проверка соответствия
-                                                    // типа исключения
+    crt_assert(exc_action ==
+               win::ExceptionDisposition::CxxHandler);  // Проверка соответствия
+                                                        // типа исключения
   }
   return unwind_info;
 }

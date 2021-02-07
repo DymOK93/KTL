@@ -9,11 +9,11 @@ set(KTL_RUNTIME_INCLUDE_DIR "${KTL_RUNTIME_DIR}/include")
 set(
 	KTL_RUNTIME_HEADER_FILES
 		"algorithm_impl.hpp"
-		"assert.h"
 		"basic_runtime.h"
 		"basic_types.h"
 		"bugcheck.h"
 		"char_traits_impl.hpp"
+		"crt_assert.h"
 		"crt_attributes.h"
 		"crt_runtime.h"
 		"exception_base.h"

@@ -1,8 +1,8 @@
 #pragma once
 // RVA is Relative Virtual Address
 
-#include <../assert.h>
 #include <../basic_types.h>
+#include <../crt_assert.h>
 #include <../crt_attributes.h>
 #include <../algorithm_impl.hpp>
 #include <../limits_impl.hpp>
@@ -12,8 +12,8 @@
 namespace ktl::crt::exc_engine {
 template <typename Ty, typename IntegralTy>
 Ty convert_narrow(IntegralTy value) noexcept {
-  assert((numeric_limits<Ty>::min)() <= value &&
-         value <= (numeric_limits<Ty>::max)());
+  crt_assert((numeric_limits<Ty>::min)() <= value &&
+             value <= (numeric_limits<Ty>::max)());
   return static_cast<Ty>(value);
 }
 

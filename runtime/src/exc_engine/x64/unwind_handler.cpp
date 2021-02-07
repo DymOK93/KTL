@@ -57,7 +57,7 @@ bool frame_walk_pdata::contains_address(const byte* addr) const noexcept {
 
 const function* frame_walk_pdata::find_function_entry(
     const byte* addr) const noexcept {
-  assert(contains_address(addr));
+  crt_assert(contains_address(addr));
   auto pc_rva{make_rva(addr, m_image_base)};
   uint32_t left_bound{0};
   uint32_t right_bound = m_function_count;

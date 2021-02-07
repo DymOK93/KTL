@@ -26,7 +26,7 @@ target_include_directories(
 )
 target_compile_definitions(
 	${TARGET_LIB} PRIVATE
-		KTL_RUNTIME_DBG
+		KTL_CPP_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
 )
 target_link_libraries(
