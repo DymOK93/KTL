@@ -3,7 +3,10 @@
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <functional>
-namespace ktl {}  // namespace ktl
+namespace ktl {
+using std::minus;
+using std::plus;
+}  // namespace ktl
 #else
 #include <type_traits.hpp>
 #include <utility.hpp>

@@ -98,7 +98,7 @@ EXTERN_C win::ExceptionDisposition __cxx_seh_frame_handler(
     win::x64_cpu_context*,
     void*) {
   if (exception_record) {
-    crt_critical_failure_if_not(
+    terminate_if_not(
         exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
   }
   return win::ExceptionDisposition::ContinueSearch;
@@ -110,7 +110,7 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
     win::x64_cpu_context*,
     void* dispatcher_ctx) {
   if (exception_record) {
-    crt_critical_failure_if_not(
+    terminate_if_not(
         exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
     return win::ExceptionDisposition::ContinueSearch;
   }
@@ -121,7 +121,7 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
   auto& ci{ctx->throw_frame->catch_info};
 
   if (ctx->cookie == &rethrow_probe_cookie) {
-    crt_critical_failure_if_not(frame->catch_info.exception_object_or_link);
+    terminate_if_not(frame->catch_info.exception_object_or_link);
 
     if (frame->catch_info.throw_info_if_owner)
       ci.exception_object_or_link = &frame->catch_info;

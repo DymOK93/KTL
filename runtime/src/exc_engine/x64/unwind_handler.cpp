@@ -79,19 +79,19 @@ const function* frame_walk_pdata::find_function_entry(
 frame_walk_pdata::frame_walk_pdata(const byte* image_base) noexcept
     : m_image_base(image_base) {
   const auto* dos_hdr = reinterpret_cast<const pe::dos_exe_header*>(image_base);
-  crt_critical_failure_if_not(dos_hdr->magic == 0x5a4d);
+  terminate_if_not(dos_hdr->magic == 0x5a4d);
 
   pe::header_x64 const* pe_hdr = image_base + dos_hdr->image_header;
-  crt_critical_failure_if_not(pe_hdr->magic == 0x4550);
-  crt_critical_failure_if_not(pe_hdr->machine == 0x8664);
-  crt_critical_failure_if_not(pe_hdr->opt_magic == 0x20b);
-  crt_critical_failure_if_not(pe_hdr->headers_size >=
+  terminate_if_not(pe_hdr->magic == 0x4550);
+  terminate_if_not(pe_hdr->machine == 0x8664);
+  terminate_if_not(pe_hdr->opt_magic == 0x20b);
+  terminate_if_not(pe_hdr->headers_size >=
                               dos_hdr->image_header.value() +
                                   sizeof(pe::header_x64));
-  crt_critical_failure_if_not(pe_hdr->image_size >= pe_hdr->headers_size);
+  terminate_if_not(pe_hdr->image_size >= pe_hdr->headers_size);
 
-  crt_critical_failure_if_not(pe_hdr->directory_count >= 4);
-  crt_critical_failure_if_not(
+  terminate_if_not(pe_hdr->directory_count >= 4);
+  terminate_if_not(
       (pe_hdr->exception_table.size % sizeof(function)) == 0);
 
   m_functions = image_base + pe_hdr->exception_table.relative_virtual_address;

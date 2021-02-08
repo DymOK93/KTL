@@ -1,30 +1,29 @@
 #pragma once
-#include <ntddk.h>
 #include <basic_types.h>
 #include <type_traits.hpp>
 
+#include <ntddk.h>
+
 namespace ktl {
-struct DeviceInfo {
-  unsigned long extension_size{0},  //�������������� ������, ��������� ���
-                                    //���������� (+ � sizeof(device))
-      type{FILE_DEVICE_UNKNOWN},  //��� ����������
-      characteristics{0};  //��� ��������� ������������� ���������
-  bool exclusive{false};  //���-�� �������� ��������
+struct device_info {
+  unsigned long extension_size{0}, type{FILE_DEVICE_UNKNOWN},
+      characteristics{0};
+  bool exclusive{false};
 };
 
-struct DeviceIoResponse {
+struct device_io_response {
   NTSTATUS status{STATUS_SUCCESS};
   uint32_t info{0};
 };
 
-template <class Driver>
-Driver* GetDriverFromDeviceExtension(PDEVICE_OBJECT device_object) {
-  return static_cast<add_pointer_t<remove_reference_t<Driver>>>(
+template <class Ty>
+Ty* get_from_device_extension(PDEVICE_OBJECT device_object) {
+  return static_cast<add_pointer_t<remove_reference_t<Ty>>>(
       device_object->DeviceExtension);
 }
 
-template <class Driver>
-Driver* GetDriverFromDeviceExtension(PDRIVER_OBJECT driver_object) {
-  return GetDriverFromDeviceExtension<Driver>(driver_object->DeviceObject);
+template <class Ty>
+Ty* get_from_device_extension(PDRIVER_OBJECT driver_object) {
+  return GetDriverFromDeviceExtension<Ty>(driver_object->DeviceObject);
 }
 }  // namespace ktl

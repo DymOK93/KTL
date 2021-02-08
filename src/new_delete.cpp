@@ -2,14 +2,14 @@
 #include <ntddk.h>
 
 namespace ktl {
-new_handler get_new_handler() noexcept {
-  return static_cast<new_handler>(InterlockedCompareExchangePointer(
+new_handler_t get_new_handler() noexcept {
+  return static_cast<new_handler_t>(InterlockedCompareExchangePointer(
       reinterpret_cast<volatile PVOID*>(&mm::details::shared_new_handler),
       nullptr, nullptr));
 }
 
-new_handler set_new_handler(new_handler new_h) noexcept {
-  return static_cast<new_handler>(InterlockedExchangePointer(
+new_handler_t set_new_handler(new_handler_t new_h) noexcept {
+  return static_cast<new_handler_t>(InterlockedExchangePointer(
       reinterpret_cast<volatile PVOID*>(&mm::details::shared_new_handler),
       new_h));
 }

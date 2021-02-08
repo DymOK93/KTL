@@ -68,7 +68,7 @@ exception_data* exception_base::create_shared_data(const exc_char_t* msg,
   auto* buffer{static_cast<byte*>(alloc_non_paged(
       sizeof(exception_data) +
       (msg_length + 1) * sizeof(exc_char_t)))};  // ƒлина с учЄтом нуль-символа
-  crt_critical_failure_if_not(buffer);  // terminate if allocation fails
+  terminate_if_not(buffer);  // terminate if allocation fails
 
   auto* msg_buf{reinterpret_cast<exc_char_t*>(buffer + sizeof(exception_data))};
   char_traits<exc_char_t>::copy(msg_buf, msg, msg_length);

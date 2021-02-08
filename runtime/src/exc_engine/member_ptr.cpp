@@ -22,7 +22,7 @@ uintptr_t member_ptr::apply(uintptr_t obj) const noexcept {
 //
 //extern "C" int __CxxFrameHandler4(void*, void*, void*, void*) {
 //  /*if (exception_record) {
-//    ktl::crt::crt_critical_failure_if_not(exception_record->flags.has_any_of(
+//    ktl::crt::terminate_if_not(exception_record->flags.has_any_of(
 //        ktl::crt::exc_engine::win::ExceptionFlag::Unwinding));
 //    return ktl::crt::exc_engine::win::ExceptionDisposition::ContinueSearch;
 //  }

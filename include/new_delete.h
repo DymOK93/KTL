@@ -10,16 +10,16 @@ inline constexpr paged_new_tag_t paged_new;
 struct non_paged_new_tag_t {};
 inline constexpr non_paged_new_tag_t non_paged_new;
 
-using new_handler = void (*)();
+using new_handler_t = void (*)();
 
-new_handler get_new_handler() noexcept;
-new_handler set_new_handler(new_handler new_h) noexcept;
+new_handler_t get_new_handler() noexcept;
+new_handler_t set_new_handler(new_handler_t new_h) noexcept;
 
 inline constexpr align_val_t DEFAULT_NEW_ALIGNMENT{
     crt::DEFAULT_ALLOCATION_ALIGNMENT};
 
 namespace mm::details {
-inline new_handler shared_new_handler;
+inline new_handler_t shared_new_handler;
 
 template <class AllocFunc>
 void* operator_new_impl(AllocFunc alloc_func,

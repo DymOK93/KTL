@@ -85,7 +85,7 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* dispatcher_ctx) noexcept {
   if (exception_record) {
-    crt_critical_failure_if_not(
+    terminate_if_not(
         exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
     return win::ExceptionDisposition::ContinueSearch;
   }
@@ -226,7 +226,7 @@ static win::ExceptionDisposition frame_handler(
   const uint8_t* p = image_base + eh_info.unwind_graph;
   uint32_t unwind_nodes = read_unsigned(&p);
 
-  crt_critical_failure_if_not(state >= 0 && (uint32_t)state < unwind_nodes);
+  terminate_if_not(state >= 0 && (uint32_t)state < unwind_nodes);
 
   const uint8_t* target_edge_last = p;
   for (int32_t i = 0; i != state; ++i) {
@@ -243,7 +243,7 @@ static win::ExceptionDisposition frame_handler(
 
     uint32_t target_offset_and_type = read_unsigned(&p);
     uint32_t target_offset = target_offset_and_type >> 2;
-    crt_critical_failure_if_not(target_offset != 0);
+    terminate_if_not(target_offset != 0);
 
     auto edge_type{
         static_cast<fh4::unwind_edge::Type>(target_offset_and_type & 3)};
