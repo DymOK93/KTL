@@ -293,7 +293,7 @@ class NodeAllocator<Ty, BasicBytesAllocator, MinSize, MaxSize, true> {
   }
 
   void deallocate_bytes(void* ptr, size_t bytes_count) {
-    return AlBytesTraits::allocate_bytes(m_bytes_alc, bytes_count);
+    AlBytesTraits::deallocate_bytes(m_bytes_alc, ptr, bytes_count);
   }
 
   // we are not using the data, so just free it.

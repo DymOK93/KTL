@@ -93,33 +93,26 @@ inline constexpr size_t DEFAULT_SSO_CH_BUFFER_COUNT{16};
 }  // namespace str::details
 
 template <size_t SsoBufferChCount,
-          template <typename... CharT>
-          class Traits,
-          template <typename... CharT>
-          class Alloc>
+          template <typename... CharT> class Traits = char_traits,
+          template <typename... CharT> class Alloc = basic_paged_allocator>
 using basic_ansi_string = str::details::
     basic_winnt_string<SsoBufferChCount, native_ansi_str_t, Traits, Alloc>;
 
-using ansi_string = basic_ansi_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
-                                      char_traits,
-                                      basic_paged_allocator>;
+using ansi_string =
+    basic_ansi_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT>;
 using ansi_string_non_paged =
     basic_ansi_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
                       char_traits,
                       basic_non_paged_allocator>;
 
 template <size_t SsoBufferChCount,
-          template <typename... CharT>
-          class Traits,
-          template <typename... CharT>
-          class Alloc>
+          template <typename... CharT> class Traits = char_traits,
+          template <typename... CharT> class Alloc = basic_paged_allocator>
 using basic_unicode_string = str::details::
     basic_winnt_string<SsoBufferChCount, native_unicode_str_t, Traits, Alloc>;
 
 using unicode_string =
-    basic_unicode_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
-                         char_traits,
-                         basic_paged_allocator>;
+    basic_unicode_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT>;
 using unicode_string_non_paged =
     basic_unicode_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
                          char_traits,

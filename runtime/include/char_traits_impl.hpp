@@ -53,7 +53,7 @@ struct char_traits_base {
                                              size_t count) noexcept {
     for (; count > 0; --count, ++str1, ++str2) {
       if (*str1 != *str2) {
-        return *str < *str2 ? -1 : 1;
+        return *str1 < *str2 ? -1 : 1;
       }
     }
     return 0;
@@ -139,10 +139,10 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
 
   static constexpr int compare(const char_type* str1,
                                const char_type* str2,
-                               size_t count) {
-    if constexpr (is_same_v<char_type, wchar_t>)
-      noexcept { return __builtin_memcmp(str1, str2, count); }
-    else {
+                               size_t count) noexcept {
+    if constexpr (is_same_v<char_type, wchar_t>) {
+      return __builtin_memcmp(str1, str2, count);
+    } else {
       return char_traits_base<char_type, int_type>::compare(str1, str2, count);
     }
   }
@@ -224,10 +224,10 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
 
   static constexpr int compare(const char_type* str1,
                                const char_type* str2,
-                               size_t count) {
-    if constexpr (is_same_v<char_type, wchar_t>)
-      noexcept { return __builtin_wmemcmp(str1, str2, count); }
-    else {
+                               size_t count) noexcept {
+    if constexpr (is_same_v<char_type, wchar_t>) {
+      return __builtin_wmemcmp(str1, str2, count);
+    } else {
       return char_traits_base<char_type, int_type>::compare(str1, str2, count);
     }
   }

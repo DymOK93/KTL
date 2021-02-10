@@ -1,6 +1,7 @@
 #pragma once
 #include <basic_types.h>
 #include <smart_pointer.hpp>
+#include <string.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
@@ -79,12 +80,39 @@ struct hash : public hash<T> {
   }
 };
 
-// template <typename CharT>
-// struct hash<basic_string<CharT>> {
-//    size_t operator()(basic_string<CharT> const& str) const noexcept {
-//        return hash_bytes(str.data(), sizeof(CharT) * str.size());
-//    }
-//};
+namespace hsh::details {
+template <class CharType>
+struct hash_string {
+  size_t operator()(const CharType* str, size_t length) const noexcept {
+    return hash_bytes(str, sizeof(CharType) * length);
+  }
+};
+
+}  // namespace hsh::details
+
+template <size_t BufferSize>
+struct hash<basic_unicode_string<BufferSize>>
+    : hsh::details::hash_string<
+          typename basic_unicode_string<BufferSize>::value_type> {
+  using MyBase = hsh::details::hash_string<
+      typename basic_unicode_string<BufferSize>::value_type>;
+
+  size_t operator()(const basic_ansi_string<BufferSize>& str) const noexcept {
+    return MyBase::operator()(str.data(), str.size());
+  }
+};
+
+template <size_t BufferSize>
+struct hash<basic_ansi_string<BufferSize>>
+    : hsh::details::hash_string<
+          typename basic_ansi_string<BufferSize>::value_type> {
+  using MyBase = hsh::details::hash_string<
+      typename basic_ansi_string<BufferSize>::value_type>;
+
+  size_t operator()(const basic_ansi_string<BufferSize>& str) const noexcept {
+    return MyBase::operator()(str.data(), str.size());
+  }
+};
 
 //#if ROBIN_HOOD(CXX) >= ROBIN_HOOD(CXX17)
 // template <typename CharT>
