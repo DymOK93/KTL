@@ -17,6 +17,21 @@ template <class Target, class Ty>
 using get_pointer_type_t = typename get_pointer_type<Target, Ty>::type;
 
 template <class Target, class Ty, class = void>
+struct get_const_pointer_type {
+  using type = add_pointer_t<add_const_t<Ty>>;
+};
+
+template <class Target, class Ty>
+struct get_const_pointer_type<Target,
+                             Ty,
+                             void_t<typename Target::const_pointer>> {
+  using type = typename Target::pointer;
+};
+
+template <class Target, class Ty>
+using get_const_pointer_type_t = typename get_const_pointer_type<Target, Ty>::type;
+
+template <class Target, class Ty, class = void>
 struct get_reference_type {
   using type = add_lvalue_reference_t<Ty>;
 };

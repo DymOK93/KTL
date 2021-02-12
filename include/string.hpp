@@ -31,7 +31,7 @@ class basic_winnt_string {
 
   using difference_type = typename allocator_traits_type::difference_type;
 
-  using reference = typename allocator_traits<allocator_type>::reference;
+  using reference = typename allocator_traits_type::reference;
   using const_reference = typename allocator_traits_type::const_reference;
   using pointer = typename allocator_traits_type::pointer;
   using const_pointer = typename allocator_traits_type::const_pointer;
@@ -68,7 +68,7 @@ class basic_winnt_string {
                      Allocator&& alloc = Allocator{})
       : m_alc(forward<Allocator>(alloc)) {
     become_small();
-    concat_without_transfer_old_data(&fill_helper, count, ch);
+    concat_without_transfer_old_data(make_fill_helper(), count, ch);
   }
 
   template <size_t BufferSize,
@@ -108,7 +108,7 @@ class basic_winnt_string {
                      Allocator&& alloc = Allocator{})
       : m_alc(forward<Allocator>(alloc)) {
     become_small();
-    concat_without_transfer_old_data(&copy_helper, length, str);
+    concat_without_transfer_old_data(make_copy_helper(), length, str);
   }
 
   template <class Allocator = allocator_type,
@@ -118,7 +118,7 @@ class basic_winnt_string {
       : m_alc{forward<Allocator>(alloc)} {
     become_small();
     concat_without_transfer_old_data(
-        &copy_helper,
+        make_copy_helper(),
         static_cast<size_type>(traits_type::length(null_terminated_str)),
         null_terminated_str);
   }
@@ -144,7 +144,7 @@ class basic_winnt_string {
       : m_alc{forward<Allocator>(alloc)} {
     become_small();
     concat_without_transfer_old_data(
-        &copy_helper, native_string_traits_type::get_size(native_str),
+        make_copy_helper(), native_string_traits_type::get_size(native_str),
         native_str.Buffer);
   }
 
@@ -189,7 +189,7 @@ class basic_winnt_string {
     if (raw_str() != addressof(native_str)) {
       clear();
       concat_without_transfer_old_data(
-          &copy_helper, native_string_traits_type::get_size(native_str),
+          make_copy_helper(), native_string_traits_type::get_size(native_str),
           native_str.Buffer);
     }
     return *this;
@@ -229,7 +229,7 @@ class basic_winnt_string {
 
   basic_winnt_string& assign(const value_type* str, size_type ch_count) {
     clear();
-    concat_without_transfer_old_data(&move_helper, ch_count, str);
+    concat_without_transfer_old_data(make_move_helper(), ch_count, str);
     return *this;
   }
 
@@ -442,7 +442,7 @@ class basic_winnt_string {
   }
 
   basic_winnt_string& append(size_type count, value_type ch) {
-    concat_with_optimal_growth(&fill_helper, count, ch);
+    concat_with_optimal_growth(make_fill_helper(), count, ch);
     return *this;
   }
 
@@ -460,7 +460,7 @@ class basic_winnt_string {
   }
 
   basic_winnt_string& append(const value_type* str, size_type count) {
-    concat_with_optimal_growth(&copy_helper, count, str);
+    concat_with_optimal_growth(make_copy_helper(), count, str);
     return *this;
   }
 
@@ -612,14 +612,15 @@ class basic_winnt_string {
     if (index == current_size) {
       return append(str, count);
     }
-    insert_impl(index, &copy_helper, count, str);
+    insert_impl(index, make_copy_helper(), count, str);
     return *this;
   }
 
   basic_winnt_string& insert(size_type index,
                              const value_type* null_terminated_str) {
-    return insert(index, null_terminated_str,
-                  traits_type::length(null_terminated_str));
+    return insert(
+        index, null_terminated_str,
+        static_cast<size_type>(traits_type::length(null_terminated_str)));
   }
 
   basic_winnt_string& insert(size_type index,
@@ -643,13 +644,13 @@ class basic_winnt_string {
           other,
       size_type other_pos,
       size_type other_count) {
-    const size_type current_size{size()}, other_size{other.size()};
+    const size_type other_size{other.size()};
     throw_out_of_range_if_not(index <= current_size);
-    if (index == current_size) {
+    if (index == size()) {
       return append(str, pos, count);
     }
     throw_out_of_range_if_not(other_pos <= other_size);
-    insert_impl(index, &copy_helper, (min)(other_size - other_pos, count),
+    insert_impl(index, make_copy_helper(), (min)(other_size - other_pos, count),
                 other.data() + other_pos);
     return *this;
   }
@@ -663,7 +664,7 @@ class basic_winnt_string {
     if (pos == end()) {
       append(pos, count, ch);
     }
-    insert_impl(index, &fill_helper, count, ch);
+    insert_impl(index, make_fill_helper(), count, ch);
   }
 
   template <class InputIt>
@@ -675,6 +676,29 @@ class basic_winnt_string {
         pos - begin(), first, last,
         is_same<typename iterator_traits<InputIt>::iterator_category,
                 random_access_iterator_tag>{});
+  }
+
+  basic_winnt_string& erase(size_type index = 0, size_type count = npos) {
+    const size_type old_size{size()};
+    throw_out_of_range_if_not(index <= old_size);
+    erase_unchecked(index,
+                    (min)(count, static_cast<size_type>(old_size - index)));
+    return *this;
+  }
+
+  iterator erase(const_iterator pos) noexcept {
+    const auto index{static_cast<size_type>(pos - begin())};
+    assert(index < size());
+    erase_unchecked(index, 1);
+    return begin() + index;
+  }
+
+  iterator erase(const_iterator first, const_iterator last) noexcept {
+    const auto index{static_cast<size_type>(first - begin())},
+        range_length{static_cast<size_type>(last - first)};
+    assert(index + range_length <= size());
+    erase_unchecked(index, range_length);
+    return begin() + index;
   }
 
   // let's wait for basic_winnt_string_view
@@ -714,10 +738,12 @@ class basic_winnt_string {
     return find(ch, 0) != npos;
   }
 
-  [[nodiscard]] basic_winnt_string substr(size_type pos, size_type count) {
+  [[nodiscard]] basic_winnt_string substr(size_type pos = 0,
+                                          size_type count = npos) {
     size_type current_size{size()};
     throw_out_of_range_if_not(pos < current_size);
-    return basic_winnt_string{data() + pos, (min)(current_size - pos, count)};
+    return basic_winnt_string{
+        data() + pos, (min)(static_cast<size_type>(current_size - pos), count)};
   }
 
   size_type copy(value_type* dst, size_type count, size_type pos = 0) const {
@@ -746,14 +772,15 @@ class basic_winnt_string {
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
           other,
       size_type my_pos) const noexcept {
-    if (my_pos > size()) {
+    const size_type current_size{size()};
+    if (my_pos > current_size) {
       return npos;
     }
     const auto first{begin()}, last{end()};
     const auto found_pos{find_subrange(first + my_pos, last, other.begin(),
                                        other.end(), &ch_equal) -
                          first};
-    return found_pos == last ? npos : static_cast<size_type>(found_pos);
+    return found_pos == current_size ? npos : static_cast<size_type>(found_pos);
   }
 
   constexpr size_type find(const value_type* null_terminated_str,
@@ -781,8 +808,7 @@ class basic_winnt_string {
     }
     const value_type* first{data()};
     const auto found_pos{traits_type::find(first, size(), ch) - first};
-    return found_pos < current_size ? static_cast<size_type>(found_pos)
-                                    : npos;
+    return found_pos < current_size ? static_cast<size_type>(found_pos) : npos;
   }
 
   template <size_t BufferSize, template <typename... CharType> class ChAlloc>
@@ -845,10 +871,10 @@ class basic_winnt_string {
     throw_out_of_range_if_not(pos < other_size);
     const auto length{static_cast<size_type>(other_size - pos)};
     if constexpr (CalcOptimalGrowth) {
-      concat_with_optimal_growth(&copy_helper, (min)(length, count),
+      concat_with_optimal_growth(make_copy_helper(), (min)(length, count),
                                  other.data() + pos);
     } else {
-      concat_without_transfer_old_data(&copy_helper, (min)(length, count),
+      concat_without_transfer_old_data(make_copy_helper(), (min)(length, count),
                                        other.data() + pos);
     }
   }
@@ -874,9 +900,9 @@ class basic_winnt_string {
       size_type range_length,
       false_type) {
     if constexpr (is_pointer_v<RandomAcceccIt>) {
-      concat(&copy_helper, range_length, first);
+      concat(make_copy_helper(), range_length, first);
     } else {
-      concat(&copy_range_helper, range_length, first, last);
+      concat(make_copy_range_helper(), range_length, first, last);
     }
   }
 
@@ -906,9 +932,9 @@ class basic_winnt_string {
       size_type range_length,
       false_type) {
     if constexpr (is_pointer_v<RandomAcceccIt>) {
-      insert_impl(index, &copy_helper, range_length, first);
+      insert_impl(index, make_copy_helper(), range_length, first);
     } else {
-      insert_impl(index, &copy_range_helper, range_length, first, last);
+      insert_impl(index, make_copy_range_helper(), range_length, first, last);
     }
   }
 
@@ -919,9 +945,10 @@ class basic_winnt_string {
       size_type range_length,
       true_type) {
     if constexpr (is_pointer_v<RandomAcceccIt>) {
-      concat_with_optimal_growth(&copy_helper, range_length, first);
+      concat_with_optimal_growth(make_copy_helper(), range_length, first);
     } else {
-      concat_with_optimal_growth(&copy_range_helper, range_length, first, last);
+      concat_with_optimal_growth(make_copy_range_helper(), range_length, first,
+                                 last);
     }
   }
 
@@ -938,7 +965,8 @@ class basic_winnt_string {
     destroy();
     become_small();
     m_alc = other.m_alc;
-    concat_without_transfer_old_data(&copy_helper, other.size(), other.data());
+    concat_without_transfer_old_data(make_copy_helper(), other.size(),
+                                     other.data());
   }
 
   template <size_t BufferSize,
@@ -952,7 +980,8 @@ class basic_winnt_string {
                                                      ChAlloc>& other,
                             false_type) {
     clear();
-    concat_without_transfer_old_data(&copy_helper, other.size(), other.data());
+    concat_without_transfer_old_data(make_copy_helper(), other.size(),
+                                     other.data());
   }
 
   template <bool AllocIsAlwaysEqual>
@@ -1007,7 +1036,7 @@ class basic_winnt_string {
     concat_impl(
         handler,
         [this](size_type required) {
-          grow_if_needed(required, &dummy_transfer);
+          grow_if_needed(required, make_dummy_transfer());
         },
         count, args...);
   }
@@ -1028,13 +1057,26 @@ class basic_winnt_string {
                    Handler handler,
                    size_type count,
                    const Types&... args) {
-    const size_type old_size{size()}, required{old_size + count};
-    const auto shifter{make_shifter(&copy_helper, {index, count})};
+    const auto old_size{size()},
+        required{static_cast<size_type>(old_size + count)},
+        need_to_shift{static_cast<size_type>(old_size - index)};
+    value_type* base{data() + index};
     if (required > capacity()) {
-      grow(calc_optimal_growth(required), shifter);
+      grow(calc_optimal_growth(required),
+           make_shifter(make_copy_helper(), {index, count}));
+    } else {
+      constexpr auto shifter{make_move_helper()};
+      shifter(base + count, need_to_shift, base);
     }
-    handler(data() + index, count, args...);
-    native_string_traits_type::increase_size(m_str, required);
+    handler(base, count, args...);
+    native_string_traits_type::increase_size(m_str, count);
+  }
+
+  void erase_unchecked(size_type index, size_type count) {
+    auto* first{data() + index};
+    const auto need_to_shift{size() - count};
+    traits_type::move(first, first + count, need_to_shift);
+    native_string_traits_type::decrease_size(m_str, count);
   }
 
   template <class TransferPolicy>
@@ -1109,7 +1151,7 @@ class basic_winnt_string {
   static constexpr auto make_shifter(Handler handler,
                                      pair<size_type, size_type> bounds) {
     return [handler, bounds](value_type* dst, size_type count,
-                             const value_type* src) {
+                             const value_type* src) -> size_type {
       shift_right_helper(handler, dst, src, count, bounds);
       return count + (bounds.second - bounds.first);
     };
@@ -1118,42 +1160,43 @@ class basic_winnt_string {
   static size_type transfer_without_shift(value_type* dst,
                                           size_type count,
                                           const value_type* src) noexcept {
-    copy_helper(dst, count, src);
+    make_copy_helper()(dst, count, src);
     return count;
   }
 
-  static size_type dummy_transfer(
-      [[maybe_unused]] value_type* dst,
-      size_type count,
-      [[maybe_unused]] const value_type* src) noexcept {
-    return count;
+  static constexpr auto make_dummy_transfer() noexcept {
+    return
+        []([[maybe_unused]] value_type* dst, size_type count,
+           [[maybe_unused]] const value_type* src) noexcept { return count; };
   }
 
-  static void copy_helper(value_type* dst,
-                          size_type count,
-                          const value_type* src) noexcept {
-    traits_type::copy(dst, src, count);
+  static constexpr auto make_copy_helper() noexcept {
+    return
+        [](value_type* dst, size_type count, const value_type* src) noexcept {
+          traits_type::copy(dst, src, count);
+        };
   }
 
   template <class InputIt>
-  static void copy_range_helper(value_type* dst,
-                                InputIt first,
-                                InputIt last) noexcept {
-    for (; first != last; first = next(last), ++dst) {
-      traits_type::assign(*dst, *first);
-    }
+  static constexpr auto make_copy_range_helper() noexcept {
+    return [](value_type* dst, InputIt first, InputIt last) {
+      for (; first != last; first = next(last), ++dst) {
+        traits_type::assign(*dst, *first);
+      }
+    };
   }
 
-  static void move_helper(value_type* dst,
-                          size_type count,
-                          const value_type* src) noexcept {
-    traits_type::move(dst, src, count);
+  static constexpr auto make_move_helper() noexcept {
+    return
+        [](value_type* dst, size_type count, const value_type* src) noexcept {
+          traits_type::move(dst, src, count);
+        };
   }
 
-  static void fill_helper(value_type* dst,
-                          size_type count,
-                          value_type character) noexcept {
-    traits_type::assign(dst, count, character);
+  static constexpr auto make_fill_helper() noexcept {
+    return [](value_type* dst, size_type count, value_type character) noexcept {
+      traits_type::assign(dst, count, character);
+    };
   }
 
   static value_type* allocate_buffer(allocator_type& alc, size_type ch_count) {
@@ -1202,28 +1245,23 @@ template <size_t LhsBufferSize,
           size_t RhsBufferSize,
           typename NativeStrTy,
           template <typename... CharType>
-          class RhsChTraits,
-          template <typename... CharType>
-          class LhsChTraits,
+          class ChTraits,
           template <typename... CharType>
           class LhsChAlloc,
           template <typename... CharType>
           class RhsChAlloc>
-auto operator+(const basic_winnt_string<LhsBufferSize,
-                                        NativeStrTy,
-                                        LhsChTraits,
-                                        LhsChAlloc>& lhs,
-               const basic_winnt_string<RhsBufferSize,
-                                        NativeStrTy,
-                                        RhsChTraits,
-                                        RhsChAlloc>& rhs) {
+auto operator+(
+    const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
+        lhs,
+    const basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc>&
+        rhs) {
   if constexpr (LhsBufferSize >= RhsBufferSize) {
-    basic_winnt_string<LhsBufferSize, NativeStrTy, LhsChTraits, LhsChAlloc> str{
+    basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc> str{
         lhs};
     str += rhs;
     return str;
   } else {
-    basic_winnt_string<RhsBufferSize, NativeStrTy, RhsChTraits, RhsChAlloc> str{
+    basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc> str{
         rhs};
     str += lhs;
     return str;
@@ -1344,20 +1382,15 @@ template <size_t LhsBufferSize,
           size_t RhsBufferSize,
           typename NativeStrTy,
           template <typename... CharType>
-          class RhsChTraits,
-          template <typename... CharType>
-          class LhsChTraits,
+          class ChTraits,
           template <typename... CharType>
           class LhsChAlloc,
           template <typename... CharType>
           class RhsChAlloc>
 auto operator+(
-    basic_winnt_string<LhsBufferSize, NativeStrTy, LhsChTraits, LhsChAlloc>&&
-        lhs,
-    const basic_winnt_string<RhsBufferSize,
-                             NativeStrTy,
-                             RhsChTraits,
-                             RhsChAlloc>& rhs) {
+    basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&& lhs,
+    const basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc>&
+        rhs) {
   return move(lhs += rhs);
 }
 
