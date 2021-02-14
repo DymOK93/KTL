@@ -30,7 +30,6 @@ set(
 		"string_fwd.hpp"
 		"string_view.hpp"
 		"string_algorithms.hpp"
-		"string_base.hpp"
 		"type_traits.hpp"
 		"unordered_container_impl.hpp"
 		"unordered_map.hpp"

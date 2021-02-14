@@ -57,7 +57,7 @@ class native_string_traits_base {
   }
 
   static constexpr size_type get_max_size() noexcept {
-    return bytes_count_to_ch(static_cast<size_type>(-1));
+    return bytes_count_to_ch((numeric_limits<size_type>::max)() - 1);
   }
 
  private:
@@ -95,13 +95,19 @@ class basic_winnt_string;
 inline constexpr size_t DEFAULT_SSO_CH_BUFFER_COUNT{16};
 }  // namespace str::details
 
-template <template <typename... CharT> class Traits = char_traits>
-using ansi_string_view =
+template <template <typename... CharT> class Traits>
+using basic_ansi_string_view =
     str::details::basic_winnt_string_view<native_ansi_str_t, Traits>;
 
-template <template <typename... CharT> class Traits = char_traits>
-using unicode_string_view =
+using ansi_string_view =
+    str::details::basic_winnt_string_view<native_ansi_str_t, char_traits>;
+
+template <template <typename... CharT> class Traits>
+using basic_unicode_string_view =
     str::details::basic_winnt_string_view<native_unicode_str_t, Traits>;
+
+using unicode_string_view =
+    str::details::basic_winnt_string_view<native_unicode_str_t, char_traits>;
 
 template <size_t SsoBufferChCount,
           template <typename... CharT> class Traits = char_traits,

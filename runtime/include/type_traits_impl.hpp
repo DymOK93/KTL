@@ -50,6 +50,7 @@ using std::is_copy_constructible_v;
 using std::is_default_constructible;
 using std::is_default_constructible_v;
 using std::is_empty;
+using std::is_final;
 using std::is_move_constructible;
 using std::is_move_constructible_v;
 using std::is_nothrow_constructible;
@@ -341,6 +342,14 @@ struct is_empty {
 template <class Ty>
 inline constexpr bool is_empty_v = is_empty<Ty>::value;
 
+template <class Ty>
+struct is_final {
+  static constexpr bool value = __is_final(Ty);
+};
+
+template <class Ty>
+inline constexpr bool is_final_v = is_final<Ty>::value;
+
 template <class From, class To, class = void>
 struct is_convertible : false_type {};
 
@@ -352,6 +361,16 @@ struct is_convertible<From,
 
 template <class From, class To>
 inline constexpr bool is_convertible_v = is_convertible<From, To>::value;
+
+template <class From, class To>
+struct is_nothrow_convertible {
+  static constexpr bool value =
+      is_convertible_v<From, To>&& noexcept(static_cast<To>(declval<From>()));
+};
+
+template <class From, class To>
+inline constexpr bool is_nothrow_convertible_v =
+    is_nothrow_convertible<From, To>::value;
 
 template <class, class Ty, class... Types>
 struct is_constructible : false_type {};

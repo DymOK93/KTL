@@ -1,234 +1,384 @@
 ﻿#pragma once
-#include "string_base.hpp"
-#include "string_algorithms.hpp"
-#include "type_traits.hpp"
-
-#include <ntddk.h>
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <algorithm>
 #include <string_view>
-#endif
+#else
+#include <exception.h>
+#include <algorithm.hpp>
+#include <assert.hpp>
+#include <string_fwd.hpp>
+#include <type_traits.hpp>
+#include <utility.hpp>
 
 namespace ktl {
-class unicode_string_view {
+namespace str::details {
+template <typename NativeStrTy, template <typename... CharT> class Traits>
+class basic_winnt_string_view {
  public:
-  using value_type = wchar_t;
-  using pointer = wchar_t*;
-  using const_pointer = const wchar_t*;
-  using reference = wchar_t&;
-  using const_reference = const wchar_t&;
+  using native_string_type = NativeStrTy;
+  using native_string_traits_type = native_string_traits<NativeStrTy>;
+
+  using value_type = typename native_string_traits_type::value_type;
+  using size_type = typename native_string_traits_type::size_type;
+
+  using traits_type = Traits<value_type>;
+
+  using difference_type = ptrdiff_t;
+
+  using const_reference = const value_type&;
+  using reference = const_reference;
+  using const_pointer = const value_type*;
+  using pointer = const_pointer;
+
   using const_iterator = const_pointer;
-#ifndef KTL_NO_CXX_STANDARD_LIBRARY
-  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-#endif
-  using size_type = unsigned short;  //Как и в UNICODE_STRING
-  using difference_type = int;
-
-  static constexpr size_type npos = static_cast<size_type>(-1);
+  using iterator = const_iterator;
 
  public:
-  constexpr unicode_string_view() noexcept = default;
-  constexpr unicode_string_view(const unicode_string_view& other) = default;
-  constexpr unicode_string_view& operator=(const unicode_string_view& other) =
-      default;
+  static constexpr auto npos{static_cast<size_type>(-1)};
+
+ public:
+  constexpr basic_winnt_string_view() noexcept = default;
+
+  constexpr basic_winnt_string_view(
+      const basic_winnt_string_view& other) noexcept = default;
+
+  constexpr basic_winnt_string_view& operator=(
+      const basic_winnt_string_view& other) noexcept = default;
 
   template <size_t N>
-  constexpr unicode_string_view(const wchar_t (&str)[N])
-      : m_str{make_unicode_string(str), static_cast<size_type>(N)} {}
-  constexpr unicode_string_view(const wchar_t* str)
-      : m_str{make_unicode_string(str, static_cast<size_type>(ktl::length(str)))} {}
-  constexpr unicode_string_view(const wchar_t* str, size_type length)
-      : m_str{make_unicode_string(str, length)} {}
-  constexpr unicode_string_view(UNICODE_STRING str) : m_str{str} {}
-  constexpr unicode_string_view(PCUNICODE_STRING str_ptr) : m_str{*str_ptr} {}
+  constexpr basic_winnt_string_view(
+      const value_type (&null_terminated_str)[N + 1]) noexcept
+      : m_str{make_native_str(null_terminated_str, static_cast<size_type>(N))} {
+  }
+
+  constexpr basic_winnt_string_view(
+      const value_type* null_terminated_str) noexcept
+      : m_str{make_native_str(
+            null_terminated_str,
+            static_cast<size_type>(traits_type::length(null_terminated_str)))} {
+  }
+
+  constexpr basic_winnt_string_view(const value_type* str,
+                                    size_type length) noexcept
+      : m_str{make_native_str(str, length)} {}
+
+  constexpr basic_winnt_string_view(native_string_type native_str)
+      : m_str{native_str} {}
 
  public:
   constexpr const_iterator begin() const noexcept { return cbegin(); }
   constexpr const_iterator cbegin() const noexcept { return data(); }
-  constexpr const_iterator rbegin() const noexcept { return rbegin(); }
-  constexpr const_iterator crbegin() const noexcept { return cend(); }
   constexpr const_iterator end() const noexcept { return cend(); }
   constexpr const_iterator cend() const noexcept { return data() + length(); }
-  constexpr const_iterator rend() const noexcept { return crend(); }
-  constexpr const_iterator crend() const noexcept { return cbegin(); }
 
  public:
-  constexpr const_reference& operator[](size_type idx) const {
-    return m_str.Buffer[idx];
-  }
-  constexpr const_reference& front() const { return m_str.Buffer[0]; }
-  constexpr const_reference& back() const { return m_str.Buffer[length() - 1]; }
-  constexpr const_pointer data() const { return m_str.Buffer; }
-
- public:
-  constexpr size_type size() const {
-    return length_to_characters(m_str.Length);
-  }
-  constexpr size_type length() const {
-    return length_to_characters(m_str.Length);
-  }
-  constexpr bool empty() const { return length() == 0; }
-
- public:
-  constexpr void remove_prefix(size_type shift) { m_str.Buffer += shift; }
-  constexpr void remove_suffix(size_type shift) { m_str.Length -= shift; }
-  constexpr void swap(unicode_string_view& other) {
-    ktl::swap(m_str, other.m_str);
+  value_type& at(size_type idx) const {
+    throw_out_of_range_if_not(idx < size, "index is out of range");
+    return buf[idx];
   }
 
- public:
-  /*constexpr size_type copy(wchar_t* dst,          // ktl::copy пока недоступна
-                              size_type count,
-                              size_type pos = 0) {
-    auto last{std::copy(begin() + pos,
-                        begin() + calc_segment_length(pos, count), dst)};
-    return static_cast<size_type>(last - dst);
+  constexpr const value_type& operator[](size_type idx) const noexcept {
+    assert_with_msg(idx < size(), L"index is out of range");
+    return data()[idx];
   }
-  constexpr size_type copy(PUNICODE_STRING dst,
-                              size_type count,
-                              size_type pos = 0) {
-    return copy(dst->Buffer, count, pos);
-  }*/
-  constexpr unicode_string_view substr(size_type pos, size_type count = npos) {
-    return unicode_string_view(data() + pos, calc_segment_length(pos, count));
+
+  constexpr const value_type& front() const noexcept {
+    assert_with_msg(!empty(), L"front() called on empty string_view");
+    return data()[0];
   }
-  constexpr int compare(unicode_string_view other) {
-    return ktl::compare(data(), size(), other.data(), other.size());
+
+  constexpr const value_type& back() const noexcept {
+    assert_with_msg(!empty(), L"front() called at empty string_view");
+    return data()[size() - 1];
   }
+
+  constexpr const value_type* data() const noexcept {
+    return native_string_traits_type::get_buffer(m_str);
+  }
+
+  constexpr bool empty() const noexcept { return size() == 0; }
+
+  constexpr size_type size() const noexcept {
+    return native_string_traits_type::get_size(m_str);
+  }
+
+  constexpr size_type length() const noexcept { return size(); }
+
+  constexpr void remove_prefix(size_type count) noexcept {
+    assert_with_msg(count <= size(), "prefix is too long");
+    native_string_traits_type::set_buffer(m_str, data() + count);
+    native_string_traits_type::decrease_size(m_str, +count);
+  }
+
+  constexpr void remove_suffix(size_type count) noexcept {
+    assert_with_msg(count <= size(), "suffix is too long");
+    native_string_traits_type::decrease_size(m_str, count);
+  }
+
+  constexpr void swap(basic_winnt_string_view& other) noexcept {
+    using ::swap;
+    swap(m_str, other.m_str);
+  }
+
+  constexpr basic_winnt_string_view substr(
+      size_type pos,
+      size_type count = npos) const noexcept {
+    MyBase::throw_out_of_range_if_not(pos < size());
+    return substr_unchecked(pos, count);
+  }
+
+  constexpr int compare(basic_winnt_string_view other) const noexcept {
+    return compare_unchecked(data(), size(), other.data(), other.size());
+  }
+
   constexpr int compare(size_type pos,
                         size_type count,
-                        unicode_string_view other) {
+                        basic_winnt_string_view other) const {
     return substr(pos, count).compare(other);
   }
+
   constexpr int compare(size_type pos,
                         size_type count,
-                        unicode_string_view other,
+                        basic_winnt_string_view other,
                         size_type other_pos,
-                        size_type other_count) {
+                        size_type other_count) const {
     return substr(pos, count).compare(other.substr(other_pos, other_count));
   }
-  constexpr int compare(const wchar_t* other) {
-    return ktl::compare(data(), size(), other, ktl::length(other));
+  constexpr int compare(const value_type* other) const noexcept {
+    return compare_unchecked(data(), size(), other, traits_type::length(other));
   }
-  constexpr int compare(size_type pos, size_type count, const wchar_t* other) {
-    return substr(pos, count).compare(other);
-  }
+
   constexpr int compare(size_type pos,
                         size_type count,
-                        const wchar_t* other,
+                        const value_type* other) const {
+    return substr(pos, count).compare(other);
+  }
+
+  constexpr int compare(size_type pos,
+                        size_type count,
+                        const value_type* other,
                         size_type other_pos,
-                        size_type other_count) {
+                        size_type other_count) const {
     return substr(pos, count)
-        .compare(unicode_string_view(other + other_pos, other_count));
+        .compare(basic_winnt_string_view(other + other_pos, other_count));
   }
-  constexpr bool starts_with(wchar_t ch) { return !empty() && front() == ch; }
-  constexpr bool starts_with(const wchar_t* str) {
-    size_type str_length{static_cast<size_type>(ktl::length(str))};
-    return compare(0, str_length, str, 0, str_length) == 0;
+
+  constexpr bool starts_with(value_type ch) const noexcept {
+    return !empty() && traits_type::eq(front(), ch);
   }
-  constexpr bool starts_with(unicode_string_view str) {
-    return compare(0, str.length(), str) == 0;
+
+  constexpr bool starts_with(const value_type* null_terminated_str) {
+    return starts_with(basic_winnt_string_view{null_terminated_str});
   }
-  constexpr bool ends_with(wchar_t ch) { return !empty() && back() == ch; }
-  constexpr bool ends_with(const wchar_t* str) {
-    size_type str_length{static_cast<size_type>(ktl::length(str))};
-    if (str_length > length()) {
+
+  constexpr bool starts_with(basic_winnt_string_view other) const noexcept {
+    const size_type other_size{other.size()};
+    if (other_size > size()) {
       return false;
     }
-    auto lhs{substr(length() - str_length, str_length)};
-    return lhs.compare(0, ktl::length(lhs), str, 0, str_length);
+    return compare_unchecked(data(), other_size, other.data(), other_size) == 0;
   }
-  constexpr bool ends_with(unicode_string_view str) {
-    size_type str_length{str.size()};
-    if (str_length > length()) {
+
+  constexpr bool ends_with(value_type ch) const noexcept {
+    return !empty() && traits_type::eq(back(), ch);
+  }
+
+  constexpr bool ends_with(
+      const value_type* null_terminated_str) const noexcept {
+    return ends_with(basic_winnt_string_view{null_terminated_str});
+  }
+
+  constexpr bool ends_with(basic_winnt_string_view other) const noexcept {
+    const size_type current_size{size()}, other_size{other.size()};
+    if (other_size > current_size) {
       return false;
     }
-    auto lhs{substr(length() - str_length, str_length)};
-    return lhs.compare(str);
-  }
-  constexpr size_type find(wchar_t ch, size_type pos = 0) {
-    return static_cast<size_type>(find_character(substr(pos), ch));
+    return substr_unchecked(current_size - other_size, other_size)
+        .compare(other);
+  };
+
+  constexpr bool contains(basic_winnt_string_view other) const noexcept {
+    return find(other) != npos;
   }
 
-  constexpr size_type find(const wchar_t* str, size_type pos = 0) {
-    return static_cast<size_type>(find_substr(substr(pos), str));
+  constexpr bool contains(native_string_type native_str) const noexcept {
+    return find(native_str) != npos;
   }
 
-  constexpr size_type find(const wchar_t* str,
-                           size_t count,
-                           size_type pos = 0) {
-    auto lhs{substr(pos)};
-    return static_cast<size_type>(
-        str::details::find_substr_impl(substr(pos), 0, lhs.size(), str, count));
-  }
-  constexpr size_type find(unicode_string_view str, size_type pos = 0) {
-    return static_cast<size_type>(find_substr(substr(pos), str));
+  constexpr bool contains(value_type ch) const noexcept {
+    return find(ch) != npos;
   }
 
- public:
-  PUNICODE_STRING raw_str() { return addressof(m_str); }
-  PCUNICODE_STRING raw_str() const { return addressof(m_str); }
-
-#ifndef KTL_NO_CXX_STANDARD_LIBRARY
-  explicit constexpr operator std::wstring_view() const {
-    return std::wstring_view(m_str.Buffer, m_str.Length);
+  constexpr bool contains(
+      const value_type* null_terminated_str) const noexcept {
+    return find(null_terminated_str) != npos;
   }
-#endif
+
+  constexpr size_type find(basic_winnt_string_view other,
+                           size_type my_pos = 0) const noexcept {
+    if (my_pos > size()) {
+      return npos;
+    }
+    const auto first{begin()}, last{end()};
+    const auto found_ptr{find_subrange(begin() + my_pos, last, other.begin(),
+                                       other.end(),
+                                       MyBase::make_ch_comparator())};
+    return found_ptr == last ? npos : static_cast<size_type>(found_ptr - first);
+  }
+
+  constexpr size_type find(value_type ch, size_type my_pos = 0) const noexcept {
+    if (pos >= current_size) {
+      return npos;
+    }
+    const auto first{data() + pos};
+    const auto found_pos{traits_type::find(first, current_size - pos, ch) -
+                         first};
+    return found_pos == size() ? npos : static_cast<size_type>(found_pos);
+  }
+
+  constexpr size_type find(const value_type* null_terminated_str,
+                           size_type my_pos = 0) const noexcept {
+    return find(basic_winnt_string_view{null_terminated_str}, my_pos)
+  }
+
+  constexpr size_type find(
+      native_string_type native_str) const noexcept {
+    return find(basic_winnt_string_view{native_str});
+  }
+
+  constexpr size_type find(const value_type* str,
+                           size_t my_pos,
+                           size_type other_count) const noexcept {
+    return substr(my_pos).find(basic_winnt_string_view{str, other_count});
+  }
+
+  const native_string_type* raw_str() const noexcept {
+    return addressof(m_str);
+  }
+
+  constexpr size_type find_first_of(basic_winnt_string_view other,
+                                    size_type pos = 0) const noexcept {
+    return find(other, pos) != npos;
+  }
+
+  constexpr size_type find_first_of(value_type ch,
+                                    size_type pos = 0) const noexcept {
+    return find(ch, pos) != npos;
+  }
+
+  constexpr size_type find_first_of(const value_type* null_terminated_str,
+                                    size_type my_pos,
+                                    size_type other_count) const noexcept {
+    return find(ch, pos) != npos;
+  }
+
+  constexpr size_type find_first_of(const value_type* null_terminated_str,
+                                    size_type my_pos = 0) const {
+    return find(null_terminated_str, my_pos) != npos;
+  }
 
  private:
-  constexpr size_type calc_segment_length(size_type pos,
-                                          size_type count) {  // In characters
-    return length() <= static_cast<size_type>(count + pos)
-               ? length()
-               : static_cast<size_type>(count + pos);
-  }
-  static constexpr UNICODE_STRING make_unicode_string(
+  constexpr native_string_type make_native_str(
       const value_type* str,
       size_type length) noexcept {  // length in characters
-    UNICODE_STRING unicode_str{};
-    unicode_str.Buffer = dirty::remove_const_from_value(str);
-    unicode_str.Length = length_to_bytes(
-        length);  // UNICODE_STRING requires length in bytes (NOT in characters)
-    unicode_str.MaximumLength = length_to_bytes(length);
-    return unicode_str;
+    native_string_type native_str{};
+    native_string_traits_type::set_buffer(native_str,
+                                          const_cast<value_type*>(str));
+    native_string_traits_type::set_size(native_str, length);
+    native_string_traits_type::set_capacity(native_str, length);
+    return native_str;
   }
 
-  static constexpr size_type length_to_bytes(
-      size_type length_in_characters) noexcept {
-    return length_in_characters * sizeof(value_type);
+  constexpr basic_winnt_string_view substr_unchecked(
+      size_type pos,
+      size_type count) const noexcept {
+    return basic_winnt_string_view(data() + pos,
+                                   calc_segment_length(pos, count));
   }
 
-  static constexpr size_type length_to_characters(
-      size_type bytes_count) noexcept {
-    return bytes_count / sizeof(value_type);
+  constexpr size_type calc_segment_length(
+      size_type pos,
+      size_type count) const noexcept {  // In characters
+    return (min)(size(), static_cast<size_type>(count + pos));
+  }
+
+  static constexpr int compare_unchecked(const value_type* lhs,
+                                         size_type lhs_count,
+                                         const value_type* rhs,
+                                         size_type rhs_count) noexcept {
+    int cmp_result{traits_type::compare(lhs, rhs, (min)(lhs_count, rhs_count))};
+    if (cmp_result == 0 && lhs_count != rhs_count) {
+      cmp_result = lhs_count < rhs_count ? -1 : 1;
+    }
+    return cmp_result;
+  }
+
+  template <class Ty>
+  static void throw_out_of_range_if_not(const Ty& cond) {
+    throw_exception_if_not<out_of_range>(cond, L"pos is out of range",
+                                         constexpr_message_tag{});
   }
 
  private:
-  UNICODE_STRING m_str{};
+  native_string_type m_str{};
 };
 
-constexpr bool operator==(unicode_string_view lhs, unicode_string_view rhs) {
+template <class NativeStrTy, template <typename...> class ChTraits>
+constexpr bool operator==(
+    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
   return lhs.compare(rhs) == 0;
 }
-constexpr bool operator!=(unicode_string_view lhs, unicode_string_view rhs) {
-  return !(lhs == rhs);
-}
-constexpr bool operator<(unicode_string_view lhs, unicode_string_view rhs) {
-  return lhs.compare(rhs) < 0;
-}
-constexpr bool operator>(unicode_string_view lhs, unicode_string_view rhs) {
-  return lhs.compare(rhs) > 0;
-}
-constexpr bool operator<=(unicode_string_view lhs, unicode_string_view rhs) {
-  return !(lhs > rhs);
-}
-constexpr bool operator>=(unicode_string_view lhs, unicode_string_view rhs) {
-  return !(lhs < rhs);
+
+template <class NativeStrTy, template <typename...> class ChTraits>
+constexpr bool operator!=(
+    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return lhs.compare(rhs) != 0;
 }
 
-constexpr void swap(unicode_string_view& lhs,
-                    unicode_string_view& rhs) noexcept {
-  return lhs.swap(rhs);
+template <class NativeStrTy, template <typename...> class ChTraits>
+constexpr bool operator<(
+    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return lhs.compare(rhs) < 0;
 }
+
+template <class NativeStrTy, template <typename...> class ChTraits>
+constexpr bool operator<=(
+    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return !(lhs > rhs);
+}
+
+template <class NativeStrTy, template <typename...> class ChTraits>
+constexpr bool operator>(
+    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return lhs.compare(rhs) > 0;
+}
+
+template <class NativeStrTy, template <typename...> class ChTraits>
+constexpr bool operator>=(
+    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return !(lhs < rhs);
+}
+}  // namespace str::details
+
+inline namespace literals {
+inline namespace string_literals {
+constexpr ansi_string_view operator""_asv(const char* str,
+                                          size_t length) noexcept {
+  return {str, static_cast<ansi_string_view::size_type>(length)};
+}
+
+constexpr unicode_string_view operator""_usv(const wchar_t* str,
+                                             size_t length) noexcept {
+  return {str, static_cast<unicode_string_view::size_type>(length)};
+}
+}  // namespace string_literals
+}  // namespace literals
 }  // namespace ktl
+#endif
