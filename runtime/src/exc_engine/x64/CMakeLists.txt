@@ -32,6 +32,7 @@ wdk_add_library(
 		${KTL_EXC_X64_HEADER_FILES}
 		${KTL_EXC_X64_SOURCE_FILES}
 		${KTL_EXC_X64_ASM_FILES}
+		EXTENDED_CPP_FEATURES
 )
 target_include_directories(
 	${TARGET_LIB} 

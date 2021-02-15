@@ -26,6 +26,7 @@ wdk_add_library(
 	${TARGET_LIB} STATIC 
 		${KTL_RUNTIME_HEADER_FILES}
 		${KTL_RUNTIME_SOURCE_FILES}
+		EXTENDED_CPP_FEATURES
 )
 target_compile_definitions(
 	${TARGET_LIB} PRIVATE

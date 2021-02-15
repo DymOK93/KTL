@@ -24,6 +24,7 @@ wdk_add_library(
 	${TARGET_LIB} OBJECT
 		${KTL_EXC_ENGINE_HEADER_FILES}
 		${KTL_EXC_ENGINE_SOURCE_FILES}
+		EXTENDED_CPP_FEATURES
 )
 target_include_directories(
 	${TARGET_LIB} 

@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.0)
-project ("Kernel Tempalte Library")
+project ("Kernel Template Library")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -43,7 +43,7 @@ set(TARGET_LIB cpp_interface)
 add_library(${TARGET_LIB} INTERFACE)
 target_compile_definitions(
 	${TARGET_LIB}  INTERFACE 
-		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # ��� ����������� ������ � ����������� ���������� ������� � ������ ������� CRT
+		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  
 )
 target_include_directories(
 	${TARGET_LIB} 

@@ -9,13 +9,14 @@ using std::allocator_traits;
 }  // namespace ktl
 #else
 #include <heap.h>
+#include <new_delete.h>
 #include <memory_tools.hpp>
 #include <memory_type_traits.hpp>
 #include <type_traits.hpp>
 
 namespace ktl {
-template <class Ty>
-struct basic_allocator {
+template <class Ty, align_val_t Alignment>
+struct aligned_allocator_base {
  public:
   using value_type = Ty;
   using size_type = size_t;
@@ -25,6 +26,9 @@ struct basic_allocator {
   using propagate_on_container_swap = true_type;
   using is_always_equal = true_type;
   using enable_delete_null = true_type;
+
+ public:
+  static constexpr auto ALLOCATION_ALIGNMENT{Alignment};
 
  public:
   Ty* allocate(size_t object_count) {
@@ -42,12 +46,12 @@ struct basic_allocator {
                                              // наличия вызова allocate()
   }
 
-  void deallocate(Ty* ptr, size_t object_count) {
-    operator delete(ptr, object_count * sizeof(Ty));
+  void deallocate(Ty* ptr, size_t object_count) noexcept {
+    operator delete(ptr, object_count * sizeof(Ty), ALLOCATION_ALIGNMENT);
   }
 
-  void deallocate_bytes(Ty* ptr, size_t bytes_count) {
-    operator delete(ptr, bytes_count);
+  void deallocate_bytes(Ty* ptr, size_t bytes_count) noexcept {
+    operator delete(ptr, bytes_count, ALLOCATION_ALIGNMENT);
   }
 
  protected:
@@ -58,14 +62,15 @@ struct basic_allocator {
 
   template <typename NewTag>
   Ty* allocate_bytes_impl(size_t bytes_count, NewTag new_tag) {
-    return static_cast<Ty*>(operator new(bytes_count, new_tag));
+    return static_cast<Ty*>(operator new(bytes_count, ALLOCATION_ALIGNMENT,
+                                         new_tag));
   }
 };
 
-template <class Ty>
-struct basic_paged_allocator : basic_allocator<Ty> {
+template <class Ty, align_val_t Alignment>
+struct aligned_paged_allocator : aligned_allocator_base<Ty, Alignment> {
  public:
-  using MyBase = basic_allocator<Ty>;
+  using MyBase = aligned_allocator_base<Ty, Alignment>;
   using value_type = typename MyBase::value_type;
   using size_type = typename MyBase::size_type;
   using differense_type = typename MyBase::differense_type;
@@ -81,7 +86,7 @@ struct basic_paged_allocator : basic_allocator<Ty> {
  public:
   template <class OtherTy>
   struct rebind {
-    using other = basic_paged_allocator<OtherTy>;
+    using other = aligned_paged_allocator<OtherTy, Alignment>;
   };
 
  public:
@@ -94,10 +99,10 @@ struct basic_paged_allocator : basic_allocator<Ty> {
   }
 };
 
-template <class Ty>
-struct basic_non_paged_allocator : basic_allocator<Ty> {
+template <class Ty, align_val_t Alignment>
+struct aligned_non_paged_allocator : aligned_allocator_base<Ty, Alignment> {
  public:
-  using MyBase = basic_allocator<Ty>;
+  using MyBase = aligned_allocator_base<Ty, Alignment>;
   using value_type = typename MyBase::value_type;
   using size_type = typename MyBase::size_type;
   using differense_type = typename MyBase::differense_type;
@@ -113,7 +118,7 @@ struct basic_non_paged_allocator : basic_allocator<Ty> {
  public:
   template <class OtherTy>
   struct rebind {
-    using other = basic_allocator<OtherTy>;
+    using other = aligned_non_paged_allocator<OtherTy, Alignment>;
   };
 
  public:
@@ -126,13 +131,22 @@ struct basic_non_paged_allocator : basic_allocator<Ty> {
   }
 };
 
+template <class Ty>
+using basic_paged_allocator =
+    aligned_paged_allocator<Ty, crt::DEFAULT_ALLOCATION_ALIGNMENT>;
+
+template <class Ty>
+using basic_non_paged_allocator =
+    aligned_non_paged_allocator<Ty, crt::DEFAULT_ALLOCATION_ALIGNMENT>;
+
 template <class Alloc>
 struct allocator_traits {
  public:
   using allocator_type = Alloc;
   using value_type = typename Alloc::value_type;
   using pointer = mm::details::get_pointer_type_t<Alloc, value_type>;
-  using const_pointer = mm::details::get_const_pointer_type_t<Alloc, value_type>;
+  using const_pointer =
+      mm::details::get_const_pointer_type_t<Alloc, value_type>;
   using reference = mm::details::get_reference_type_t<Alloc, value_type>;
   using const_reference = add_const_t<reference>;
   using size_type = mm::details::get_size_type_t<Alloc>;
@@ -187,7 +201,7 @@ struct allocator_traits {
   static constexpr pointer allocate_single_object(
       allocator_type& alloc) noexcept(noexcept(alloc.allocate())) {
     static_assert(
-        mm::details::has_allocate_single_object_v<allocator_type, size_type>,
+        mm::details::has_allocate_single_object_v<allocator_type>,
         "Allocator must provide allocate(void) function");
     return alloc.allocate();
   }

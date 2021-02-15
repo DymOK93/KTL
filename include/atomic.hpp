@@ -4,7 +4,8 @@
 
 #include <ntddk.h>
 
-namespace ktl::th {
+namespace ktl {
+namespace th {
 bool interlocked_exchange(bool& target, bool new_value) {
   return InterlockedExchange8(
       reinterpret_cast<volatile char*>(addressof(target)),
@@ -33,9 +34,26 @@ Ty* interlocked_compare_exchange_pointer(Ty* const* ptr_place,
 }
 
 template <class Ty>
-void interlocked_swap_pointer(Ty* const* lhs, Ty* const* rhs) noexcept {
+void interlocked_swap_pointer(Ty* const lhs, Ty* const rhs) noexcept {
   Ty* old_lhs = lhs;
   interlocked_exchange(lhs, rhs);
   interlocked_exchange(rhs, old_lhs);
 }
-}  // namespace ktl::th
+}  // namespace th
+
+template <typename IntegralTy, typename Ty>
+static volatile IntegralTy* atomic_address_as(Ty& value) noexcept {
+  static_assert(is_integral_v<IntegralTy>, "value must be integral");
+  return &reinterpret_cast<volatile IntegralTy&>(value);
+}
+
+template <typename IntegralTy, typename Ty>
+static const volatile IntegralTy* atomic_address_as(const Ty& value) noexcept {
+  static_assert(is_integral_v<IntegralTy>, "value must be integral");
+  return &reinterpret_cast<const volatile IntegralTy&>(value);
+}
+
+void read_write_barrier() noexcept {
+  _ReadWriteBarrier();
+}
+}  // namespace ktl

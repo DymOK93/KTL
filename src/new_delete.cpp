@@ -33,7 +33,7 @@ void* CRTCALL operator new(size_t bytes, ktl::non_paged_new_tag_t tag) {
 
 void* CRTCALL operator new(size_t bytes, ktl::align_val_t alignment) {
 #ifdef KTL_USING_NON_PAGED_NEW_AS_DEFAULT
-  return operator new (bytes, , alignment ktl::non_paged_new_tag_t{});
+  return operator new (bytes, alignment, ktl::non_paged_new_tag_t{});
 #else
   return operator new (bytes, alignment, ktl::paged_new_tag_t{});
 #endif
@@ -42,15 +42,21 @@ void* CRTCALL operator new(size_t bytes, ktl::align_val_t alignment) {
 void* CRTCALL operator new(size_t bytes,
                            ktl::align_val_t alignment,
                            ktl::paged_new_tag_t) {
-  return ktl::mm::details::operator_new_impl(&ktl::alloc_paged, bytes,
-                                             alignment);
+  return ktl::mm::details::operator_new_impl(
+      [](size_t bytes_count, ktl::align_val_t alignment) noexcept {
+        return ktl::alloc_paged(bytes_count, alignment);
+      },
+      bytes, alignment);
 }
 
 void* CRTCALL operator new(size_t bytes,
                            ktl::align_val_t alignment,
                            ktl::non_paged_new_tag_t) {
-  return ktl::mm::details::operator_new_impl(&ktl::alloc_non_paged, bytes,
-                                             alignment);
+  return ktl::mm::details::operator_new_impl(
+      [](size_t bytes_count, ktl::align_val_t alignment) noexcept {
+        return ktl::alloc_non_paged(bytes_count, alignment);
+      },
+      bytes, alignment);
 }
 
 void* CRTCALL operator new(size_t bytes, const nothrow_t& nthrw) noexcept {

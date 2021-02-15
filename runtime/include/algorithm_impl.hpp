@@ -2,9 +2,9 @@
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <algorithm>
 namespace ktl {
+using std::binary_search;
 using std::max;
 using std::min;
-using std::binary_search;
 }  // namespace ktl
 #else
 #include <iterator_impl.hpp>
@@ -36,19 +36,15 @@ constexpr bool binary_search(ForwardIt first, ForwardIt last, const Ty& value) {
 }
 
 template <class Ty1, class Ty2>
-constexpr decltype(auto)(min)(Ty1&& lhs,
-                              Ty2&& rhs) noexcept(noexcept(forward<Ty2>(rhs) <
-                                                           forward<Ty1>(lhs))) {
-  return forward<Ty2>(rhs) < forward<Ty1>(lhs) ? forward<Ty2>(rhs)
-                                               : forward<Ty1>(lhs);
+constexpr decltype(auto)(min)(const Ty1& lhs,
+                              const Ty2& rhs) noexcept(noexcept(rhs < lhs)) {
+  return rhs < lhs ? rhs : lhs;
 }
 
 template <class Ty1, class Ty2>
-constexpr decltype(auto)(max)(Ty1&& lhs,
-                              Ty2&& rhs) noexcept(noexcept(forward<Ty1>(lhs) <
-                                                           forward<Ty2>(lhs))) {
-  return forward<Ty1>(lhs) < forward<Ty2>(rhs) ? forward<Ty2>(rhs)
-                                               : forward<Ty1>(lhs);
+constexpr decltype(auto)(max)(const Ty1& lhs,
+                              const Ty2& rhs) noexcept(noexcept(lhs < rhs)) {
+  return lhs < rhs ? rhs : lhs;
 }
 }  // namespace ktl
 #endif

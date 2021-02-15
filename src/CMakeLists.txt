@@ -19,6 +19,7 @@ wdk_add_library(
 	${TARGET_LIB} STATIC 
 		${KTL_HEADER_FILES}
 		${KTL_SOURCE_FILES}
+		EXTENDED_CPP_FEATURES
 )
 target_include_directories(
 	${TARGET_LIB} PUBLIC

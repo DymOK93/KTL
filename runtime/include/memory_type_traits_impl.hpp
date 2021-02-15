@@ -162,9 +162,9 @@ struct has_allocate_single_object<Alloc,
                                   void_t<decltype(declval<Alloc>().allocate())>>
     : true_type {};
 
-template <class Alloc, class size_type>
+template <class Alloc>
 inline constexpr bool has_allocate_single_object_v =
-    has_allocate_single_object<Alloc, size_type>::value;
+    has_allocate_single_object<Alloc>::value;
 
 template <class Alloc, class size_type, class = void>
 struct has_allocate_bytes : false_type {};
@@ -208,7 +208,7 @@ struct has_deallocate_single_object<
 
 template <class Alloc, class Pointer>
 inline constexpr bool has_deallocate_single_object_v =
-    has_deallocate_single_object<Alloc, Pointer, size_type>::value;
+    has_deallocate_single_object<Alloc, Pointer>::value;
 
 template <class Alloc, class Pointer, class size_type, class = void>
 struct has_deallocate_bytes : false_type {};
