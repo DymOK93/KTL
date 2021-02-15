@@ -9,11 +9,26 @@ void deallocate_impl(void* memory_block,
 }  // namespace crt
 
 void* alloc_paged(size_t bytes_count, align_val_t alignment) noexcept {
-  return crt::allocate_impl<PagedPool>(bytes_count, alignment);
+  if (alignment <= crt::DEFAULT_ALLOCATION_ALIGNMENT) {
+    return crt::allocate_impl<PagedPool, crt::DEFAULT_ALLOCATION_ALIGNMENT>(
+        bytes_count, alignment);
+  } else {
+    return crt::allocate_impl<PagedPoolCacheAligned,
+                              crt::EXTENDED_ALLOCATION_ALIGNMENT>(bytes_count,
+                                                                  alignment);
+  }
 }
 
 void* alloc_non_paged(size_t bytes_count, align_val_t alignment) noexcept {
-  return crt::allocate_impl<NonPagedPoolNx>(bytes_count, alignment);
+  if (alignment <= crt::DEFAULT_ALLOCATION_ALIGNMENT) {
+    return crt::allocate_impl<NonPagedPoolNx,
+                              crt::DEFAULT_ALLOCATION_ALIGNMENT>(bytes_count,
+                                                                 alignment);
+  } else {
+    return crt::allocate_impl<NonPagedPoolCacheAligned,
+                              crt::EXTENDED_ALLOCATION_ALIGNMENT>(bytes_count,
+                                                                  alignment);
+  }
 }
 
 void deallocate(void* memory_block, align_val_t alignment) noexcept {

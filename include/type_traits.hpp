@@ -83,4 +83,16 @@ struct is_all {
 template <template <typename> class Trait, class... Types>
 inline constexpr bool is_all_v = is_all<Trait, Types...>::value;
 
+template <bool Value>
+struct bool_tag {
+  using type = true_type;
+};
+
+template <>
+struct bool_tag<false> {
+  using type = false_type;
+};
+
+template <bool Value>
+using bool_tag_t = typename bool_tag<Value>::type;
 }  // namespace ktl

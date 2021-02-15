@@ -15,6 +15,8 @@ struct exception_data {
 class exception_base {
  private:
   static constexpr size_t SHARED_DATA_MASK{1};
+  static constexpr exc_char_t* ALLOCATION_FAILED_MSG{
+      L"unable to allocate memory for exception data"};
 
  public:
   exception_base(const exc_char_t* msg);
@@ -44,11 +46,8 @@ class exception_base {
   bool has_shared_data() const noexcept;
   exception_data* as_shared_data() const noexcept;
 
-  static void* create_masked_shared_data(const exc_char_t* msg,
-                                         size_t msg_length) noexcept;
-  static exception_data* create_shared_data(
-      const exc_char_t* msg,
-      size_t msg_length) noexcept;  // terminate if fails
+  static void* try_create_masked_shared_data(const exc_char_t* msg,
+                                             size_t msg_length) noexcept;
   static void destroy_shared_data(exception_data* target) noexcept;
 
  private:

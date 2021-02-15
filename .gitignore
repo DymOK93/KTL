@@ -9,4 +9,7 @@ Build/
 out/
 .vs/
 
+# CMake devmachine-specific config
+CMakeSettings.json
+
 
