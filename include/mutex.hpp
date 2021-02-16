@@ -120,6 +120,7 @@ class shared_mutex
 
  public:
   shared_mutex() { ExInitializeResourceLite(native_handle()); }
+  ~shared_mutex() { ExDeleteResourceLite(native_handle()); }
 
   void lock() {  //¬ход в критическую секцию
     ExEnterCriticalRegionAndAcquireResourceExclusive(native_handle());
