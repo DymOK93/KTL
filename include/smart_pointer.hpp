@@ -3,16 +3,16 @@
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <memory>
 namespace ktl {
-using std::unique_ptr;
 using std::shared_ptr;
+using std::unique_ptr;
 using std::weak_ptr;
 }  // namespace ktl
 #else
 #include <heap.h>
-#include <functional.hpp>
 #include <allocator.hpp>
-#include <memory_type_traits.hpp>
 #include <atomic.hpp>
+#include <functional.hpp>
+#include <memory_type_traits.hpp>
 
 namespace ktl {
 namespace mm::details {
@@ -422,7 +422,7 @@ class ref_counter_ptr_holder : public ref_counter_base {
 
   Ty* get_ptr() const noexcept { return m_ptr; }
   Ty* exchange_ptr(Ty* new_ptr) noexcept {
-    return interlocked_exchange_pointer(addressof(m_ptr), new_ptr);
+    return th::interlocked_exchange_pointer(addressof(m_ptr), new_ptr);
   }
 
  protected:
@@ -608,7 +608,7 @@ class PtrBase {
                                                     nullptr, nullptr);
   }
   ref_counter_t* get_ref_counter() const noexcept {
-    return interlocked_compare_exchange_pointer<ref_counter_t>(
+    return th::interlocked_compare_exchange_pointer<ref_counter_t>(
         addressof(m_ref_counter), nullptr, nullptr);
   }
 
@@ -664,12 +664,13 @@ class PtrBase {
   }
 
   Ty* exchange_value_ptr(Ty* new_value_ptr) noexcept {
-    return interlocked_exchange_pointer(addressof(m_value_ptr), new_value_ptr);
+    return th::interlocked_exchange_pointer(addressof(m_value_ptr),
+                                            new_value_ptr);
   }
 
   ref_counter_t* exchange_ref_counter(ref_counter_t* new_ref_counter) noexcept {
-    return interlocked_exchange_pointer(addressof(m_ref_counter),
-                                        new_ref_counter);
+    return th::interlocked_exchange_pointer(addressof(m_ref_counter),
+                                            new_ref_counter);
   }
 
  private:
@@ -1120,17 +1121,17 @@ shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
       mm::details::ref_counter_with_allocator_deallocate_itself<Ty, AlTy>;
 
   constexpr size_t summary_size{sizeof(Ty) + sizeof(ref_counter_t)};
-  auto* memory_block{
-      allocator_traits<AlTy>::allocate_bytes(alloc, summary_size)}; //Alloc должен предоставить allocate_bytes()
+  auto* memory_block{allocator_traits<AlTy>::allocate_bytes(
+      alloc, summary_size)};  // Alloc должен предоставить allocate_bytes()
   if (!memory_block) {
     return {};
   }
   Ty* object_ptr{reinterpret_cast<Ty*>(static_cast<byte*>(memory_block) +
                                        sizeof(ref_counter_t))};
 
-  auto* ref_counter{construct_at(static_cast<ref_counter_t*>(memory_block), object_ptr,
-                   forward <Alloc>(alloc))};  
-                                                
+  auto* ref_counter{construct_at(static_cast<ref_counter_t*>(memory_block),
+                                 object_ptr, forward<Alloc>(alloc))};
+
   shared_ptr<Ty> sptr(object_ptr, ref_counter);
   allocator_traits<AlTy>::construct(ref_counter->get_alloc(), object_ptr,
                                     forward<Types>(args)...);

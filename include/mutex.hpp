@@ -1,9 +1,9 @@
 #pragma once
 #include <basic_types.h>
+#include <atomic.hpp>
+#include <chrono.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
-#include <chrono.hpp>
-#include <atomic.hpp>
 
 #include <ntddk.h>
 
@@ -25,6 +25,10 @@ class sync_primitive_base {
 
  protected:
   sync_primitive_base() = default;
+
+  native_handle_t get_non_const_native_handle() const noexcept {
+    return const_cast<native_handle_t>(addressof(m_native_sp));
+  }
 
  protected:
   SyncPrimitive m_native_sp;
@@ -141,7 +145,7 @@ class dpc_spin_lock
                                                              // spin
                                                              // lock
  public:
-      using MyBase = th::details::sync_primitive_base<KSPIN_LOCK>;
+  using MyBase = th::details::sync_primitive_base<KSPIN_LOCK>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
   using native_handle_t = typename MyBase::native_handle_t;
   using irql_t = KIRQL;
@@ -199,12 +203,15 @@ class semaphore
   }
 };
 
-class event : public th::details::sync_primitive_base<KEVENT> {  // Implemented
-  // using KSEMAPHORE
+namespace th::details {
+using event_type = _EVENT_TYPE;
+template <event_type type>
+class event : public sync_primitive_base<KEVENT> {
  public:
-  using MyBase = th::details::sync_primitive_base<KEVENT>;
+  using MyBase = sync_primitive_base<KEVENT>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
   using native_handle_t = typename MyBase::native_handle_t;
+  using duration_t = chrono::duration_t;
 
  public:
   enum class State { Active, Inactive };
@@ -212,14 +219,24 @@ class event : public th::details::sync_primitive_base<KEVENT> {  // Implemented
  public:
   event(State state = State::Inactive) {
     bool activated{state == State::Active};
-    KeInitializeEvent(native_handle(), SynchronizationEvent, activated);
+    KeInitializeEvent(native_handle(), type, activated);
     update_state(state);
   }
   event& operator=(State state) { update_state(state); }
 
-  void wait_for(size_t us) {
+  void wait() {
+    KeWaitForSingleObject(native_handle(),
+                          Executive,   // Wait reason
+                          KernelMode,  // Processor mode
+                          false,
+                          nullptr  // Indefinite waiting
+    );
+  }
+
+  void wait_for(duration_t us) {
     LARGE_INTEGER wait_time;
     wait_time.QuadPart = us;
+    wait_time.QuadPart *= -10;  // relative time in 100ns tics
     KeWaitForSingleObject(native_handle(),
                           Executive,   // Wait reason
                           KernelMode,  // Processor mode
@@ -227,30 +244,40 @@ class event : public th::details::sync_primitive_base<KEVENT> {  // Implemented
                           addressof(wait_time)  // Indefinite waiting
     );
   }
-  void set() { update_state(State::Active); }
-  void clear() { update_state(State::Inactive); }
-  State signaled() const noexcept { return m_state; }
 
- private:
-  void update_state(State new_state) {
-    if (new_state != m_state) {
-      switch (m_state) {
-        case State::Active:
-          KeSetEvent(native_handle(), HIGH_PRIORITY, false);
-          break;
-        case State::Inactive:
-          KeClearEvent(native_handle());
-          break;
-        default:
-          break;
-      };
-      m_state = new_state;
-    }
+  void set() noexcept { update_state(State::Active); }
+  void clear() noexcept { update_state(State::Inactive); }
+  State state() const noexcept { return get_current_state(); }
+  bool is_signaled() const noexcept {
+    return get_current_state() == State::Active;
   }
 
  private:
-  State m_state;
+  void update_state(State new_state) noexcept {
+    switch (new_state) {
+      case State::Active:
+        KeSetEvent(native_handle(), 0, false);
+        break;
+      case State::Inactive:
+        KeClearEvent(native_handle());
+        break;
+      default:
+        break;
+    };
+  }
+
+  State get_current_state() const noexcept {
+    return KeReadStateEvent(MyBase::get_non_const_native_handle())
+               ? State::Active
+               : State::Inactive;
+  }
 };
+}  // namespace th::details
+
+using sync_event =
+    th::details::event<th::details::event_type::SynchronizationEvent>;
+using notify_event =
+    th::details::event<th::details::event_type::NotificationEvent>;
 
 namespace th::details {
 bool unlock_impl() {
@@ -439,9 +466,11 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
       class Mtx = mutex_t,
       enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
   unique_lock(mutex_t& mtx, duration_t timeout_duration, try_lock_for_tag)
-      : MyBase(mtx){MyBase::try_lock_for(timeout_duration)}
+      : MyBase(mtx) {
+    MyBase::try_lock_for(timeout_duration);
+  }
 
-        unique_lock(const unique_lock& other) = delete;
+  unique_lock(const unique_lock& other) = delete;
   unique_lock operator=(const unique_lock& other) = delete;
 
   unique_lock(unique_lock&& other) { MyBase::move_construct_from(move(other)); }
@@ -499,9 +528,11 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
       class Mtx = mutex_t,
       enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
   shared_lock(mutex_t& mtx, duration_t timeout_duration, try_lock_for_tag)
-      : MyBase(mtx){MyBase::try_lock_for(timeout_duration)}
+      : MyBase(mtx) {
+    MyBase::try_lock_for(timeout_duration);
+  }
 
-        shared_lock(const shared_lock& other) = delete;
+  shared_lock(const shared_lock& other) = delete;
   shared_lock operator=(const shared_lock& other) = delete;
 
   shared_lock(shared_lock&& other) { MyBase::move_construct_from(move(other)); }
