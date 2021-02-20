@@ -5,6 +5,15 @@
 #include <utility.hpp>
 
 namespace ktl {
+class bad_weak_ptr : public exception {
+ public:
+  using MyBase = exception;
+
+ public:
+  constexpr bad_weak_ptr() noexcept
+      : MyBase{L"bad weak ptr", constexpr_message_tag{}} {}
+};
+
 namespace exc::details {
 class unicode_string_exception_base : public exception {
  public:
