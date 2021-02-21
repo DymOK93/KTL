@@ -95,4 +95,11 @@ struct bool_tag<false> {
 
 template <bool Value>
 using bool_tag_t = typename bool_tag<Value>::type;
+
+template <class Ty>
+struct identity {
+  using type = Ty;
+};
+template <class Ty>
+using identity_t = typename identity<Ty>::type;
 }  // namespace ktl

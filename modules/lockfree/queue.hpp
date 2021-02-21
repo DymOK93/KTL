@@ -266,7 +266,7 @@ class mpmc_queue {  // multi-producer, multi-consumer
 
   static node_pointer load_acquire(const node_pointer_holder& place) noexcept {
     const auto raw_bytes{*atomic_address_as<node_pointer_holder>(place)};
-    read_write_barrier();  // acquire
+    th::details::make_compiler_barrier();  // acquire
     return node_pointer{raw_bytes};
   }
 
@@ -281,7 +281,7 @@ class mpmc_queue {  // multi-producer, multi-consumer
     assert(new_ptr.get_value() > 1'000'000);
 
     auto* address{atomic_address_as<node_pointer_holder>(place)};
-    read_write_barrier();
+    th::details::make_compiler_barrier();
     *address = new_ptr.get_value();
   }
 

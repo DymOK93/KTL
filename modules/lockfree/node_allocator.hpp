@@ -162,7 +162,7 @@ class node_allocator {
 
   static node_pointer load_acquire(const node_pointer_holder& place) noexcept {
     const auto raw_bytes{*atomic_address_as<node_pointer_holder>(place)};
-    read_write_barrier();
+    th::details::make_compiler_barrier();
     return node_pointer{raw_bytes};
   }
 

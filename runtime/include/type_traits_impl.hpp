@@ -565,6 +565,17 @@ template <class Ty>
 inline constexpr bool is_function_v = is_function<Ty>::value;
 
 template <class Ty>
+struct is_object  {
+  static constexpr bool value =
+      is_const_v<const Ty> &&
+      !is_void_v<Ty>;  // only function types and reference
+                       // types can't be const qualified
+};
+
+template <class Ty>
+inline constexpr bool is_object_v = is_object<Ty>::value;
+
+template <class Ty>
 struct is_pointer : false_type {};
 
 template <class Ty>
@@ -861,5 +872,13 @@ struct is_integral {
 template <class Ty>
 inline constexpr bool is_integral_v = is_integral<Ty>::value;
 
+template <class Ty>
+struct is_floating_point {
+  static constexpr bool value =
+      is_in_typelist_v<remove_cv_t<Ty>, float, double, long double>;
+};
+
+template <class Ty>
+inline constexpr bool is_floating_point_v = is_floating_point<Ty>::value;
 }  // namespace ktl
 #endif
