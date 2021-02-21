@@ -73,7 +73,7 @@ class unique_ptr {
   template <class Dx = Deleter,
             enable_if_t<is_constructible_v<Dx, const Dx&>, int> = 0>
   unique_ptr(pointer ptr,
-             const Deleter& deleter) noexcept(is_nothrow_constructible_v<Dx>)
+             const Deleter& deleter) noexcept(is_nothrow_copy_constructible_v<Dx>)
       : m_ptr{ptr}, m_deleter(deleter) {}
 
   // Dx - не ссылочный тип

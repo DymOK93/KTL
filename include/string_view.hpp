@@ -278,6 +278,14 @@ class basic_winnt_string_view {
     return find(null_terminated_str, my_pos) != npos;
   }
 
+  size_type copy(value_type* dst, size_type count, size_type pos = 0) {
+    const size_type current_size{size()};
+    throw_out_of_range_if_not(pos <= current_size);
+    const auto copied{(min)(static_cast<size_type>(current_size - pos), count)};
+    traits_type::copy(dst, data() + pos, copied);  // Пользователь отвечает за то, что диапазоны не должны пересекаться
+    return copied;
+  }
+
  private:
   constexpr native_string_type make_native_str(
       const value_type* str,

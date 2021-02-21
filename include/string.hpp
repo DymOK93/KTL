@@ -902,9 +902,10 @@ class basic_winnt_string {
   size_type copy(value_type* dst, size_type count, size_type pos = 0) const {
     const size_type current_size{size()};
     throw_out_of_range_if_not(pos < current_size);
-    const auto length{static_cast<size_type>(current_size - pos)};
-    size_type copied{(min)(length, count)};
-    traits_type::move(dst, data() + pos, copied);
+    const auto copied{(min)(static_cast<size_type>(current_size - pos), count)};
+    traits_type::copy(dst, data() + pos,
+                      copied);  // Пользователь отвечает за то, что диапазоны не
+                                // должны пересекаться
     return copied;
   }
 

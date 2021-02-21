@@ -1165,7 +1165,9 @@ class Table
     auto const numElementsWithBuffer = calcNumElementsWithBuffer(mMask + 1);
     // clear everything, then set the sentinel again
     uint8_t const z = 0;
-    fill(mInfo, mInfo + calcNumBytesInfo(numElementsWithBuffer), z);
+    // TODO: ktl::fill
+    //fill(mInfo, mInfo + calcNumBytesInfo(numElementsWithBuffer), z);
+    memset(mInfo, z, calcNumBytesInfo(numElementsWithBuffer));
     mInfo[numElementsWithBuffer] = 1;
 
     mInfoInc = InitialInfoInc;
