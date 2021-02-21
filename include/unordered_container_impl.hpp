@@ -860,7 +860,6 @@ class Table
 
     // until we find one that is either empty or has zero offset.
     while (mInfo[idx + 1] >= 2 * mInfoInc) {
-      ROBIN_HOOD_COUNT(shiftDown)
       mInfo[idx] = static_cast<uint8_t>(mInfo[idx + 1] - mInfoInc);
       mKeyVals[idx] = move(mKeyVals[idx + 1]);
       ++idx;

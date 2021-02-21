@@ -21,7 +21,7 @@ using unordered_flat_set_non_paged = un::details::
 template <class Key,
           class Hash = hash<Key>,
           class KeyEqual = equal_to<Key>,
-          template<typename...> class BasicBytesAlloc = basic_aged_allocator,
+          template<typename...> class BasicBytesAlloc = basic_paged_allocator,
           size_t MaxLoadFactor100 = 80>
 using unordered_node_set = un::details::
     Table<false, Key, void, Hash, KeyEqual, BasicBytesAlloc, MaxLoadFactor100>;
