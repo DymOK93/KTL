@@ -16,11 +16,5 @@
 #define IN_FILE_ON_LINE \
   CONCAT(CONCAT("in file ", __FILE__), CONCAT(" on line ", STRINGIFY(__LINE__)))
 
-#if __INTELLISENSE__
-#define offsetof(type, member) ((size_t) & ((type*)0)->member)
-#else
-#define offsetof(type, member) __builtin_offsetof(type, member)
-#endif
-
 #define container_of(ptr, type, member) \
   reinterpret_cast<type*>((uintptr_t)(ptr)-offsetof(type, member))
