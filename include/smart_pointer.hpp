@@ -114,19 +114,18 @@ class unique_ptr {
                                                     //типы OtherDeleter
                                                     //и deleter_type
                                                     //должны совпадать
-                            is_convertible<deleter_type, OtherDeleter> >::value,
+                            is_convertible<OtherDeleter, deleter_type> >::value,
           int> = 0>
   unique_ptr(unique_ptr<OtherTy, OtherDeleter>&& other) noexcept(
       is_nothrow_constructible_v<deleter_type, OtherDeleter>)
-      : m_ptr{other.release()},
-        m_deleter(forward<deleter_type>(other.get_deleter())) {}
+      : m_ptr{other.release()}, m_deleter(move(other.get_deleter())) {}
 
   template <class Dx = Deleter, enable_if_t<is_move_assignable_v<Dx>, int> = 0>
   unique_ptr& operator=(unique_ptr&& other) noexcept(
       is_nothrow_move_assignable_v<Dx>) {
     if (addressof(other) != this) {
       reset(other.release());
-      m_deleter = forward<deleter_type>(other.get_deleter());
+      m_deleter = move(other.get_deleter());
     }
     return *this;
   }
@@ -145,7 +144,7 @@ class unique_ptr {
     //Проверка addressof(other) != this не обязательная: в таком случае
     //будет выбран предыдущий шаблон, а там проверка есть
     reset(other.release());
-    m_deleter = forward<deleter_type>(other.get_deleter());
+    m_deleter = move(other.get_deleter());
     return *this;
   }
 

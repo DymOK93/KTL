@@ -7,13 +7,13 @@
 
 namespace ktl {
 namespace th {
-bool interlocked_exchange(bool& target, bool new_value) {
+inline bool interlocked_exchange(bool& target, bool new_value) {
   return InterlockedExchange8(
       reinterpret_cast<volatile char*>(addressof(target)),
       static_cast<char>(new_value));
 }
 
-void interlocked_swap(bool& lhs, bool& rhs) {
+inline void interlocked_swap(bool& lhs, bool& rhs) {
   bool old_lhs = lhs;
   interlocked_exchange(lhs, rhs);
   interlocked_exchange(rhs, old_lhs);
@@ -55,7 +55,7 @@ static const volatile IntegralTy* atomic_address_as(const Ty& value) noexcept {
 }
 
 namespace th::details {
-void make_compiler_barrier() noexcept {
+inline void make_compiler_barrier() noexcept {
   _ReadWriteBarrier();
 }
 
