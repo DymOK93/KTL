@@ -7,6 +7,7 @@
 #include <exception.h>
 #include <algorithm.hpp>
 #include <assert.hpp>
+#include <iterator.hpp>
 #include <string_fwd.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
@@ -242,8 +243,7 @@ class basic_winnt_string_view {
     return find(basic_winnt_string_view{null_terminated_str}, my_pos)
   }
 
-  constexpr size_type find(
-      native_string_type native_str) const noexcept {
+  constexpr size_type find(native_string_type native_str) const noexcept {
     return find(basic_winnt_string_view{native_str});
   }
 

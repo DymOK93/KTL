@@ -38,13 +38,14 @@
 #define ROBIN_HOOD_VERSION_PATCH 1  // for backwards-compatible bug fixes
 
 #include <basic_types.h>
+#include <exception.h>
 #include <algorithm.hpp>
 #include <allocator.hpp>
-#include <exception.h>
 #include <functional.hpp>
 #include <hash.hpp>
 #include <initializer_list.hpp>
 #include <intrinsic.hpp>
+#include <iterator.hpp>
 #include <limits.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
@@ -1004,23 +1005,23 @@ class Table
   }
 
   // initializer_list hasn't been fully implemented yet
- /* Table(initializer_list<value_type> init_list,
-        [[maybe_unused]] size_t bucket_count = 0,
-        const Hash& h = Hash{},
-        const KeyEqual& equal = KeyEqual{})
-      : WHash(h), WKeyEqual(equal), NodeAllocator() {
-    insert(init_list.begin(), init_list.end());
-  }
+  /* Table(initializer_list<value_type> init_list,
+         [[maybe_unused]] size_t bucket_count = 0,
+         const Hash& h = Hash{},
+         const KeyEqual& equal = KeyEqual{})
+       : WHash(h), WKeyEqual(equal), NodeAllocator() {
+     insert(init_list.begin(), init_list.end());
+   }
 
-  template <class BytesAlloc>
-  Table(initializer_list<value_type> init_list,
-        [[maybe_unused]] size_t bucket_count = 0,
-        const Hash& h = Hash{},
-        const KeyEqual& equal = KeyEqual{},
-        BytesAlloc&& alloc = BytesAlloc{})
-      : WHash(h), WKeyEqual(equal), NodeAllocator(forward<BytesAlloc>(alloc)) {
-    insert(init_list.begin(), init_list.end());
-  }*/
+   template <class BytesAlloc>
+   Table(initializer_list<value_type> init_list,
+         [[maybe_unused]] size_t bucket_count = 0,
+         const Hash& h = Hash{},
+         const KeyEqual& equal = KeyEqual{},
+         BytesAlloc&& alloc = BytesAlloc{})
+       : WHash(h), WKeyEqual(equal), NodeAllocator(forward<BytesAlloc>(alloc)) {
+     insert(init_list.begin(), init_list.end());
+   }*/
 
   Table(Table&& o) noexcept
       : WHash(move(static_cast<WHash&>(o))),
