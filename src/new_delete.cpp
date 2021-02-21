@@ -31,7 +31,7 @@ void* CRTCALL operator new(size_t bytes, ktl::non_paged_new_tag_t tag) {
   return operator new(bytes, ktl::DEFAULT_NEW_ALIGNMENT, tag);
 }
 
-void* CRTCALL operator new(size_t bytes, ktl::align_val_t alignment) {
+void* CRTCALL operator new(size_t bytes, std::align_val_t alignment) {
 #ifdef KTL_USING_NON_PAGED_NEW_AS_DEFAULT
   return operator new (bytes, alignment, ktl::non_paged_new_tag_t{});
 #else
@@ -40,20 +40,20 @@ void* CRTCALL operator new(size_t bytes, ktl::align_val_t alignment) {
 }
 
 void* CRTCALL operator new(size_t bytes,
-                           ktl::align_val_t alignment,
+                           std::align_val_t alignment,
                            ktl::paged_new_tag_t) {
   return ktl::mm::details::operator_new_impl(
-      [](size_t bytes_count, ktl::align_val_t alignment) noexcept {
+      [](size_t bytes_count, std::align_val_t alignment) noexcept {
         return ktl::alloc_paged(bytes_count, alignment);
       },
       bytes, alignment);
 }
 
 void* CRTCALL operator new(size_t bytes,
-                           ktl::align_val_t alignment,
+                           std::align_val_t alignment,
                            ktl::non_paged_new_tag_t) {
   return ktl::mm::details::operator_new_impl(
-      [](size_t bytes_count, ktl::align_val_t alignment) noexcept {
+      [](size_t bytes_count, std::align_val_t alignment) noexcept {
         return ktl::alloc_non_paged(bytes_count, alignment);
       },
       bytes, alignment);
@@ -80,7 +80,7 @@ void* CRTCALL operator new(size_t bytes,
 }
 
 void* CRTCALL operator new(size_t bytes,
-                           ktl::align_val_t alignment,
+                           std::align_val_t alignment,
                            const nothrow_t& flag) noexcept {
 #ifdef KTL_USING_NON_PAGED_NEW_AS_DEFAULT
   return operator new (bytes, alignment, flag, ktl::non_paged_new_tag_t{});
@@ -90,14 +90,14 @@ void* CRTCALL operator new(size_t bytes,
 }
 
 void* CRTCALL operator new(size_t bytes,
-                           ktl::align_val_t alignment,
+                           std::align_val_t alignment,
                            const nothrow_t&,
                            ktl::paged_new_tag_t) noexcept {
   return ktl::alloc_paged(bytes, alignment);
 }
 
 void* CRTCALL operator new(size_t bytes,
-                           ktl::align_val_t alignment,
+                           std::align_val_t alignment,
                            const nothrow_t&,
                            ktl::non_paged_new_tag_t) noexcept {
   return ktl::alloc_non_paged(bytes, alignment);
@@ -105,7 +105,7 @@ void* CRTCALL operator new(size_t bytes,
 
 void CRTCALL operator delete(void* ptr,
                              size_t bytes_count,
-                             ktl::align_val_t alignment) noexcept {
+                             std::align_val_t alignment) noexcept {
   ktl::free(ptr, bytes_count, alignment);
 }
 

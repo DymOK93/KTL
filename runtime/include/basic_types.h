@@ -1,14 +1,21 @@
 #pragma once
 
+namespace std {
+enum class align_val_t : size_t {
+};  // Предопределённый тип - опредлелить и использовать только
+    // ktl::align_val_t{} невозможно
+}
+
 namespace ktl {
 using byte = unsigned char;
-enum class align_val_t : size_t {};
-}
+using std::align_val_t;
+}  // namespace ktl
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <cstdint>
 using std::nothrow_t;
 #else
+
 using int8_t = signed char;
 using int16_t = short;
 using int32_t = int;
