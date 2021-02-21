@@ -35,3 +35,17 @@ EXTERN_C unsigned char _BitScanReverse64(unsigned long* index,
 #define BITSCANREVERSE _BitScanReverse64
 #endif
 
+EXTERN_C char _InterlockedExchange8(volatile char* place,
+                                    char new_value);
+#pragma intrinsic(_InterlockedExchange8)
+#ifndef InterlockedExchange8
+#define InterlockedExchange8 _InterlockedExchange8
+#endif
+
+EXTERN_C char _InterlockedCompareExchange8(volatile char* place,
+                                           char new_value,
+                                           char expected);
+#pragma intrinsic(_InterlockedCompareExchange8)
+#ifndef InterlockedCompareExchange8
+#define InterlockedCompareExchange8 _InterlockedCompareExchange8
+#endif

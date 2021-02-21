@@ -1,9 +1,10 @@
 #pragma once
 #include <basic_types.h>
-#include <ntddk.h>
 #include <intrinsic.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
+
+#include <ntddk.h>
 
 namespace ktl {
 namespace th {
@@ -78,13 +79,14 @@ class spin_lock {
   lock_type m_lock{0};
 };
 
-class spin_lock_guard {
+template <class Lock>
+class auto_lock {
  public:
-  spin_lock_guard(spin_lock& sp) noexcept : m_lock{sp} { m_lock.lock(); }
-  ~spin_lock_guard() { m_lock.unlock(); }
+  auto_lock(Lock& lock) noexcept : m_lock{lock} { m_lock.lock(); }
+  ~auto_lock() { m_lock.unlock(); }
 
  private:
-  spin_lock& m_lock;
+  Lock& m_lock;
 };
 
 }  // namespace th::details
@@ -107,9 +109,6 @@ inline constexpr memory_order memory_order_acquire = memory_order::acquire;
 inline constexpr memory_order memory_order_release = memory_order::release;
 inline constexpr memory_order memory_order_acq_rel = memory_order::acq_rel;
 inline constexpr memory_order memory_order_seq_cst = memory_order::seq_cst;
-
-#define ATOMIC_INTRINSIC(order, result, intrinsic, ...) \
-  result = intrinsic(__VA_ARGS__)
 
 template <class Ty>
 struct internal_storage {
@@ -177,7 +176,6 @@ Ty kill_dependency(Ty arg) noexcept {  // "magic" template that kills
 }
 
 namespace th::details {
-
 template <memory_order order>
 void check_store_memory_order() noexcept {}
 
@@ -250,6 +248,15 @@ void make_load_barrier() noexcept {
     make_compiler_barrier();
   }
 }
+
+template <memory_order order>
+void make_store_barrier() noexcept {
+  check_store_memory_order<order>();
+  if constexpr (order != memory_order::relaxed) {
+    make_compiler_barrier();
+  }
+}
+
 }  // namespace th::details
 
 template <class Ty>
@@ -257,19 +264,18 @@ struct atomic_padded {
   alignas(sizeof(Ty)) mutable Ty value;  // align to sizeof(T); x86 stack aligns
                                          // 8-byte objects on 4-byte boundaries
 };
-//
-//// template <class Ty>
-//// struct atomic_storage_types {
-////  using _TStorage = atomic_padded<Ty>;
-////  using _Spinlock = long;
-////};
-////
-//// template <class Ty>
-//// struct atomic_storage_types<Ty&> {
-////  using _TStorage = Ty&;
-////  using _Spinlock = _Smtx_t*;  // POINTER TO mutex
-////};
-//
+
+template <class Ty>
+struct atomic_storage_selector {
+  using storage_t = atomic_padded<Ty>;
+  using lock_t = th::details::spin_lock;
+};
+
+template <class Ty>
+struct atomic_storage_selector<Ty&> {
+  using storage_t = Ty&;
+  using lock_t = th::details::spin_lock;
+};
 
 template <class Ty, size_t = sizeof(remove_reference_t<Ty>)>
 struct atomic_storage;
@@ -318,8 +324,11 @@ struct atomic_storage {
  public:
   using value_type = remove_reference_t<Ty>;
 
-  using lock_type = th::details::spin_lock;
-  using guard_type = th::details::spin_lock_guard;
+ private:
+  using selector = atomic_storage_selector<Ty>;
+  using storage_t = typename selector::storage_t;
+  using lock_t = typename selector::lock_t;
+  using guard_t = th::details::auto_lock<lock_t>;
 
  public:
   atomic_storage() noexcept(is_nothrow_default_constructible_v<Ty>) = default;
@@ -332,21 +341,21 @@ struct atomic_storage {
 
   template <memory_order order = memory_order_seq_cst>
   void store(const value_type value) noexcept {
-    guard_type guard{m_lock};
+    guard_t guard{m_lock};
     m_value = value;
   }
 
   template <memory_order order = memory_order_seq_cst>
   [[nodiscard]] value_type load() const noexcept {
     // load with sequential consistency
-    guard_type guard{m_lock};
+    guard_t guard{m_lock};
     value_type local_copy{m_value};
     return local_copy;
   }
 
   template <memory_order order = memory_order_seq_cst>
   value_type exchange(const value_type new_value) noexcept {
-    guard_type guard{m_lock};
+    guard_t guard{m_lock};
     value_type old_value{m_value};
     m_value = new_value;
     return old_value;
@@ -359,127 +368,83 @@ struct atomic_storage {
     const auto* expected_ptr = addressof(expected);
     bool matched;
 
-    guard_type guard{m_lock};
+    guard_t guard{m_lock};
     matched = memcmp(target_ptr, expected_ptr, sizeof(value_type)) == 0;
     if (matched) {
       memcpy(target_ptr, addressof(desired), sizeof(value_type));
     } else {
-      _CSTD memcpy(expected_ptr, target_ptr, sizeof(value_type));
+      memcpy(expected_ptr, target_ptr, sizeof(value_type));
     }
-
     return matched;
   }
 
- protected:
-  Ty m_value{};
-
  private:
-  // Spinlock integer for non-lock-free atomic, mutex pointer for non-lock-free
-  // atomic_ref
-  mutable th::details::spin_lock m_lock{};
+  mutable lock_t m_lock{};
+  storage_t m_value{};
 };
 
-//
-// template <class Ty>
-// struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
-//
-//  using ValueTy = remove_reference_t<Ty>;
-//
-//  atomic_storage() = default;
-//
-//  /* implicit */ constexpr atomic_storage(
-//      conditional_t<is_reference_v<Ty>, Ty, const ValueTy> value) noexcept
-//      : _Storage{value} {
-//    // non-atomically initialize this atomic
-//  }
-//
-//  void store(
-//      const ValueTy value) noexcept {  // store with sequential consistency
-//    const auto target = atomic_address_as<char>(_Storage);
-//    const char _As_bytes = atomic_reinterpret_as<char>(value);
-//#if defined(_M_ARM) || defined(_M_ARM64)
-//    targetory_barrier();
-//    __iso_volatile_store8(target, _As_bytes);
-//    targetory_barrier();
-//#else   // ^^^ ARM32/ARM64 hardware / x86/x64 hardware vvv
-//    (void)_InterlockedExchange8(target, _As_bytes);
-//#endif  // hardware
-//  }
-//
-//  void store(
-//      const ValueTy value,
-//      const memory_order _Order) noexcept {  // store with given memory order
-//    const auto target = atomic_address_as<char>(_Storage);
-//    const char _As_bytes = atomic_reinterpret_as<char>(value);
-//    switch (_Order) {
-//      case memory_order_relaxed:
-//        __iso_volatile_store8(target, _As_bytes);
-//        return;
-//      case memory_order_release:
-//        COMPILER_BARRIER;
-//        __iso_volatile_store8(target, _As_bytes);
-//        return;
-//      default:
-//      case memory_order_consume:
-//      case memory_order_acquire:
-//      case memory_order_acq_rel:
-//        //  _INVALID_MEMORY_ORDER;
-//        // [[fallthrough]];
-//      case memory_order_seq_cst:
-//        store(value);
-//        return;
-//    }
-//  }
-//
-//  [[nodiscard]] ValueTy load()
-//      const noexcept {  // load with sequential consistency
-//    const auto target = atomic_address_as<char>(_Storage);
-//    char _As_bytes = __iso_volatile_load8(target);
-//    COMPILER_BARRIER;
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//  [[nodiscard]] ValueTy load(const memory_order _Order)
-//      const noexcept {  // load with given memory order
-//    const auto target = atomic_address_as<char>(_Storage);
-//    char _As_bytes = __iso_volatile_load8(target);
-//    load_barrier(_Order);
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//  ValueTy exchange(const ValueTy value,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept
-//                   {
-//    // exchange with given memory order
-//    char _As_bytes;
-//    ATOMIC_INTRINSIC(_Order, _As_bytes, _InterlockedExchange8,
-//                     atomic_address_as<char>(_Storage),
-//                     atomic_reinterpret_as<char>(value));
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//  bool compare_exchange_strong(
-//      ValueTy& expected,
-//      const ValueTy desired,
-//      const memory_order _Order =
-//          memory_order_seq_cst) noexcept {  // CAS with given memory order
-//    char expected_bytes =
-//        atomic_reinterpret_as<char>(expected);  // read before atomic
-//        operation
-//    char _Prev_bytes;
-//    ATOMIC_INTRINSIC(_Order, _Prev_bytes, _InterlockedCompareExchange8,
-//                     atomic_address_as<char>(_Storage),
-//                     atomic_reinterpret_as<char>(desired), expected_bytes);
-//    if (_Prev_bytes == expected_bytes) {
-//      return true;
-//    }
-//
-//    reinterpret_cast<char&>(expected) = _Prev_bytes;
-//    return false;
-//  }
-//
-//  typename atomic_storage_types<Ty>::_TStorage _Storage;
-//};
+template <class Ty>
+struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
+
+ public:
+  using value_type = remove_reference_t<Ty>;
+
+ private:
+  using storage_t = typename atomic_storage_selector<Ty>::storage_t;
+
+ public:
+  atomic_storage() = default;
+
+  constexpr atomic_storage(
+      conditional_t<is_reference_v<Ty>, Ty, const value_type> value) noexcept
+      : m_value{value} {}
+
+  template <memory_order order = memory_order::seq_cst>
+  void store(const value_type value) noexcept {
+    const auto source{th::details::atomic_reinterpret_as<char>(value)};
+    auto* place{atomic_address_as<char>(m_value)};
+
+    th::details::make_store_barrier<order>();
+    [[maybe_unused]] auto old_value{InterlockedExchange8(place, source)};
+  }
+
+  template <memory_order order = memory_order::seq_cst>
+  [[nodiscard]] value_type load()
+      const noexcept {  // load with sequential consistency
+    const auto* target{atomic_address_as<char>(m_value)};
+    char result{*target};
+    th::details::make_load_barrier<order>();
+    return reinterpret_cast<value_type&>(result);
+  }
+
+  template <memory_order order = memory_order::seq_cst>
+  value_type exchange(const value_type value) noexcept {
+    // exchange with given memory order
+    char old_value{
+        InterlockedExchange8(atomic_address_as<char>(m_value),
+                             th::details::atomic_reinterpret_as<char>(value))};
+    return reinterpret_cast<value_type&>(old_value);
+  }
+
+  template <memory_order order = memory_order::seq_cst>
+  bool compare_exchange_strong(value_type& expected,
+                               const value_type desired) noexcept {
+    char expected_bytes{th::details::atomic_reinterpret_as<char>(
+        expected)};  // read before atomic
+    char old_value{InterlockedCompareExchange8(
+        atomic_address_as<char>(m_value),
+        th::details::atomic_reinterpret_as<char>(desired), expected_bytes)};
+
+    if (old_value == expected_bytes) {
+      return true;
+    }
+    reinterpret_cast<char&>(expected) = old_value;
+    return false;
+  }
+
+ private:
+  storage_t m_value;
+};
 //
 // template <class Ty>
 // struct atomic_storage<Ty, 2> {  // lock-free using 2-byte intrinsics
@@ -578,7 +543,7 @@ struct atomic_storage {
 //    return false;
 //  }
 //
-//  typename atomic_storage_types<Ty>::_TStorage _Storage;
+//  typename atomic_storage_selector<Ty>::_TStorage _Storage;
 //};
 //
 // template <class Ty>
@@ -680,7 +645,7 @@ struct atomic_storage {
 //    return false;
 //  }
 //
-//  typename atomic_storage_types<Ty>::_TStorage _Storage;
+//  typename atomic_storage_selector<Ty>::_TStorage _Storage;
 //};
 //
 // template <class Ty>
@@ -810,7 +775,7 @@ struct atomic_storage {
 //    return false;
 //  }
 //
-//  typename atomic_storage_types<Ty>::_TStorage _Storage;
+//  typename atomic_storage_selector<Ty>::_TStorage _Storage;
 //};
 //
 //#ifdef _WIN64
@@ -927,7 +892,7 @@ struct atomic_storage {
 //    long long _High;
 //  };
 //
-//  typename atomic_storage_types<Ty&>::_TStorage _Storage;
+//  typename atomic_storage_selector<Ty&>::_TStorage _Storage;
 //};
 //#endif  // _WIN64
 //
