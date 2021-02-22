@@ -89,14 +89,14 @@ class mpmc_queue {  // multi-producer, multi-consumer
 
   // OtherTy имеет право бросить исключение при конвертации в Ty
   template <typename OtherTy,
-            enable_if_t<is_convertible_v<Ty, OtherTy>, int> = 0>
+            enable_if_t<is_constructible_v<Ty, OtherTy>, int> = 0>
   bool unsynchronized_push(const OtherTy& value) {
     return unsynchronized_push_impl(value);
   }
 
   template <typename OtherTy,
-            enable_if_t<is_convertible_v<Ty, OtherTy> &&
-                            is_nothrow_assignable_v<OtherTy, Ty>,
+            enable_if_t<is_convertible_v<OtherTy, Ty> &&
+                            is_nothrow_assignable_v<OtherTy&, Ty>,
                         int> = 0>
   bool unsynchronized_pop(OtherTy& value) {
     return unsynchronized_pop_impl<true>(value);
@@ -104,7 +104,7 @@ class mpmc_queue {  // multi-producer, multi-consumer
 
   // OtherTy имеет право бросить исключение при конвертации в Ty
   template <typename OtherTy,
-            enable_if_t<is_convertible_v<Ty, OtherTy>, int> = 0>
+            enable_if_t<is_constructible_v<Ty, OtherTy>, int> = 0>
   bool push(const OtherTy& value) {
     auto* new_node{create_data_node(value)};
 
@@ -131,7 +131,9 @@ class mpmc_queue {  // multi-producer, multi-consumer
   }
 
   template <typename OtherTy,
-            enable_if_t<is_convertible_v<Ty, OtherTy>, int> = 0>
+            enable_if_t<is_convertible_v<OtherTy, Ty> &&
+                            is_nothrow_assignable_v<OtherTy&, Ty>,
+                        int> = 0>
   bool pop(OtherTy& value) {
     for (;;) {
       auto head{load_acquire(m_head)};
@@ -152,11 +154,9 @@ class mpmc_queue {  // multi-producer, multi-consumer
         } else {
           if (!next) {
             /* this check is not part of the original algorithm as published
-            by
-             * michael and scott
-             * however we reuse the tagged_ptr part for the freelist and clear
-             * the next part during node allocation. we can observe a
-             * null-pointer here.
+             * by michael and scott however we reuse the tagged_ptr part for
+             * the freelist and clear he next part during node allocation
+             * we can observe a null-pointer here.
              * */
             continue;
           }
@@ -177,7 +177,6 @@ class mpmc_queue {  // multi-producer, multi-consumer
 
  private:
   void initialize() {
-    static_assert(is_trivially_copyable_v<Ty>, "Ty must be trivially copyable");
     static_assert(is_trivially_destructible_v<Ty>,
                   "Ty must be trivially destructible");
 
@@ -245,10 +244,11 @@ class mpmc_queue {  // multi-producer, multi-consumer
            * */
           continue;
         }
+        auto next_ptr{next.get_pointer()};
         if constexpr (CopyToOutput) {
           value = next_ptr->value;  // aligned load
         }
-        node_pointer new_head{next.get_pointer(), head.get_next_tag()};
+        node_pointer new_head{next_ptr, head.get_next_tag()};
         store_release(m_head, new_head);
         destroy_node(head);
 

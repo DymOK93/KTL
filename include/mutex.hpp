@@ -280,7 +280,7 @@ using notify_event =
     th::details::event<th::details::event_type::NotificationEvent>;
 
 namespace th::details {
-bool unlock_impl() {
+inline bool unlock_impl() {
   return true;  // Dummy
 }
 
@@ -302,7 +302,7 @@ void unlock(Lockable&... locables) {
 }
 
 namespace th::details {
-bool lock_impl() {
+inline bool lock_impl() {
   return true;  // Dummy
 }
 

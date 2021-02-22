@@ -463,17 +463,17 @@ template <class Ty>
 inline constexpr bool is_nothrow_move_constructible_v =
     is_nothrow_move_constructible<Ty>::value;
 
-template <class Ty, class Other, class = void>
+template <class To, class From, class = void>
 struct is_assignable : false_type {};
 
-template <class Ty, class Other>
-struct is_assignable<Ty,
-                     Other,
-                     void_t<decltype(declval<Ty>() = declval<Other>())> >
+template <class To, class From>
+struct is_assignable<To,
+                     From,
+                     void_t<decltype(declval<To>() = declval<From>())> >
     : true_type {};
 
-template <class Ty, class Other>
-inline constexpr bool is_assignable_v = is_assignable<Ty, Other>::value;
+template <class To, class From>
+inline constexpr bool is_assignable_v = is_assignable<To, From>::value;
 
 template <class Ty>
 struct is_copy_assignable {
@@ -493,15 +493,15 @@ struct is_move_assignable {
 template <class Ty>
 inline constexpr bool is_move_assignable_v = is_move_assignable<Ty>::value;
 
-template <class Ty, class Other>
+template <class To, class From>
 struct is_nothrow_assignable {
   static constexpr bool value =
-      is_assignable_v<Ty, Other>&& noexcept(declval<Ty>() = declval<Other>());
+      is_assignable_v<To, From>&& noexcept(declval<To>() = declval<From>());
 };
 
-template <class Ty, class Other>
+template <class To, class From>
 inline constexpr bool is_nothrow_assignable_v =
-    is_nothrow_assignable<Ty, Other>::value;
+    is_nothrow_assignable<To, From>::value;
 
 template <class Ty>
 struct is_nothrow_copy_assignable {
@@ -522,6 +522,15 @@ struct is_nothrow_move_assignable {
 template <class Ty>
 inline constexpr bool is_nothrow_move_assignable_v =
     is_nothrow_move_assignable<Ty>::value;
+
+template <class To, class From>
+struct is_trivially_assignable {
+  static constexpr bool value = __is_trivially_assignable(To, From);
+};
+
+template <class To, class From>
+inline constexpr bool is_trivially_assignable_v =
+    is_trivially_assignable<To, From>::value;
 
 template <class Ty>
 struct is_swappable {
@@ -565,7 +574,7 @@ template <class Ty>
 inline constexpr bool is_function_v = is_function<Ty>::value;
 
 template <class Ty>
-struct is_object  {
+struct is_object {
   static constexpr bool value =
       is_const_v<const Ty> &&
       !is_void_v<Ty>;  // only function types and reference
