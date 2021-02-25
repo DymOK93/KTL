@@ -92,12 +92,14 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
   return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
 }
 
-EXTERN_C ktl::crt::exc_engine::win::ExceptionDisposition __GSHandlerCheck_EH4(
+EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH4(
     ktl::crt::exc_engine::win::exception_record* exception_record,
     ktl::byte* frame_ptr,
-    win::x64_cpu_context* cpu_ctx,
+    [[maybe_unused]] win::x64_cpu_context* cpu_ctx,
     dispatcher_context* ctx) noexcept {
   /*No cookie check :( */
+  // We assume that the compiler will use only __GSHandlerCheck_SEH for SEH
+  // exceptions and therefore don't check exception_record
   return __CxxFrameHandler4(exception_record, frame_ptr, cpu_ctx, ctx);
 }
 

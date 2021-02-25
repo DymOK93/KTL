@@ -87,7 +87,8 @@ struct machine_frame {
   uint64_t ss;
 };
 
-struct frame_walk_pdata {
+class frame_walk_pdata {
+ public:
   explicit frame_walk_pdata(const byte* image_base) noexcept;
 
   static frame_walk_pdata for_this_image() noexcept;

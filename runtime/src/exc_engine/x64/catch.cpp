@@ -53,7 +53,7 @@ const throw_info* catch_info::get_throw_info() const noexcept {
 
 void probe_for_exception(const frame_walk_pdata& pdata,
                          throw_frame& frame) noexcept {
-  dispatcher_context ctx{&rethrow_probe_cookie, &frame, &pdata};
+  auto ctx{make_context(&rethrow_probe_cookie, frame, pdata)};
 
   auto& probe_ctx{frame.ctx};
   auto& probe_mach = frame.mach;
@@ -149,8 +149,7 @@ EXTERN_C const ktl::byte* __cxx_dispatch_exception(
     throw_info const* throw_info,
     throw_frame& frame) noexcept {
   auto pdata{frame_walk_pdata::for_this_image()};
-
-  dispatcher_context ctx{&unwind_cookie, &frame, &pdata};
+  auto ctx{make_context(&unwind_cookie, frame, pdata)};
 
   auto& [_, cpu_ctx, mach, ci]{frame};
 
@@ -243,11 +242,16 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
     ctx.extra_data = &unwind_info->data[unwind_slots + 2];  // Why 2?
     byte* frame_ptr = reinterpret_cast<byte*>(
         unwind_info->frame_reg ? cpu_ctx.gp(unwind_info->frame_reg) : mach.rsp);
-    auto exc_action{frame_handler(nullptr, frame_ptr, nullptr, &ctx)};
+    [[maybe_unused]] auto exc_action{
+        frame_handler(nullptr, frame_ptr, nullptr, &ctx)};
 
-    crt_assert(exc_action ==
-               win::ExceptionDisposition::CxxHandler);  // Проверка соответствия
-                                                        // типа исключения
+    // MSVC добавляет __GSHandlerCheck() в начало таблицы исключений
+    // Поскольку он всегда возвращает win::ExceptionDisposition::ContinueSearch
+    // в случае успешной проверки, отслеживать exc_action ==
+    // win::ExceptionDisposition::CxxHandler мы не можем
+    // Однако SEH-исключение всё равно не пролетит мимо:
+    // т.к. win::exception_record* != nullptr,  в __CxxFrameHandler4 сработает
+    // проверка и система упадёт в BSOD
   }
   return unwind_info;
 }
