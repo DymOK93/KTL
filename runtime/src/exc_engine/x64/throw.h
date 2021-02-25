@@ -11,15 +11,21 @@
 #include <symbol.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
+// Отмеченные оффсеты используются в __GSHandlerCheck()
 struct dispatcher_context {
   symbol* cookie;
-  throw_frame* throw_frame;
+  /*0x8*/ const byte* image_base;
+  /*0x16*/ const function* fn;
   const frame_walk_pdata* pdata;
-  const function* fn;
-  const void* extra_data;
+  throw_frame* throw_frame;
+  void* padding;
   const byte* handler;
+  /*0x56*/ const void* extra_data;
 };
 
+dispatcher_context make_context(symbol* cookie_,
+                                throw_frame& frame_,
+                                const frame_walk_pdata& pdata_) noexcept;
 }  // namespace ktl::crt::exc_engine::x64
 
 #pragma once

@@ -28,15 +28,16 @@ struct catch_info {
 };
 
 struct throw_frame {
-  uint64_t red_zone[4]{0};
+  uint64_t red_zone[4];
 
-  frame_walk_context ctx{};
-  machine_frame mach{};
-  catch_info catch_info{};
+  frame_walk_context ctx;
+  machine_frame mach;
+  catch_info catch_info;
 };
 
 struct catch_frame {
   uint64_t red_zone[4];
+
   machine_frame mach;
   catch_info catch_info;
 };
