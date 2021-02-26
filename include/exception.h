@@ -1,6 +1,6 @@
 #pragma once
 #include <crt_attributes.h>
-#include <exception_impl.hpp>
+#include <exception_impl.h>
 #include <string_fwd.hpp>
 #include <utility.hpp>
 
@@ -41,6 +41,7 @@ class out_of_range : public logic_error {
 
  public:
   using MyBase::MyBase;
+  NTSTATUS code() const noexcept override;
 };
 
 class length_error : public logic_error {
@@ -65,6 +66,7 @@ class overflow_error : public runtime_error {
 
  public:
   using MyBase::MyBase;
+  NTSTATUS code() const noexcept override;
 };
 
 // Make sure this is not inlined as it is slow and dramatically enlarges code,

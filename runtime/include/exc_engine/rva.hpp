@@ -1,4 +1,4 @@
-#pragma once
+п»ї#pragma once
 // RVA is Relative Virtual Address
 
 #include <../basic_types.h>
@@ -104,8 +104,8 @@ struct relative_virtual_address {
                                     reinterpret_cast<uintptr_t>(base));
   }
 
-  offset_t m_offset{0};  // Не private, т.к. __GSHandlerCheck() обращается к полю
-                         // напрямую, а для private-полей такой доступ - UB
+  offset_t m_offset{0};  // РќРµ private, С‚.Рє. __GSHandlerCheck() РѕР±СЂР°С‰Р°РµС‚СЃСЏ Рє РїРѕР»СЋ
+                         // РЅР°РїСЂСЏРјСѓСЋ, Р° РґР»СЏ private-РїРѕР»РµР№ С‚Р°РєРѕР№ РґРѕСЃС‚СѓРї - UB
 };
 
 template <typename Ty>

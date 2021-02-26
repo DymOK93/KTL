@@ -1,4 +1,4 @@
-#include <bugcheck.h>
+п»ї#include <bugcheck.h>
 #include <catch.h>
 #include <throw.h>
 #include <seh.hpp>
@@ -79,12 +79,12 @@ bool process_catch_block(const byte* image_base,
     return true;
   }
 
-  // Вернёт false, если флаг IsConst, IsVolatile или IsUnaligned есть в наборе
-  // throw, но отсутствует у catch
+  // Р’РµСЂРЅС‘С‚ false, РµСЃР»Рё С„Р»Р°Рі IsConst, IsVolatile РёР»Рё IsUnaligned РµСЃС‚СЊ РІ РЅР°Р±РѕСЂРµ
+  // throw, РЅРѕ РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚ Сѓ catch
   if (throw_info.attributes
           .bit_intersection<ThrowFlag::IsConst, ThrowFlag::IsVolatile,
                             ThrowFlag::IsUnaligned>() &
-      adjectives.bit_negation()) {  // Приоритет у оператора ~ выше, чем у &
+      adjectives.bit_negation()) {  // РџСЂРёРѕСЂРёС‚РµС‚ Сѓ РѕРїРµСЂР°С‚РѕСЂР° ~ РІС‹С€Рµ, С‡РµРј Сѓ &
     return false;
   }
   return process_catch_block_unchecked(image_base, adjectives, match_type,
@@ -245,13 +245,13 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
     [[maybe_unused]] auto exc_action{
         frame_handler(nullptr, frame_ptr, nullptr, &ctx)};
 
-    // MSVC добавляет __GSHandlerCheck() в начало таблицы исключений
-    // Поскольку он всегда возвращает win::ExceptionDisposition::ContinueSearch
-    // в случае успешной проверки, отслеживать exc_action ==
-    // win::ExceptionDisposition::CxxHandler мы не можем
-    // Однако SEH-исключение всё равно не пролетит мимо:
-    // т.к. win::exception_record* != nullptr,  в __CxxFrameHandler4 сработает
-    // проверка и система упадёт в BSOD
+    // MSVC РґРѕР±Р°РІР»СЏРµС‚ __GSHandlerCheck() РІ РЅР°С‡Р°Р»Рѕ С‚Р°Р±Р»РёС†С‹ РёСЃРєР»СЋС‡РµРЅРёР№
+    // РџРѕСЃРєРѕР»СЊРєСѓ РѕРЅ РІСЃРµРіРґР° РІРѕР·РІСЂР°С‰Р°РµС‚ win::ExceptionDisposition::ContinueSearch
+    // РІ СЃР»СѓС‡Р°Рµ СѓСЃРїРµС€РЅРѕР№ РїСЂРѕРІРµСЂРєРё, РѕС‚СЃР»РµР¶РёРІР°С‚СЊ exc_action ==
+    // win::ExceptionDisposition::CxxHandler РјС‹ РЅРµ РјРѕР¶РµРј
+    // РћРґРЅР°РєРѕ SEH-РёСЃРєР»СЋС‡РµРЅРёРµ РІСЃС‘ СЂР°РІРЅРѕ РЅРµ РїСЂРѕР»РµС‚РёС‚ РјРёРјРѕ:
+    // С‚.Рє. win::exception_record* != nullptr,  РІ __CxxFrameHandler4 СЃСЂР°Р±РѕС‚Р°РµС‚
+    // РїСЂРѕРІРµСЂРєР° Рё СЃРёСЃС‚РµРјР° СѓРїР°РґС‘С‚ РІ BSOD
   }
   return unwind_info;
 }
