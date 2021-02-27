@@ -902,7 +902,7 @@ class Table
   }
 
   void cloneData(const Table& o) {
-    Cloner<Table, IsFlat && ROBIN_HOOD_IS_TRIVIALLY_COPYABLE(Node)>()(o, *this);
+    Cloner<Table, IsFlat && is_trivially_copyable_v<Node>>()(o, *this);
   }
 
   // inserts a keyval that is guaranteed to be new, e.g. when the hashmap is
