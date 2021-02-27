@@ -282,7 +282,9 @@ class basic_winnt_string_view {
     const size_type current_size{size()};
     throw_out_of_range_if_not(pos <= current_size);
     const auto copied{(min)(static_cast<size_type>(current_size - pos), count)};
-    traits_type::copy(dst, data() + pos, copied);  // Пользователь отвечает за то, что диапазоны не должны пересекаться
+    traits_type::copy(dst, data() + pos,
+                      copied);  // Пользователь отвечает за то, что диапазоны не
+                                // должны пересекаться
     return copied;
   }
 
@@ -334,9 +336,37 @@ class basic_winnt_string_view {
 
 template <class NativeStrTy, template <typename...> class ChTraits>
 constexpr bool operator==(
-    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
   return lhs.compare(rhs) == 0;
+}
+
+template <class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          class Ty,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator==(
+    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    const Ty& rhs) noexcept {
+  return lhs == basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+}
+
+template <class Ty,
+          class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator==(
+    const Ty& lhs,
+    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} == rhs;
 }
 
 template <class NativeStrTy, template <typename...> class ChTraits>
@@ -346,11 +376,67 @@ constexpr bool operator!=(
   return lhs.compare(rhs) != 0;
 }
 
+template <class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          class Ty,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator!=(
+    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    const Ty& rhs) noexcept {
+  return lhs != basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+}
+
+template <class Ty,
+          class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator!=(
+    const Ty& lhs,
+    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} != rhs;
+}
+
 template <class NativeStrTy, template <typename...> class ChTraits>
 constexpr bool operator<(
     basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
     basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
   return lhs.compare(rhs) < 0;
+}
+
+template <class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          class Ty,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator<(
+    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    const Ty& rhs) noexcept {
+  return lhs < basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+}
+
+template <class Ty,
+          class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator<(
+    const Ty& lhs,
+    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} < rhs;
 }
 
 template <class NativeStrTy, template <typename...> class ChTraits>
@@ -360,6 +446,34 @@ constexpr bool operator<=(
   return !(lhs > rhs);
 }
 
+template <class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          class Ty,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator<=(
+    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    const Ty& rhs) noexcept {
+  return lhs <= basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+}
+
+template <class Ty,
+          class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator<=(
+    const Ty& lhs,
+    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} <= rhs;
+}
+
 template <class NativeStrTy, template <typename...> class ChTraits>
 constexpr bool operator>(
     basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
@@ -367,11 +481,67 @@ constexpr bool operator>(
   return lhs.compare(rhs) > 0;
 }
 
+template <class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          class Ty,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator>(
+    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    const Ty& rhs) noexcept {
+  return lhs > basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+}
+
+template <class Ty,
+          class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator>(
+    const Ty& lhs,
+    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} > rhs;
+}
+
 template <class NativeStrTy, template <typename...> class ChTraits>
 constexpr bool operator>=(
     basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
     basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
   return !(lhs < rhs);
+}
+
+template <class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          class Ty,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator>=(
+    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
+    const Ty& rhs) noexcept {
+  return lhs >= basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+}
+
+template <class Ty,
+          class NativeStrTy,
+          template <typename...>
+          class ChTraits,
+          enable_if_t<
+              is_convertible_v<const Ty&,
+                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
+              int> = 0>
+constexpr bool operator>=(
+    const Ty& lhs,
+    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} >= rhs;
 }
 }  // namespace str::details
 

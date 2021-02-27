@@ -408,7 +408,12 @@ class basic_winnt_string {
     return native_string_traits_type::get_buffer(get_native_str());
   }
 
-  constexpr operator string_view_type() const noexcept { return {*raw_str()}; }
+  // constexpr operator string_view_type() const noexcept { return {*raw_str()};
+  // }
+  constexpr operator basic_winnt_string_view<native_string_type, Traits>()
+      const noexcept {
+    return {*raw_str()};
+  }
 
   constexpr native_string_type* raw_str() noexcept {
     return addressof(get_native_str());
