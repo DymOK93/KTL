@@ -13,7 +13,7 @@
 
 namespace ktl::lockfree {
 template <class Ty, template <typename, align_val_t> class BasicNodeAllocator>
-class mpmc_queue {  // multi-producer, multi-consumer
+class mpmc_queue : public ktl::non_relocatable {  // multi-producer, multi-consumer
  public:
   using value_type = Ty;
   using reference = Ty&;
@@ -72,11 +72,6 @@ class mpmc_queue {  // multi-producer, multi-consumer
       : m_alc(initial_count + 1, forward<Allocator>(alloc)) {
     initialize();
   }
-
-  mpmc_queue(const mpmc_queue&) = delete;
-  mpmc_queue(mpmc_queue&&) = delete;
-  mpmc_queue& operator=(const mpmc_queue&) = delete;
-  mpmc_queue& operator=(mpmc_queue&&) = delete;
 
 #pragma warning(disable : 4722)
   ~mpmc_queue() {

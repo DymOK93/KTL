@@ -383,6 +383,15 @@ template <class Ty, class... Types>
 inline constexpr bool is_constructible_v =
     is_constructible<void_t<>, Ty, Types...>::value;
 
+template <class Ty, class... Types>
+struct is_trivially_constructible {
+  static constexpr bool value = __is_trivially_constructible(Ty, Types...);
+};
+
+template <class Ty, class... Types>
+inline constexpr bool is_trivially_constructible_v =
+    is_trivially_constructible<Ty, Types...>::value;
+
 template <class Ty>
 struct is_default_constructible {
   static constexpr bool value = is_constructible_v<Ty>;

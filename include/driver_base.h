@@ -24,6 +24,6 @@ Ty* get_from_device_extension(PDEVICE_OBJECT device_object) {
 
 template <class Ty>
 Ty* get_from_device_extension(PDRIVER_OBJECT driver_object) {
-  return GetDriverFromDeviceExtension<Ty>(driver_object->DeviceObject);
+  return get_from_device_extension<Ty>(driver_object->DeviceObject);
 }
 }  // namespace ktl
