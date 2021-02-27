@@ -78,6 +78,13 @@ template <class Exc, class... Types>
 }
 
 template <class Exc, class Ty, class... Types>
+static void throw_exception_if(const Ty& cond, Types&&... args) {
+  if (cond) {
+    throw_exception<Exc>(forward<Types>(args)...);
+  }
+}
+
+template <class Exc, class Ty, class... Types>
 static void throw_exception_if_not(const Ty& cond, Types&&... args) {
   if (!cond) {
     throw_exception<Exc>(forward<Types>(args)...);
