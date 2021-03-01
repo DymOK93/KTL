@@ -18,6 +18,7 @@ set(
 		"crt_runtime.h"
 		"exception_base.h"
 		"exception_impl.h"
+		"flag_set.hpp"
 		"functional_impl.hpp"
 		"intrinsic.hpp"
 		"heap.h"

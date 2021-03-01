@@ -11,6 +11,7 @@ struct device_info {
   bool exclusive{false};
 };
 
+// TODO: use ktl::pair
 struct device_io_response {
   NTSTATUS status{STATUS_SUCCESS};
   uint32_t info{0};
