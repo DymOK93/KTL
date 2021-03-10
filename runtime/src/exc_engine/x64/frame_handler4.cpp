@@ -85,8 +85,15 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* dispatcher_ctx) noexcept {
   if (exception_record) {
+    KdPrint(
+        ("SEH exception caught in CXX handler! Code: %x, address %p (in "
+         "function [%u - %u, unwind info: %u])\n",
+         exception_record->code, exception_record->address,
+         dispatcher_ctx->fn->begin.value(), dispatcher_ctx->fn->end.value(),
+         dispatcher_ctx->fn->unwind_info.value()));
     terminate_if_not(
         exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
+
     return win::ExceptionDisposition::ContinueSearch;
   }
   return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);

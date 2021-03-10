@@ -1,6 +1,8 @@
 #pragma once
 #include <basic_types.h>
+#include <crt_attributes.h>
 #include <intrinsic.hpp>
+#include <limits.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
@@ -110,72 +112,13 @@ inline constexpr memory_order memory_order_release = memory_order::release;
 inline constexpr memory_order memory_order_acq_rel = memory_order::acq_rel;
 inline constexpr memory_order memory_order_seq_cst = memory_order::seq_cst;
 
-template <class Ty>
-struct internal_storage {
-  // uninitialized space to store a Ty
-  alignas(Ty) unsigned char _Storage[sizeof(Ty)];
-
-  internal_storage() = default;
-  internal_storage(const internal_storage&) = delete;
-  internal_storage& operator=(const internal_storage&) = delete;
-
-  [[nodiscard]] Ty& get_ref() noexcept {
-    return reinterpret_cast<Ty&>(_Storage);
-  }
-
-  [[nodiscard]] Ty* get_ptr() noexcept {
-    return reinterpret_cast<Ty*>(&_Storage);
-  }
-};
-
-// FENCES
-// extern "C" inline void atomic_thread_fence(const memory_order _Order)
-// noexcept {
-//  if (_Order == memory_order_relaxed) {
-//    return;
-//  }
-//
-//#if defined(_M_IX86) || defined(_M_X64)
-//  COMPILER_BARRIER;
-//  if (_Order == memory_order_seq_cst) {
-//    volatile long _Guard;  // Not initialized to avoid an unnecessary
-//    operation;
-//                           // the value does not matter
-//
-//    // _mm_mfence could have been used, but it is not supported on older x86
-//    // CPUs and is slower on some recent CPUs. The memory fence provided by
-//    // interlocked operations has some exceptions, but this is fine:
-//    // std::atomic_thread_fence works with respect to other atomics only; it
-//    may
-//    // not be a full fence for all ops.
-//#pragma warning(suppress : 6001)   // "Using uninitialized memory '_Guard'"
-//#pragma warning(suppress : 28113)  // "Accessing a local variable _Guard via
-// an
-//                                   // Interlocked function: This is an unusual
-//                                   // usage which could be reconsidered."
-//    (void)_InterlockedIncrement(&_Guard);
-//    COMPILER_BARRIER;
-//  }
-//#else
-//#error Unsupported hardware
-//#endif  // unsupported hardware
-//}
-
-// extern "C" inline void atomic_signal_fence(const memory_order _Order)
-// noexcept {
-//  if (_Order != memory_order_relaxed) {
-//    COMPILER_BARRIER;
-//  }
-//}
-
-// FUNCTION TEMPLATE kill_dependency
+namespace th::details {
 template <class Ty>
 Ty kill_dependency(Ty arg) noexcept {  // "magic" template that kills
                                        // dependency ordering when called
   return arg;
 }
 
-namespace th::details {
 template <memory_order order>
 void check_store_memory_order() noexcept {}
 
@@ -257,8 +200,6 @@ void make_store_barrier() noexcept {
   }
 }
 
-}  // namespace th::details
-
 template <class Ty>
 struct atomic_padded {
   alignas(sizeof(Ty)) mutable Ty value;  // align to sizeof(T); x86 stack aligns
@@ -267,54 +208,19 @@ struct atomic_padded {
 
 template <class Ty>
 struct atomic_storage_selector {
-  using storage_t = atomic_padded<Ty>;
-  using lock_t = th::details::spin_lock;
+  using storage_type = atomic_padded<Ty>;
+  using lock_type = spin_lock;
 };
 
 template <class Ty>
 struct atomic_storage_selector<Ty&> {
-  using storage_t = Ty&;
-  using lock_t = th::details::spin_lock;
+  using storage_type = Ty&;
+  using lock_type = spin_lock;
 };
 
 template <class Ty, size_t = sizeof(remove_reference_t<Ty>)>
 struct atomic_storage;
 
-//
-//// inline void _Atomic_lock_acquire(long& _Spinlock) noexcept {
-////  while (_InterlockedExchange(&_Spinlock, 1))
-////    ;
-////}
-////
-//// inline void _Atomic_lock_release(long& _Spinlock) noexcept {
-////  _InterlockedExchange(&_Spinlock, 0);
-////}
-//
-//// inline void _Atomic_lock_acquire(_Smtx_t* _Spinlock) noexcept {
-////  _Smtx_lock_exclusive(_Spinlock);
-////}
-////
-//// inline void _Atomic_lock_release(_Smtx_t* _Spinlock) noexcept {
-////  _Smtx_unlock_exclusive(_Spinlock);
-////}
-////
-//// template <class _Spinlock_t>
-//// class _Atomic_lock_guard {
-//// public:
-////  explicit _Atomic_lock_guard(_Spinlock_t& _Spinlock_) noexcept
-////      : _Spinlock(_Spinlock_) {
-////    _Atomic_lock_acquire(_Spinlock);
-////  }
-////
-////  ~_Atomic_lock_guard() { _Atomic_lock_release(_Spinlock); }
-////
-////  _Atomic_lock_guard(const _Atomic_lock_guard&) = delete;
-////  _Atomic_lock_guard& operator=(const _Atomic_lock_guard&) = delete;
-////
-//// private:
-////  _Spinlock_t& _Spinlock;
-////};
-//
 template <class Ty, size_t /* = ... */>
 struct atomic_storage {
   // Provides operations common to all specializations of std::atomic, load,
@@ -328,7 +234,7 @@ struct atomic_storage {
   using selector = atomic_storage_selector<Ty>;
   using storage_t = typename selector::storage_t;
   using lock_t = typename selector::lock_t;
-  using guard_t = th::details::auto_lock<lock_t>;
+  using guard_t = auto_lock<lock_t>;
 
  public:
   atomic_storage() noexcept(is_nothrow_default_constructible_v<Ty>) = default;
@@ -378,530 +284,232 @@ struct atomic_storage {
     return matched;
   }
 
+ public:
+  storage_t m_value{};
+
  private:
   mutable lock_t m_lock{};
-  storage_t m_value{};
 };
 
-template <class Ty>
-struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
-
+template <class Ty, class InterlockedPolicy>
+class interlocked_storage {
  public:
-  using value_type = remove_reference_t<Ty>;
+  using value_type = Ty;
 
  private:
-  using storage_t = typename atomic_storage_selector<Ty>::storage_t;
+  using internal_value_type = typename InterlockedPolicy::value_type;
+  using storage_type =
+      typename atomic_storage_selector<value_type>::storage_type;
 
  public:
-  atomic_storage() = default;
-
-  constexpr atomic_storage(
-      conditional_t<is_reference_v<Ty>, Ty, const value_type> value) noexcept
-      : m_value{value} {}
-
-  template <memory_order order = memory_order::seq_cst>
-  void store(const value_type value) noexcept {
-    const auto source{th::details::atomic_reinterpret_as<char>(value)};
-    auto* place{atomic_address_as<char>(m_value)};
-
-    th::details::make_store_barrier<order>();
-    [[maybe_unused]] auto old_value{InterlockedExchange8(place, source)};
-  }
-
-  template <memory_order order = memory_order::seq_cst>
-  [[nodiscard]] value_type load()
-      const noexcept {  // load with sequential consistency
-    const auto* target{atomic_address_as<char>(m_value)};
-    char result{*target};
+  template <memory_order order = memory_order_seq_cst>
+  value_type load() noexcept {
+    internal_value_type result{*get_storage()};
     th::details::make_load_barrier<order>();
-    return reinterpret_cast<value_type&>(result);
+    return reinterpret_cast<ValueTy&>(result);
   }
 
-  template <memory_order order = memory_order::seq_cst>
+  template <memory_order order = memory_order_seq_cst>
+  void store(const value_type value) noexcept {
+    const auto source{atomic_reinterpret_as<internal_value_type>(value)};
+    auto* place{get_storage()};
+    th::details::make_store_barrier<order>();
+    *place = source;
+  }
+
+  template <>
+  void store<memory_order::seq_cst>(const value_type value) noexcept {
+    [[maybe_unused]] auto old_value{exchange(value)};
+  }
+
+  template <memory_order order = memory_order_seq_cst>
   value_type exchange(const value_type value) noexcept {
-    // exchange with given memory order
-    char old_value{
-        InterlockedExchange8(atomic_address_as<char>(m_value),
-                             th::details::atomic_reinterpret_as<char>(value))};
+    const auto new_value{atomic_reinterpret_as<internal_value_type>(value)};
+    internal_value_type old_value{
+        InterlockedPolicy::exchange(get_storage(), new_value)};
     return reinterpret_cast<value_type&>(old_value);
   }
 
-  template <memory_order order = memory_order::seq_cst>
+  template <memory_order order = memory_order_seq_cst>
   bool compare_exchange_strong(value_type& expected,
                                const value_type desired) noexcept {
-    char expected_bytes{th::details::atomic_reinterpret_as<char>(
+    const auto expected_bytes{atomic_reinterpret_as<internal_value_type>(
         expected)};  // read before atomic
-    char old_value{InterlockedCompareExchange8(
-        atomic_address_as<char>(m_value),
-        th::details::atomic_reinterpret_as<char>(desired), expected_bytes)};
+    const auto desired_bytes{
+        atomic_reinterpret_as<internal_value_type>(desired)};
+
+    const auto old_value{InterlockedPolicy::compare_exchange_strong(
+        get_storage(), desired_bytes, expected_bytes)};
 
     if (old_value == expected_bytes) {
       return true;
     }
-    reinterpret_cast<char&>(expected) = old_value;
+    reinterpret_cast<internal_value_type&>(expected) = old_value;
     return false;
   }
 
- private:
-  storage_t m_value;
+ protected:
+  auto* get_storage() noexcept {
+    return atomic_address_as<internal_value_type>(m_value);
+  }
+
+  auto* get_storage() const noexcept {
+    return ñonst_cast<internal_value_type*>(
+        atomic_address_as<const internal_value_type>(m_value));
+  }
+
+ public:
+  storage_type m_value;
+};
+
+template <size_t>
+struct interlocked_xchg_policy;
+
+template <>
+struct interlocked_xchg_policy<32> {
+  using value_type = long;
+
+  static long exchange(volatile long* place, long new_value) noexcept {
+    return InterlockedExchange(place, new_value);
+  }
+
+  static long compare_exchange_strong(volatile long* place,
+                                      long desired,
+                                      long expected) noexcept {
+    return InterlockedCompareExchange(place, desired, expected);
+  }
+};
+
+#define DEFINE_INTERLOCKED_XCHG_POLICY(type, bitness)                         \
+  template <>                                                                 \
+  struct interlocked_xchg_policy<bitness> {                                   \
+    using value_type = type;                                                  \
+                                                                              \
+    static type exchange(volatile type* place,                                \
+                         value_type new_value) noexcept {                     \
+      return InterlockedExchange##bitness##(place, new_value);                \
+    }                                                                         \
+                                                                              \
+    static type compare_exchange_strong(volatile type* place,                 \
+                                        type desired,                         \
+                                        type expected) noexcept {             \
+      return InterlockedCompareExchange##bitness##(place, desired, expected); \
+    }                                                                         \
+  };
+
+DEFINE_INTERLOCKED_XCHG_POLICY(char, 8)
+DEFINE_INTERLOCKED_XCHG_POLICY(short, 16)
+DEFINE_INTERLOCKED_XCHG_POLICY(long long, 64)
+
+#undef DEFINE_INTERLOCKED_XCHG_POLICY
+
+template <size_t>
+struct InterlockedPolicy;
+
+template <>
+struct InterlockedPolicy<8> {
+  using value_type = char;
+
+  static char exchange(volatile char* place, char new_value) noexcept {
+    return InterlockedExchange8(place, new_value);
+  }
+
+  static char compare_exchange_strong(volatile char* place,
+                                      char desired,
+                                      char expected) noexcept {
+    return InterlockedCompareExchange8(place, desired, expected);
+  }
 };
 //
-// template <class Ty>
-// struct atomic_storage<Ty, 2> {  // lock-free using 2-byte intrinsics
-//
-//  using ValueTy = remove_reference_t<Ty>;
-//
-//  atomic_storage() = default;
-//
-//  /* implicit */ constexpr atomic_storage(
-//      conditional_t<is_reference_v<Ty>, Ty, const ValueTy> value) noexcept
-//      : _Storage{value} {
-//    // non-atomically initialize this atomic
-//  }
-//
-//  void store(
-//      const ValueTy value) noexcept {  // store with sequential consistency
-//    const auto target = atomic_address_as<short>(_Storage);
-//    const short _As_bytes = atomic_reinterpret_as<short>(value);
-//#if defined(_M_ARM) || defined(_M_ARM64)
-//    targetory_barrier();
-//    __iso_volatile_store16(target, _As_bytes);
-//    targetory_barrier();
-//#else   // ^^^ ARM32/ARM64 hardware / x86/x64 hardware vvv
-//    (void)_InterlockedExchange16(target, _As_bytes);
-//#endif  // hardware
-//  }
-//
-//  void store(
-//      const ValueTy value,
-//      const memory_order _Order) noexcept {  // store with given memory order
-//    const auto target = atomic_address_as<short>(_Storage);
-//    const short _As_bytes = atomic_reinterpret_as<short>(value);
-//    switch (_Order) {
-//      case memory_order_relaxed:
-//        __iso_volatile_store16(target, _As_bytes);
-//        return;
-//      case memory_order_release:
-//        COMPILER_BARRIER;
-//        __iso_volatile_store16(target, _As_bytes);
-//        return;
-//      default:
-//      case memory_order_consume:
-//      case memory_order_acquire:
-//      case memory_order_acq_rel:
-//        //  _INVALID_MEMORY_ORDER;
-//        // [[fallthrough]];
-//      case memory_order_seq_cst:
-//        store(value);
-//        return;
-//    }
-//  }
-//
-//  [[nodiscard]] ValueTy load()
-//      const noexcept {  // load with sequential consistency
-//    const auto target = atomic_address_as<short>(_Storage);
-//    short _As_bytes = __iso_volatile_load16(target);
-//    COMPILER_BARRIER;
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//  [[nodiscard]] ValueTy load(const memory_order _Order)
-//      const noexcept {  // load with given memory order
-//    const auto target = atomic_address_as<short>(_Storage);
-//    short _As_bytes = __iso_volatile_load16(target);
-//    load_barrier(_Order);
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//  ValueTy exchange(const ValueTy value,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept
-//                   {
-//    // exchange with given memory order
-//    short _As_bytes;
-//    ATOMIC_INTRINSIC(_Order, _As_bytes, _InterlockedExchange16,
-//                     atomic_address_as<short>(_Storage),
-//                     atomic_reinterpret_as<short>(value));
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//  bool compare_exchange_strong(
-//      ValueTy& expected,
-//      const ValueTy desired,
-//      const memory_order _Order =
-//          memory_order_seq_cst) noexcept {  // CAS with given memory order
-//    short expected_bytes = atomic_reinterpret_as<short>(
-//        expected);  // read before atomic operation
-//    short _Prev_bytes;
-//    ATOMIC_INTRINSIC(_Order, _Prev_bytes, _InterlockedCompareExchange16,
-//                     atomic_address_as<short>(_Storage),
-//                     atomic_reinterpret_as<short>(desired), expected_bytes);
-//    if (_Prev_bytes == expected_bytes) {
-//      return true;
-//    }
-//
-//    _CSTD memcpy(addressof(expected), &_Prev_bytes, sizeof(Ty));
-//    return false;
-//  }
-//
-//  typename atomic_storage_selector<Ty>::_TStorage _Storage;
-//};
-//
-// template <class Ty>
-// struct atomic_storage<Ty, 4> {  // lock-free using 4-byte intrinsics
-//
-//  using ValueTy = remove_reference_t<Ty>;
-//
-//  atomic_storage() = default;
-//
-//  /* implicit */ constexpr atomic_storage(
-//      conditional_t<is_reference_v<Ty>, Ty, const ValueTy> value) noexcept
-//      : _Storage{value} {
-//    // non-atomically initialize this atomic
-//  }
-//
-//  void store(
-//      const ValueTy value) noexcept {  // store with sequential consistency
-//#if defined(_M_ARM) || defined(_M_ARM64)
-//    targetory_barrier();
-//    __iso_volatile_store32(atomic_address_as<int>(_Storage),
-//                           atomic_reinterpret_as<int>(value));
-//    targetory_barrier();
-//#else   // ^^^ ARM32/ARM64 hardware / x86/x64 hardware vvv
-//    (void)_InterlockedExchange(atomic_address_as<long>(_Storage),
-//                               atomic_reinterpret_as<long>(value));
-//#endif  // hardware
-//  }
-//
-//  void store(
-//      const ValueTy value,
-//      const memory_order _Order) noexcept {  // store with given memory order
-//    const auto target = atomic_address_as<int>(_Storage);
-//    const int _As_bytes = atomic_reinterpret_as<int>(value);
-//    switch (_Order) {
-//      case memory_order_relaxed:
-//        __iso_volatile_store32(target, _As_bytes);
-//        return;
-//      case memory_order_release:
-//        COMPILER_BARRIER;
-//        __iso_volatile_store32(target, _As_bytes);
-//        return;
-//      default:
-//      case memory_order_consume:
-//      case memory_order_acquire:
-//      case memory_order_acq_rel:
-//        //  _INVALID_MEMORY_ORDER;
-//        // [[fallthrough]];
-//      case memory_order_seq_cst:
-//        store(value);
-//        return;
-//    }
-//  }
-//
-//  [[nodiscard]] ValueTy load()
-//      const noexcept {  // load with sequential consistency
-//    const auto target = atomic_address_as<int>(_Storage);
-//    auto _As_bytes = __iso_volatile_load32(target);
-//    COMPILER_BARRIER;
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//  [[nodiscard]] ValueTy load(const memory_order _Order)
-//      const noexcept {  // load with given memory order
-//    const auto target = atomic_address_as<int>(_Storage);
-//    auto _As_bytes = __iso_volatile_load32(target);
-//    load_barrier(_Order);
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//  ValueTy exchange(const ValueTy value,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept
-//                   {
-//    // exchange with given memory order
-//    long _As_bytes;
-//    ATOMIC_INTRINSIC(_Order, _As_bytes, _InterlockedExchange,
-//                     atomic_address_as<long>(_Storage),
-//                     atomic_reinterpret_as<long>(value));
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//  bool compare_exchange_strong(
-//      ValueTy& expected,
-//      const ValueTy desired,
-//      const memory_order _Order =
-//          memory_order_seq_cst) noexcept {  // CAS with given memory order
-//    long expected_bytes =
-//        atomic_reinterpret_as<long>(expected);  // read before atomic
-//        operation
-//    long _Prev_bytes;
-
-//    ATOMIC_INTRINSIC(_Order, _Prev_bytes, _InterlockedCompareExchange,
-//                     atomic_address_as<long>(_Storage),
-//                     atomic_reinterpret_as<long>(desired), expected_bytes);
-//    if (_Prev_bytes == expected_bytes) {
-//      return true;
-//    }
-//
-//    _CSTD memcpy(addressof(expected), &_Prev_bytes, sizeof(ValueTy));
-//    return false;
-//  }
-//
-//  typename atomic_storage_selector<Ty>::_TStorage _Storage;
-//};
-//
-// template <class Ty>
-// struct atomic_storage<Ty, 8> {  // lock-free using 8-byte intrinsics
-//
-//  using ValueTy = remove_reference_t<Ty>;
-//
-//  atomic_storage() = default;
-//
-//  /* implicit */ constexpr atomic_storage(
-//      conditional_t<is_reference_v<Ty>, Ty, const ValueTy> value) noexcept
-//      : _Storage{value} {
-//    // non-atomically initialize this atomic
-//  }
-//
-//  void store(
-//      const ValueTy value) noexcept {  // store with sequential consistency
-//    const auto target = atomic_address_as<long long>(_Storage);
-//    const long long _As_bytes = atomic_reinterpret_as<long long>(value);
-//#if defined(_M_IX86)
-//    COMPILER_BARRIER;
-//    __iso_volatile_store64(target, _As_bytes);
-//    atomic_thread_fence(memory_order_seq_cst);
-//#elif defined(_M_ARM64)
-//    targetory_barrier();
-//    __iso_volatile_store64(target, _As_bytes);
-//    targetory_barrier();
-//#else   // ^^^ _M_ARM64 / ARM32, x64 vvv
-//    (void)_InterlockedExchange64(target, _As_bytes);
-//#endif  // _M_ARM64
-//  }
-//
-//  void store(
-//      const ValueTy value,
-//      const memory_order _Order) noexcept {  // store with given memory order
-//    const auto target = atomic_address_as<long long>(_Storage);
-//    const long long _As_bytes = atomic_reinterpret_as<long long>(value);
-//    switch (_Order) {
-//      case memory_order_relaxed:
-//        __iso_volatile_store64(target, _As_bytes);
-//        return;
-//      case memory_order_release:
-//        COMPILER_BARRIER;
-//        __iso_volatile_store64(target, _As_bytes);
-//        return;
-//      default:
-//      case memory_order_consume:
-//      case memory_order_acquire:
-//      case memory_order_acq_rel:
-//        //  _INVALID_MEMORY_ORDER;
-//        // [[fallthrough]];
-//      case memory_order_seq_cst:
-//        store(value);
-//        return;
-//    }
-//  }
-//
-//  [[nodiscard]] ValueTy load()
-//      const noexcept {  // load with sequential consistency
-//    const auto target = atomic_address_as<long long>(_Storage);
-//    long long _As_bytes;
-//#ifdef _M_ARM
-//    _As_bytes = __ldrexd(target);
-//    targetory_barrier();
-//#else
-//    _As_bytes = __iso_volatile_load64(target);
-//    COMPILER_BARRIER;
-//#endif
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//  [[nodiscard]] ValueTy load(const memory_order _Order)
-//      const noexcept {  // load with given memory order
-//    const auto target = atomic_address_as<long long>(_Storage);
-//#ifdef _M_ARM
-//    long long _As_bytes = __ldrexd(target);
-//#else
-//    long long _As_bytes = __iso_volatile_load64(target);
-//#endif
-//    load_barrier(_Order);
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//
-//#ifdef _M_IX86
-//  ValueTy exchange(const ValueTy value,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept
-//                   {
-//    // exchange with (effectively) sequential consistency
-//    ValueTy _Temp{load()};
-//    while (!compare_exchange_strong(_Temp, value, _Order)) {  // keep trying
-//    }
-//
-//    return _Temp;
-//  }
-//#else   // ^^^ _M_IX86 / !_M_IX86 vvv
-//  ValueTy exchange(const ValueTy value,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept
-//                   {
-//    // exchange with given memory order
-//    long long _As_bytes;
-//    ATOMIC_INTRINSIC(_Order, _As_bytes, _InterlockedExchange64,
-//                     atomic_address_as<long long>(_Storage),
-//                     atomic_reinterpret_as<long long>(value));
-//    return reinterpret_cast<ValueTy&>(_As_bytes);
-//  }
-//#endif  // _M_IX86
-//
-//  bool compare_exchange_strong(
-//      ValueTy& expected,
-//      const ValueTy desired,
-//      const memory_order _Order =
-//          memory_order_seq_cst) noexcept {  // CAS with given memory order
-//    long long expected_bytes = atomic_reinterpret_as<long long>(
-//        expected);  // read before atomic operation
-//    long long _Prev_bytes;
-//
-
-//    ATOMIC_INTRINSIC(_Order, _Prev_bytes, _InterlockedCompareExchange64,
-//                     atomic_address_as<long long>(_Storage),
-//                     atomic_reinterpret_as<long long>(desired),
-//                     expected_bytes);
-//    if (_Prev_bytes == expected_bytes) {
-//      return true;
-//    }
-//
-//    _CSTD memcpy(addressof(expected), &_Prev_bytes, sizeof(ValueTy));
-//    return false;
-//  }
-//
-//  typename atomic_storage_selector<Ty>::_TStorage _Storage;
-//};
-//
-//#ifdef _WIN64
-// template <class Ty>
-// struct atomic_storage<Ty&, 16> {  // lock-free using 16-byte intrinsics
-//  // TRANSITION, ABI: replace 'Ty&' with 'Ty' in this specialization
-//  using ValueTy = remove_reference_t<Ty&>;
-//
-//  atomic_storage() = default;
-//
-//  /* implicit */ constexpr atomic_storage(
-//      conditional_t<is_reference_v<Ty&>, Ty&, const ValueTy> value) noexcept
-//      : _Storage{value} {}  // non-atomically initialize this atomic
-//
-//  void store(
-//      const ValueTy value) noexcept {  // store with sequential consistency
-//    (void)exchange(value);
-//  }
-//
-//  void store(
-//      const ValueTy value,
-//      const memory_order _Order) noexcept {  // store with given memory order
-//    _Check_store_memory_order(_Order);
-//    (void)exchange(value, _Order);
-//  }
-//
-//  [[nodiscard]] ValueTy load()
-//      const noexcept {  // load with sequential consistency
-//    long long* const _Storage_ptr =
-//        const_cast<long long*>(atomic_address_as<const long long>(_Storage));
-//    _Int128 _Result{};  // atomic CAS 0 with 0
-//    (void)_COMPARE_EXCHANGE_128(_Storage_ptr, 0, 0, &_Result._Low);
-//    return reinterpret_cast<ValueTy&>(_Result);
-//  }
-//
-//  [[nodiscard]] ValueTy load(const memory_order _Order)
-//      const noexcept {  // load with given memory order
-//#ifdef _M_ARM64
-//    long long* const _Storage_ptr =
-//        const_cast<long long*>(atomic_address_as<const long long>(_Storage));
-//    _Int128 _Result{};  // atomic CAS 0 with 0
-//    switch (_Order) {
-//      case memory_order_relaxed:
-//        (void)_INTRIN_RELAXED(_InterlockedCompareExchange128)(_Storage_ptr, 0,
-//                                                              0,
-//                                                              &_Result._Low);
-//        break;
-//      case memory_order_consume:
-//      case memory_order_acquire:
-//        (void)_INTRIN_ACQUIRE(_InterlockedCompareExchange128)(_Storage_ptr, 0,
-//                                                              0,
-//                                                              &_Result._Low);
-//        break;
-//      default:
-//      case memory_order_release:
-//      case memory_order_acq_rel:
-//        //  _INVALID_MEMORY_ORDER;
-//        // [[fallthrough]];
-//      case memory_order_seq_cst:
-//        (void)_InterlockedCompareExchange128(_Storage_ptr, 0, 0,
-//        &_Result._Low); break;
-//    }
-//
-//    return reinterpret_cast<ValueTy&>(_Result);
-//#else   // ^^^ _M_ARM64 / _M_X64 vvv
-//    _Check_load_memory_order(_Order);
-//    return load();
-//#endif  // _M_ARM64
-//  }
-//
-//  ValueTy exchange(
-//      const ValueTy value) noexcept {  // exchange with sequential consistency
-//    ValueTy _Result{value};
-//    while (!compare_exchange_strong(_Result, value)) {  // keep trying
-//    }
-//
-//    return _Result;
-//  }
-//
-//  ValueTy exchange(
-//      const ValueTy value,
-//      const memory_order _Order) noexcept {  // exchange with given memory
-//      order
-//    ValueTy _Result{value};
-//    while (!compare_exchange_strong(_Result, value, _Order)) {  // keep trying
-//    }
-//
-//    return _Result;
-//  }
-//
-//  bool compare_exchange_strong(
-//      ValueTy& expected,
-//      const ValueTy desired,
-//      const memory_order _Order =
-//          memory_order_seq_cst) noexcept {  // CAS with given memory order
-//    _Int128 desired_bytes{};
-//    _CSTD memcpy(&desired_bytes, addressof(desired), sizeof(ValueTy));
-//    _Int128 expected_temp{};
-//    _CSTD memcpy(&expected_temp, addressof(expected), sizeof(ValueTy));
-//    unsigned char _Result;
-//    (void)_Order;
-//    _Result = _COMPARE_EXCHANGE_128(&reinterpret_cast<long long&>(_Storage),
-//                                    desired_bytes._High, desired_bytes._Low,
-//                                    &expected_temp._Low);
-//    if (_Result == 0) {
-//      _CSTD memcpy(addressof(expected), &expected_temp, sizeof(ValueTy));
-//    }
-//
-//    return _Result != 0;
-//  }
-//
-//  struct _Int128 {
-//    alignas(16) long long _Low;
-//    long long _High;
+//#define DEFINE_ATOMIC_STORAGE(sizeoftype)                                    \
+//  template <class Ty>                                                        \
+//  struct atomic_storage<Ty, sizeoftype>                                      \
+//      : interlocked_storage<Ty, interlocked_policy<sizeoftype * CHAR_BIT>> { \
+//   public:                                                                   \
+//    using MyBase =                                                           \
+//        interlocked_storage<Ty, interlocked_policy<sizeoftype * CHAR_BIT>>;  \
+//                                                                             \
+//   public:                                                                   \
+//    using MyBase::load;                                                      \
+//    using MyBase::store;                                                     \
+//    using MyBase::exchange;                                                  \
+//    using MyBase::compare_exchange_strong;                                   \
 //  };
 //
-//  typename atomic_storage_selector<Ty&>::_TStorage _Storage;
+//DEFINE_ATOMIC_STORAGE(1)
+//DEFINE_ATOMIC_STORAGE(2)
+//DEFINE_ATOMIC_STORAGE(4)
+//DEFINE_ATOMIC_STORAGE(8)
+//
+//#undef DEFINE_ATOMIC_STORAGE
+}  // namespace th::details
+
+//template <class Ty, size_t = sizeof(Ty)>
+//struct atomic_integral;  // not defined
+//
+//template <class Ty, class InterlockedPolicy>
+//class integral_storage : public atomic_storage<Ty> {
+// public:
+//  using MyBase = atomic_storage<Ty>;
+//
+//  using value_type = Ty;
+//
+// private:
+//  using internal_value_type = typename InterlockedPolicy::value_type;
+//
+// public:
+//  template <memory_order order = memory_order_seq_cst>
+//  value_type fetch_add(const value_type operand) noexcept {
+//    return static_cast<value_type>(InterlockedPolicy::add(
+//        get_storage(), static_cast<internal_value_type>(operand)));
+//  }
+//
+//  template <memory_order order = memory_order_seq_cst>
+//  value_type fetch_and(const value_type operand) noexcept {
+//    return static_cast<value_type>(InterlockedPolicy::and(
+//        get_storage(), static_cast<internal_value_type>(operand)));
+//  }
+//
+//  template <memory_order order = memory_order_seq_cst>
+//  value_type fetch_or(const value_type operand) noexcept {
+//    return static_cast<value_type>(
+//        InterlockedPolicy:: or
+//        (get_storage(), static_cast<internal_value_type>(operand)));
+//  }
+//
+//  template <memory_order order = memory_order_seq_cst>
+//  value_type fetch_xor(const value_type operand) noexcept {
+//    return static_cast<value_type>(
+//        InterlockedPolicy:: xor
+//        (get_storage(), static_cast<internal_value_type>(operand)));
+//  }
+//
+//  value_type operator++(int) noexcept {
+//    return static_cast<value_type>(
+//        InterlockedPolicy::post_increment(get_storage()));
+//  }
+//
+//  value_type operator++() noexcept {
+//    return static_cast<value_type>(
+//        InterlockedPolicy::pre_increment(get_storage()));
+//  }
+//
+//  value_type operator--(int) noexcept {
+//    return static_cast<value_type>(
+//        InterlockedPolicy::post_decrement(get_storage()));
+//  }
+//
+//  value_type operator--() noexcept {
+//    return static_cast<value_type>(
+//        InterlockedPolicy::pre_decrement(get_storage()));
+//  }
+//
+// protected:
+//  using MyBase::get_storage;
 //};
-//#endif  // _WIN64
 //
-//// STRUCT TEMPLATE atomic_integral
-// template <class Ty, size_t = sizeof(Ty)>
-// struct atomic_integral;  // not defined
-//
-// template <class Ty>
-// struct atomic_integral<Ty, 1>
+//template <class Ty>
+//struct atomic_integral<Ty, 1>
 //    : atomic_storage<Ty> {  // atomic integral operations using 1-byte
 //                            // intrinsics
 //  using MyBase = atomic_storage<Ty>;
@@ -910,8 +518,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  using MyBase::MyBase;
 //
 //  ValueTy fetch_add(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    char _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd8,
 //                     atomic_address_as<char>(this->_Storage),
@@ -920,8 +527,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_and(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    char _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedAnd8,
 //                     atomic_address_as<char>(this->_Storage),
@@ -930,8 +536,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_or(const ValueTy operand,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept
-//                   {
+//                   const memory_order _Order = memory_order_seq_cst) noexcept {
 //    char _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedOr8,
 //                     atomic_address_as<char>(this->_Storage),
@@ -940,8 +545,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_xor(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    char _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedXor8,
 //                     atomic_address_as<char>(this->_Storage),
@@ -963,21 +567,19 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //
 //  ValueTy operator--(int) noexcept {
 //    return static_cast<Ty>(
-//        _InterlockedExchangeAdd8(atomic_address_as<char>(this->_Storage),
-//        -1));
+//        _InterlockedExchangeAdd8(atomic_address_as<char>(this->_Storage), -1));
 //  }
 //
 //  ValueTy operator--() noexcept {
 //    unsigned char _Before = static_cast<unsigned char>(
-//        _InterlockedExchangeAdd8(atomic_address_as<char>(this->_Storage),
-//        -1));
+//        _InterlockedExchangeAdd8(atomic_address_as<char>(this->_Storage), -1));
 //    --_Before;
 //    return static_cast<ValueTy>(_Before);
 //  }
 //};
 //
-// template <class Ty>
-// struct atomic_integral<Ty, 2>
+//template <class Ty>
+//struct atomic_integral<Ty, 2>
 //    : atomic_storage<Ty> {  // atomic integral operations using 2-byte
 //                            // intrinsics
 //  using MyBase = atomic_storage<Ty>;
@@ -986,8 +588,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  using MyBase::MyBase;
 //
 //  ValueTy fetch_add(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    short _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd16,
 //                     atomic_address_as<short>(this->_Storage),
@@ -996,8 +597,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_and(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    short _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedAnd16,
 //                     atomic_address_as<short>(this->_Storage),
@@ -1006,8 +606,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_or(const ValueTy operand,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept
-//                   {
+//                   const memory_order _Order = memory_order_seq_cst) noexcept {
 //    short _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedOr16,
 //                     atomic_address_as<short>(this->_Storage),
@@ -1016,8 +615,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_xor(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    short _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedXor16,
 //                     atomic_address_as<short>(this->_Storage),
@@ -1050,8 +648,8 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //};
 //
-// template <class Ty>
-// struct atomic_integral<Ty, 4>
+//template <class Ty>
+//struct atomic_integral<Ty, 4>
 //    : atomic_storage<Ty> {  // atomic integral operations using 4-byte
 //                            // intrinsics
 //  using MyBase = atomic_storage<Ty>;
@@ -1060,8 +658,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  using MyBase::MyBase;
 //
 //  ValueTy fetch_add(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    long _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd,
 //                     atomic_address_as<long>(this->_Storage),
@@ -1070,8 +667,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_and(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    long _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedAnd,
 //                     atomic_address_as<long>(this->_Storage),
@@ -1080,8 +676,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_or(const ValueTy operand,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept
-//                   {
+//                   const memory_order _Order = memory_order_seq_cst) noexcept {
 //    long _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedOr,
 //                     atomic_address_as<long>(this->_Storage),
@@ -1090,8 +685,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_xor(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    long _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedXor,
 //                     atomic_address_as<long>(this->_Storage),
@@ -1124,8 +718,8 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //};
 //
-// template <class Ty>
-// struct atomic_integral<Ty, 8>
+//template <class Ty>
+//struct atomic_integral<Ty, 8>
 //    : atomic_storage<Ty> {  // atomic integral operations using 8-byte
 //                            // intrinsics
 //  using MyBase = atomic_storage<Ty>;
@@ -1135,8 +729,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //
 //#ifdef _M_IX86
 //  ValueTy fetch_add(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    // effectively sequential consistency
 //    ValueTy _Temp{this->load()};
 //    while (!this->compare_exchange_strong(_Temp, _Temp + operand,
@@ -1147,8 +740,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_and(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    // effectively sequential consistency
 //    ValueTy _Temp{this->load()};
 //    while (!this->compare_exchange_strong(_Temp, _Temp & operand,
@@ -1159,8 +751,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_or(const ValueTy operand,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept
-//                   {
+//                   const memory_order _Order = memory_order_seq_cst) noexcept {
 //    // effectively sequential consistency
 //    ValueTy _Temp{this->load()};
 //    while (!this->compare_exchange_strong(_Temp, _Temp | operand,
@@ -1171,8 +762,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_xor(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    // effectively sequential consistency
 //    ValueTy _Temp{this->load()};
 //    while (!this->compare_exchange_strong(_Temp, _Temp ^ operand,
@@ -1200,8 +790,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //
 //#else   // ^^^ _M_IX86 / !_M_IX86 vvv
 //  ValueTy fetch_add(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    long long _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd64,
 //                     atomic_address_as<long long>(this->_Storage),
@@ -1210,8 +799,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_and(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    long long _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedAnd64,
 //                     atomic_address_as<long long>(this->_Storage),
@@ -1220,8 +808,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_or(const ValueTy operand,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept
-//                   {
+//                   const memory_order _Order = memory_order_seq_cst) noexcept {
 //    long long _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedOr64,
 //                     atomic_address_as<long long>(this->_Storage),
@@ -1230,8 +817,7 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //  }
 //
 //  ValueTy fetch_xor(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept
-//                    {
+//                    const memory_order _Order = memory_order_seq_cst) noexcept {
 //    long long _Result;
 //    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedXor64,
 //                     atomic_address_as<long long>(this->_Storage),
@@ -1241,45 +827,42 @@ struct atomic_storage<Ty, 1> {  // lock-free using 1-byte intrinsics
 //
 //  ValueTy operator++(int) noexcept {
 //    unsigned long long _After = static_cast<unsigned long long>(
-//        _InterlockedIncrement64(atomic_address_as<long
-//        long>(this->_Storage)));
+//        _InterlockedIncrement64(atomic_address_as<long long>(this->_Storage)));
 //    --_After;
 //    return static_cast<ValueTy>(_After);
 //  }
 //
 //  ValueTy operator++() noexcept {
 //    return static_cast<ValueTy>(
-//        _InterlockedIncrement64(atomic_address_as<long
-//        long>(this->_Storage)));
+//        _InterlockedIncrement64(atomic_address_as<long long>(this->_Storage)));
 //  }
 //
 //  ValueTy operator--(int) noexcept {
 //    unsigned long long _After = static_cast<unsigned long long>(
-//        _InterlockedDecrement64(atomic_address_as<long
-//        long>(this->_Storage)));
+//        _InterlockedDecrement64(atomic_address_as<long long>(this->_Storage)));
 //    ++_After;
 //    return static_cast<ValueTy>(_After);
 //  }
 //
 //  ValueTy operator--() noexcept {
 //    return static_cast<ValueTy>(
-//        _InterlockedDecrement64(atomic_address_as<long
-//        long>(this->_Storage)));
+//        _InterlockedDecrement64(atomic_address_as<long long>(this->_Storage)));
 //  }
 //#endif  // _M_IX86
 //};
-//
-// template <class Ty>
-// struct is_always_lock_free {
-//  using value_type = Ty;
-//  static constexpr size_t SIZE_OF_TYPE{sizeof(Ty)};
-//
-//  static constexpr bool value = SIZE_OF_TYPE <= sizeof(uintmax_t) &&
-//                                (SIZE_OF_TYPE & SIZE_OF_TYPE - 1) == 0;
-//};
-//
-// template <class Ty>
-// inline constexpr bool is_always_lock_free_v = is_always_lock_free<Ty>::value;
+//}  // namespace th::details
+
+template <class Ty>
+struct is_always_lock_free {
+  using value_type = Ty;
+  static constexpr size_t SIZE_OF_TYPE{sizeof(Ty)};
+
+  static constexpr bool value = SIZE_OF_TYPE <= sizeof(uintmax_t) &&
+                                (SIZE_OF_TYPE & SIZE_OF_TYPE - 1) == 0;
+};
+
+template <class Ty>
+inline constexpr bool is_always_lock_free_v = is_always_lock_free<Ty>::value;
 //
 //// STRUCT TEMPLATE atomic_integral_facade
 // template <class Ty>
