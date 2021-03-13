@@ -142,6 +142,7 @@ class node_allocator {
           node_pointer{old_top->next}.get_pointer();
       node_pointer new_pool{new_top_ptr, old_top.get_next_tag()};
       store_relaxed(head, new_pool);
+      ptr = reinterpret_cast<Ty*>(old_top.get_pointer());
     }
     return ptr;
   }
