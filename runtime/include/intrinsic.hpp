@@ -70,3 +70,17 @@ EXTERN_C inline char _InterlockedDecrement8(volatile char* target) {
 #ifndef InterlockedDecrement8
 #define InterlockedDecrement8 _InterlockedDecrement8
 #endif
+
+EXTERN_C inline char _InterlockedAdd8(volatile char* target, char value) {
+  return InterlockedExchangeAdd8(target, value);
+}
+
+#ifndef InterlockedAdd8
+#define InterlockedAdd8 _InterlockedAdd8
+#endif
+
+EXTERN_C inline char _InterlockedAdd16(volatile short* target, short value);
+
+#ifndef InterlockedAdd16
+#define InterlockedAdd16 _InterlockedAdd16
+#endif

@@ -100,8 +100,42 @@ template <class Ty>
 struct identity {
   using type = Ty;
 };
+
 template <class Ty>
 using identity_t = typename identity<Ty>::type;
+
+template <class IntegralTy>
+struct make_unsigned;
+
+template <>
+struct make_unsigned<char> {
+    using type = unsigned char;
+};
+
+template <>
+struct make_unsigned<short> {
+  using type = unsigned short;
+};
+
+template <>
+struct make_unsigned<int> {
+  using type = unsigned int;
+};
+
+template <>
+struct make_unsigned<long> {
+  using type = unsigned long;
+};
+
+
+template <>
+struct make_unsigned<long long> {
+  using type = unsigned long long;
+};
+
+template <class IntegralTy>
+using make_unsigned_t = typename make_unsigned<IntegralTy>::type;
+
 
 struct non_copyable {
   non_copyable() = default;

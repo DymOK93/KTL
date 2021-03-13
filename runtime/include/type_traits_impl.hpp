@@ -104,6 +104,9 @@ using std::is_trivially_destructible_v;
 using std::aligned_storage;
 using std::aligned_storage_t;
 
+using std::is_floating_point_v;
+using std::is_integral_v;
+
 }  // namespace ktl
 #else
 namespace ktl {
@@ -478,7 +481,7 @@ struct is_assignable : false_type {};
 template <class To, class From>
 struct is_assignable<To,
                      From,
-                     void_t<decltype(declval<To>() = declval<From>())> >
+                     void_t<decltype(declval<To&>() = declval<From>())> >
     : true_type {};
 
 template <class To, class From>

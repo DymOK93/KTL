@@ -363,10 +363,10 @@ class interlocked_storage {
 };
 
 template <size_t>
-struct interlocked_xchg_policy;
+struct interlocked_policy;
 
 template <>
-struct interlocked_xchg_policy<32> {
+struct interlocked_policy<32> {
   using value_type = long;
 
   static long exchange(volatile long* place, long new_value) noexcept {
@@ -380,9 +380,9 @@ struct interlocked_xchg_policy<32> {
   }
 };
 
-#define DEFINE_INTERLOCKED_XCHG_POLICY(type, bitness)                         \
+#define DEFINE_INTERLOCKED_POLICY(type, bitness)                              \
   template <>                                                                 \
-  struct interlocked_xchg_policy<bitness> {                                   \
+  struct interlocked_policy<bitness> {                                        \
     using value_type = type;                                                  \
                                                                               \
     static type exchange(volatile type* place,                                \
@@ -397,460 +397,208 @@ struct interlocked_xchg_policy<32> {
     }                                                                         \
   };
 
-DEFINE_INTERLOCKED_XCHG_POLICY(char, 8)
-DEFINE_INTERLOCKED_XCHG_POLICY(short, 16)
-DEFINE_INTERLOCKED_XCHG_POLICY(long long, 64)
+DEFINE_INTERLOCKED_POLICY(char, 8)
+DEFINE_INTERLOCKED_POLICY(short, 16)
+DEFINE_INTERLOCKED_POLICY(long long, 64)
 
-#undef DEFINE_INTERLOCKED_XCHG_POLICY
+#undef DEFINE_INTERLOCKED_POLICY
+
+#define DEFINE_ATOMIC_STORAGE(sizeoftype)                                    \
+  template <class Ty>                                                        \
+  struct atomic_storage<Ty, sizeoftype>                                      \
+      : interlocked_storage<Ty, interlocked_policy<sizeoftype * CHAR_BIT>> { \
+   public:                                                                   \
+    using MyBase =                                                           \
+        interlocked_storage<Ty, interlocked_policy<sizeoftype * CHAR_BIT>>;  \
+                                                                             \
+   public:                                                                   \
+    using MyBase::load;                                                      \
+    using MyBase::store;                                                     \
+    using MyBase::exchange;                                                  \
+    using MyBase::compare_exchange_strong;                                   \
+  };
+
+DEFINE_ATOMIC_STORAGE(1)
+DEFINE_ATOMIC_STORAGE(2)
+DEFINE_ATOMIC_STORAGE(4)
+DEFINE_ATOMIC_STORAGE(8)
+
+#undef DEFINE_ATOMIC_STORAGE
+
+template <class Ty, size_t = sizeof(Ty)>
+struct atomic_integral;  // not defined
+
+template <class Ty, class IntegralPolicy>
+class interlocked_integral : public atomic_storage<Ty> {
+ public:
+  using MyBase = atomic_storage<Ty>;
+
+  using value_type = Ty;
+
+ private:
+  using internal_value_type = typename IntegralPolicy::value_type;
+
+ public:
+  template <memory_order order = memory_order_seq_cst>
+  value_type fetch_add(const value_type operand) noexcept {
+    return static_cast<value_type>(IntegralPolicy::add(
+        get_storage(), static_cast<internal_value_type>(operand)));
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  value_type fetch_and(const value_type operand) noexcept {
+    return static_cast<value_type>(IntegralPolicy::and(
+        get_storage(), static_cast<internal_value_type>(operand)));
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  value_type fetch_or(const value_type operand) noexcept {
+    return static_cast<value_type>(
+        IntegralPolicy:: or
+        (get_storage(), static_cast<internal_value_type>(operand)));
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  value_type fetch_xor(const value_type operand) noexcept {
+    return static_cast<value_type>(
+        IntegralPolicy:: xor
+        (get_storage(), static_cast<internal_value_type>(operand)));
+  }
+
+  value_type operator++() noexcept {
+    return static_cast<value_type>(
+        IntegralPolicy::pre_increment(get_storage()));
+  }
+
+  value_type operator++(int) noexcept {
+    return static_cast<value_type>(
+        IntegralPolicy::post_increment(get_storage()));
+  }
+
+  value_type operator--() noexcept {
+    return static_cast<value_type>(
+        IntegralPolicy::pre_decrement(get_storage()));
+  }
+
+  value_type operator--(int) noexcept {
+    return static_cast<value_type>(
+        IntegralPolicy::post_decrement(get_storage()));
+  }
+
+ protected:
+  using MyBase::get_storage;
+};
 
 template <size_t>
-struct InterlockedPolicy;
+struct integral_policy;
 
 template <>
-struct InterlockedPolicy<8> {
-  using value_type = char;
+struct integral_policy<32> {
+  using value_type = long;
 
-  static char exchange(volatile char* place, char new_value) noexcept {
-    return InterlockedExchange8(place, new_value);
+  static long add(volatile long* addend, long value) noexcept {
+    return InterlockedAdd(addend, value) - value;
   }
 
-  static char compare_exchange_strong(volatile char* place,
-                                      char desired,
-                                      char expected) noexcept {
-    return InterlockedCompareExchange8(place, desired, expected);
+  static long and (volatile long* place, long value) noexcept {
+    return InterlockedAnd(place, value);
+  }
+
+  static long or (volatile long* place, long value) noexcept {
+    return InterlockedOr(place, value);
+  }
+
+  static long xor (volatile long* place, long value) noexcept {
+    return InterlockedXor(place, value);
+  }
+
+  static long pre_increment(volatile long* addend) noexcept {
+    return InterlockedIncrement(addend);
+  }
+
+  static long post_increment(volatile long* addend) noexcept {
+    return InterlockedIncrement(addend) - 1;
+  }
+
+  static long pre_decrement(volatile long* addend) noexcept {
+    return InterlockedDecrement(addend);
+  }
+
+  static long post_decrement(volatile long* addend) noexcept {
+    return InterlockedDecrement(addend) + 1;
   }
 };
-//
-//#define DEFINE_ATOMIC_STORAGE(sizeoftype)                                    \
-//  template <class Ty>                                                        \
-//  struct atomic_storage<Ty, sizeoftype>                                      \
-//      : interlocked_storage<Ty, interlocked_policy<sizeoftype * CHAR_BIT>> { \
-//   public:                                                                   \
-//    using MyBase =                                                           \
-//        interlocked_storage<Ty, interlocked_policy<sizeoftype * CHAR_BIT>>;  \
-//                                                                             \
-//   public:                                                                   \
-//    using MyBase::load;                                                      \
-//    using MyBase::store;                                                     \
-//    using MyBase::exchange;                                                  \
-//    using MyBase::compare_exchange_strong;                                   \
-//  };
-//
-//DEFINE_ATOMIC_STORAGE(1)
-//DEFINE_ATOMIC_STORAGE(2)
-//DEFINE_ATOMIC_STORAGE(4)
-//DEFINE_ATOMIC_STORAGE(8)
-//
-//#undef DEFINE_ATOMIC_STORAGE
-}  // namespace th::details
 
-//template <class Ty, size_t = sizeof(Ty)>
-//struct atomic_integral;  // not defined
-//
-//template <class Ty, class InterlockedPolicy>
-//class integral_storage : public atomic_storage<Ty> {
-// public:
-//  using MyBase = atomic_storage<Ty>;
-//
-//  using value_type = Ty;
-//
-// private:
-//  using internal_value_type = typename InterlockedPolicy::value_type;
-//
-// public:
-//  template <memory_order order = memory_order_seq_cst>
-//  value_type fetch_add(const value_type operand) noexcept {
-//    return static_cast<value_type>(InterlockedPolicy::add(
-//        get_storage(), static_cast<internal_value_type>(operand)));
-//  }
-//
-//  template <memory_order order = memory_order_seq_cst>
-//  value_type fetch_and(const value_type operand) noexcept {
-//    return static_cast<value_type>(InterlockedPolicy::and(
-//        get_storage(), static_cast<internal_value_type>(operand)));
-//  }
-//
-//  template <memory_order order = memory_order_seq_cst>
-//  value_type fetch_or(const value_type operand) noexcept {
-//    return static_cast<value_type>(
-//        InterlockedPolicy:: or
-//        (get_storage(), static_cast<internal_value_type>(operand)));
-//  }
-//
-//  template <memory_order order = memory_order_seq_cst>
-//  value_type fetch_xor(const value_type operand) noexcept {
-//    return static_cast<value_type>(
-//        InterlockedPolicy:: xor
-//        (get_storage(), static_cast<internal_value_type>(operand)));
-//  }
-//
-//  value_type operator++(int) noexcept {
-//    return static_cast<value_type>(
-//        InterlockedPolicy::post_increment(get_storage()));
-//  }
-//
-//  value_type operator++() noexcept {
-//    return static_cast<value_type>(
-//        InterlockedPolicy::pre_increment(get_storage()));
-//  }
-//
-//  value_type operator--(int) noexcept {
-//    return static_cast<value_type>(
-//        InterlockedPolicy::post_decrement(get_storage()));
-//  }
-//
-//  value_type operator--() noexcept {
-//    return static_cast<value_type>(
-//        InterlockedPolicy::pre_decrement(get_storage()));
-//  }
-//
-// protected:
-//  using MyBase::get_storage;
-//};
-//
-//template <class Ty>
-//struct atomic_integral<Ty, 1>
-//    : atomic_storage<Ty> {  // atomic integral operations using 1-byte
-//                            // intrinsics
-//  using MyBase = atomic_storage<Ty>;
-//  using typename MyBase::ValueTy;
-//
-//  using MyBase::MyBase;
-//
-//  ValueTy fetch_add(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    char _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd8,
-//                     atomic_address_as<char>(this->_Storage),
-//                     static_cast<char>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_and(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    char _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedAnd8,
-//                     atomic_address_as<char>(this->_Storage),
-//                     static_cast<char>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_or(const ValueTy operand,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept {
-//    char _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedOr8,
-//                     atomic_address_as<char>(this->_Storage),
-//                     static_cast<char>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_xor(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    char _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedXor8,
-//                     atomic_address_as<char>(this->_Storage),
-//                     static_cast<char>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy operator++(int) noexcept {
-//    return static_cast<ValueTy>(
-//        _InterlockedExchangeAdd8(atomic_address_as<char>(this->_Storage), 1));
-//  }
-//
-//  ValueTy operator++() noexcept {
-//    unsigned char _Before = static_cast<unsigned char>(
-//        _InterlockedExchangeAdd8(atomic_address_as<char>(this->_Storage), 1));
-//    ++_Before;
-//    return static_cast<ValueTy>(_Before);
-//  }
-//
-//  ValueTy operator--(int) noexcept {
-//    return static_cast<Ty>(
-//        _InterlockedExchangeAdd8(atomic_address_as<char>(this->_Storage), -1));
-//  }
-//
-//  ValueTy operator--() noexcept {
-//    unsigned char _Before = static_cast<unsigned char>(
-//        _InterlockedExchangeAdd8(atomic_address_as<char>(this->_Storage), -1));
-//    --_Before;
-//    return static_cast<ValueTy>(_Before);
-//  }
-//};
-//
-//template <class Ty>
-//struct atomic_integral<Ty, 2>
-//    : atomic_storage<Ty> {  // atomic integral operations using 2-byte
-//                            // intrinsics
-//  using MyBase = atomic_storage<Ty>;
-//  using typename MyBase::ValueTy;
-//
-//  using MyBase::MyBase;
-//
-//  ValueTy fetch_add(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    short _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd16,
-//                     atomic_address_as<short>(this->_Storage),
-//                     static_cast<short>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_and(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    short _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedAnd16,
-//                     atomic_address_as<short>(this->_Storage),
-//                     static_cast<short>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_or(const ValueTy operand,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept {
-//    short _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedOr16,
-//                     atomic_address_as<short>(this->_Storage),
-//                     static_cast<short>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_xor(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    short _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedXor16,
-//                     atomic_address_as<short>(this->_Storage),
-//                     static_cast<short>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy operator++(int) noexcept {
-//    unsigned short _After = static_cast<unsigned short>(
-//        _InterlockedIncrement16(atomic_address_as<short>(this->_Storage)));
-//    --_After;
-//    return static_cast<ValueTy>(_After);
-//  }
-//
-//  ValueTy operator++() noexcept {
-//    return static_cast<ValueTy>(
-//        _InterlockedIncrement16(atomic_address_as<short>(this->_Storage)));
-//  }
-//
-//  ValueTy operator--(int) noexcept {
-//    unsigned short _After = static_cast<unsigned short>(
-//        _InterlockedDecrement16(atomic_address_as<short>(this->_Storage)));
-//    ++_After;
-//    return static_cast<ValueTy>(_After);
-//  }
-//
-//  ValueTy operator--() noexcept {
-//    return static_cast<ValueTy>(
-//        _InterlockedDecrement16(atomic_address_as<short>(this->_Storage)));
-//  }
-//};
-//
-//template <class Ty>
-//struct atomic_integral<Ty, 4>
-//    : atomic_storage<Ty> {  // atomic integral operations using 4-byte
-//                            // intrinsics
-//  using MyBase = atomic_storage<Ty>;
-//  using typename MyBase::ValueTy;
-//
-//  using MyBase::MyBase;
-//
-//  ValueTy fetch_add(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    long _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd,
-//                     atomic_address_as<long>(this->_Storage),
-//                     static_cast<long>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_and(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    long _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedAnd,
-//                     atomic_address_as<long>(this->_Storage),
-//                     static_cast<long>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_or(const ValueTy operand,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept {
-//    long _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedOr,
-//                     atomic_address_as<long>(this->_Storage),
-//                     static_cast<long>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_xor(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    long _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedXor,
-//                     atomic_address_as<long>(this->_Storage),
-//                     static_cast<long>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy operator++(int) noexcept {
-//    unsigned long _After = static_cast<unsigned long>(
-//        _InterlockedIncrement(atomic_address_as<long>(this->_Storage)));
-//    --_After;
-//    return static_cast<ValueTy>(_After);
-//  }
-//
-//  ValueTy operator++() noexcept {
-//    return static_cast<ValueTy>(
-//        _InterlockedIncrement(atomic_address_as<long>(this->_Storage)));
-//  }
-//
-//  ValueTy operator--(int) noexcept {
-//    unsigned long _After = static_cast<unsigned long>(
-//        _InterlockedDecrement(atomic_address_as<long>(this->_Storage)));
-//    ++_After;
-//    return static_cast<ValueTy>(_After);
-//  }
-//
-//  ValueTy operator--() noexcept {
-//    return static_cast<ValueTy>(
-//        _InterlockedDecrement(atomic_address_as<long>(this->_Storage)));
-//  }
-//};
-//
-//template <class Ty>
-//struct atomic_integral<Ty, 8>
-//    : atomic_storage<Ty> {  // atomic integral operations using 8-byte
-//                            // intrinsics
-//  using MyBase = atomic_storage<Ty>;
-//  using typename MyBase::ValueTy;
-//
-//  using MyBase::MyBase;
-//
-//#ifdef _M_IX86
-//  ValueTy fetch_add(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    // effectively sequential consistency
-//    ValueTy _Temp{this->load()};
-//    while (!this->compare_exchange_strong(_Temp, _Temp + operand,
-//                                          _Order)) {  // keep trying
-//    }
-//
-//    return _Temp;
-//  }
-//
-//  ValueTy fetch_and(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    // effectively sequential consistency
-//    ValueTy _Temp{this->load()};
-//    while (!this->compare_exchange_strong(_Temp, _Temp & operand,
-//                                          _Order)) {  // keep trying
-//    }
-//
-//    return _Temp;
-//  }
-//
-//  ValueTy fetch_or(const ValueTy operand,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept {
-//    // effectively sequential consistency
-//    ValueTy _Temp{this->load()};
-//    while (!this->compare_exchange_strong(_Temp, _Temp | operand,
-//                                          _Order)) {  // keep trying
-//    }
-//
-//    return _Temp;
-//  }
-//
-//  ValueTy fetch_xor(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    // effectively sequential consistency
-//    ValueTy _Temp{this->load()};
-//    while (!this->compare_exchange_strong(_Temp, _Temp ^ operand,
-//                                          _Order)) {  // keep trying
-//    }
-//
-//    return _Temp;
-//  }
-//
-//  ValueTy operator++(int) noexcept {
-//    return fetch_add(static_cast<ValueTy>(1));
-//  }
-//
-//  ValueTy operator++() noexcept {
-//    return fetch_add(static_cast<ValueTy>(1)) + static_cast<ValueTy>(1);
-//  }
-//
-//  ValueTy operator--(int) noexcept {
-//    return fetch_add(static_cast<ValueTy>(-1));
-//  }
-//
-//  ValueTy operator--() noexcept {
-//    return fetch_add(static_cast<ValueTy>(-1)) - static_cast<ValueTy>(1);
-//  }
-//
-//#else   // ^^^ _M_IX86 / !_M_IX86 vvv
-//  ValueTy fetch_add(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    long long _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd64,
-//                     atomic_address_as<long long>(this->_Storage),
-//                     static_cast<long long>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_and(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    long long _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedAnd64,
-//                     atomic_address_as<long long>(this->_Storage),
-//                     static_cast<long long>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_or(const ValueTy operand,
-//                   const memory_order _Order = memory_order_seq_cst) noexcept {
-//    long long _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedOr64,
-//                     atomic_address_as<long long>(this->_Storage),
-//                     static_cast<long long>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy fetch_xor(const ValueTy operand,
-//                    const memory_order _Order = memory_order_seq_cst) noexcept {
-//    long long _Result;
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedXor64,
-//                     atomic_address_as<long long>(this->_Storage),
-//                     static_cast<long long>(operand));
-//    return static_cast<ValueTy>(_Result);
-//  }
-//
-//  ValueTy operator++(int) noexcept {
-//    unsigned long long _After = static_cast<unsigned long long>(
-//        _InterlockedIncrement64(atomic_address_as<long long>(this->_Storage)));
-//    --_After;
-//    return static_cast<ValueTy>(_After);
-//  }
-//
-//  ValueTy operator++() noexcept {
-//    return static_cast<ValueTy>(
-//        _InterlockedIncrement64(atomic_address_as<long long>(this->_Storage)));
-//  }
-//
-//  ValueTy operator--(int) noexcept {
-//    unsigned long long _After = static_cast<unsigned long long>(
-//        _InterlockedDecrement64(atomic_address_as<long long>(this->_Storage)));
-//    ++_After;
-//    return static_cast<ValueTy>(_After);
-//  }
-//
-//  ValueTy operator--() noexcept {
-//    return static_cast<ValueTy>(
-//        _InterlockedDecrement64(atomic_address_as<long long>(this->_Storage)));
-//  }
-//#endif  // _M_IX86
-//};
-//}  // namespace th::details
+#define DEFINE_INTEGRAL_POLICY(type, bitness)                      \
+  template <>                                                      \
+  struct integral_policy<bitness> {                                \
+    using value_type = type;                                       \
+                                                                   \
+    static type add(volatile type* addend, type value) noexcept {  \
+      return InterlockedAdd##bitness(addend, value) - value;       \
+    }                                                              \
+                                                                   \
+    static type and (volatile type * place, type value) noexcept { \
+      return InterlockedAnd##bitness(place, value);                \
+    }                                                              \
+                                                                   \
+    static type or (volatile type * place, type value) noexcept {  \
+      return InterlockedOr##bitness(place, value);                 \
+    }                                                              \
+                                                                   \
+    static type xor (volatile type * place, type value) noexcept { \
+      return InterlockedXor##bitness(place, value);                \
+    }                                                              \
+                                                                   \
+    static type pre_increment(volatile type* addend) noexcept {    \
+      return InterlockedIncrement##bitness(addend);                \
+    }                                                              \
+                                                                   \
+    static type post_increment(volatile type* addend) noexcept {   \
+      return InterlockedIncrement##bitness(addend) - 1;            \
+    }                                                              \
+                                                                   \
+    static type pre_decrement(volatile type* addend) noexcept {    \
+      return InterlockedDecrement##bitness(addend);                \
+    }                                                              \
+                                                                   \
+    static type post_decrement(volatile type* addend) noexcept {   \
+      return InterlockedDecrement##bitness(addend) + 1;            \
+    }                                                              \
+  };
+
+DEFINE_INTEGRAL_POLICY(char, 8)
+DEFINE_INTEGRAL_POLICY(short, 16)
+DEFINE_INTEGRAL_POLICY(long long, 64)
+
+#undef DEFINE_INTEGRAL_POLICY
+
+template <class Ty, size_t>
+struct integral_storage;
+
+#define DEFINE_INTEGRAL_STORAGE(sizeoftype)                                \
+  template <class Ty>                                                      \
+  struct integral_storage<Ty, sizeoftype>                                  \
+      : interlocked_integral<Ty, integral_policy<sizeoftype * CHAR_BIT>> { \
+   public:                                                                 \
+    using MyBase =                                                         \
+        interlocked_integral<Ty, integral_policy<sizeoftype * CHAR_BIT>>;  \
+                                                                           \
+   public:                                                                 \
+    using MyBase::fetch_add;                                               \
+    using MyBase::fetch_and;                                               \
+    using MyBase::fetch_or;                                                \
+    using MyBase::fetch_xor;                                               \
+    using MyBase::operator++;                                              \
+    using MyBase::operator--;                                              \
+  };
+
+DEFINE_INTEGRAL_STORAGE(1)
+DEFINE_INTEGRAL_STORAGE(2)
+DEFINE_INTEGRAL_STORAGE(4)
+DEFINE_INTEGRAL_STORAGE(8)
+
+#undef DEFINE_INTEGRAL_STORAGE
 
 template <class Ty>
 struct is_always_lock_free {
@@ -863,164 +611,140 @@ struct is_always_lock_free {
 
 template <class Ty>
 inline constexpr bool is_always_lock_free_v = is_always_lock_free<Ty>::value;
-//
-//// STRUCT TEMPLATE atomic_integral_facade
-// template <class Ty>
-// struct atomic_integral_facade : atomic_integral<Ty> {
-//  // provides operator overloads and other support for atomic integral
-//  // specializations
-//  using MyBase = atomic_integral<Ty>;
-//  using difference_type = Ty;
-//
-//  // _Deprecate_non_lock_free_volatile is unnecessary here.
-//
-//  // note: const_cast-ing away volatile is safe because all our intrinsics add
-//  // volatile back on. We make the primary functions non-volatile for better
-//  // debug codegen, as non-volatile atomics are far more common than volatile
-//  // ones.
-//  using MyBase::fetch_add;
-//  Ty fetch_add(const Ty operand) volatile noexcept {
-//    return const_cast<atomic_integral_facade*>(this)->MyBase::fetch_add(
-//        operand);
-//  }
-//
-//  Ty fetch_add(const Ty operand, const memory_order _Order) volatile noexcept
-//  {
-//    return
-//    const_cast<atomic_integral_facade*>(this)->MyBase::fetch_add(operand,
-//                                                                        _Order);
-//  }
-//
-//  [[nodiscard]] static Ty _Negate(
-//      const Ty value) noexcept {  // returns two's complement negated value of
-//                                  // value
-//    return static_cast<Ty>(0U - static_cast<make_unsigned_t<Ty>>(value));
-//  }
-//
-//  Ty fetch_sub(const Ty operand) noexcept {
-//    return fetch_add(_Negate(operand));
-//  }
-//
-//  Ty fetch_sub(const Ty operand) volatile noexcept {
-//    return fetch_add(_Negate(operand));
-//  }
-//
-//  Ty fetch_sub(const Ty operand, const memory_order _Order) noexcept {
-//    return fetch_add(_Negate(operand), _Order);
-//  }
-//
-//  Ty fetch_sub(const Ty operand, const memory_order _Order) volatile noexcept
-//  {
-//    return fetch_add(_Negate(operand), _Order);
-//  }
-//
-//  using MyBase::fetch_and;
-//  Ty fetch_and(const Ty operand) volatile noexcept {
-//    return const_cast<atomic_integral_facade*>(this)->MyBase::fetch_and(
-//        operand);
-//  }
-//
-//  Ty fetch_and(const Ty operand, const memory_order _Order) volatile noexcept
-//  {
-//    return
-//    const_cast<atomic_integral_facade*>(this)->MyBase::fetch_and(operand,
-//                                                                        _Order);
-//  }
-//
-//  using MyBase::fetch_or;
-//  Ty fetch_or(const Ty operand) volatile noexcept {
-//    return
-//    const_cast<atomic_integral_facade*>(this)->MyBase::fetch_or(operand);
-//  }
-//
-//  Ty fetch_or(const Ty operand, const memory_order _Order) volatile noexcept {
-//    return
-//    const_cast<atomic_integral_facade*>(this)->MyBase::fetch_or(operand,
-//                                                                       _Order);
-//  }
-//
-//  using MyBase::fetch_xor;
-//  Ty fetch_xor(const Ty operand) volatile noexcept {
-//    return const_cast<atomic_integral_facade*>(this)->MyBase::fetch_xor(
-//        operand);
-//  }
-//
-//  Ty fetch_xor(const Ty operand, const memory_order _Order) volatile noexcept
-//  {
-//    return
-//    const_cast<atomic_integral_facade*>(this)->MyBase::fetch_xor(operand,
-//                                                                        _Order);
-//  }
-//
-//  using MyBase::operator++;
-//  Ty operator++(int) volatile noexcept {
-//    return const_cast<atomic_integral_facade*>(this)->MyBase::operator++(0);
-//  }
-//
-//  Ty operator++() volatile noexcept {
-//    return const_cast<atomic_integral_facade*>(this)->MyBase::operator++();
-//  }
-//
-//  using MyBase::operator--;
-//  Ty operator--(int) volatile noexcept {
-//    return const_cast<atomic_integral_facade*>(this)->MyBase::operator--(0);
-//  }
-//
-//  Ty operator--() volatile noexcept {
-//    return const_cast<atomic_integral_facade*>(this)->MyBase::operator--();
-//  }
-//
-//  Ty operator+=(const Ty operand) noexcept {
-//    return static_cast<Ty>(this->MyBase::fetch_add(operand) + operand);
-//  }
-//
-//  Ty operator+=(const Ty operand) volatile noexcept {
-//    return static_cast<Ty>(
-//        const_cast<atomic_integral_facade*>(this)->MyBase::fetch_add(operand)
-//        + operand);
-//  }
-//
-//  Ty operator-=(const Ty operand) noexcept {
-//    return static_cast<Ty>(fetch_sub(operand) - operand);
-//  }
-//
-//  Ty operator-=(const Ty operand) volatile noexcept {
-//    return static_cast<Ty>(
-//        const_cast<atomic_integral_facade*>(this)->fetch_sub(operand) -
-//        operand);
-//  }
-//
-//  Ty operator&=(const Ty operand) noexcept {
-//    return static_cast<Ty>(this->MyBase::fetch_and(operand) & operand);
-//  }
-//
-//  Ty operator&=(const Ty operand) volatile noexcept {
-//    return static_cast<Ty>(
-//        const_cast<atomic_integral_facade*>(this)->MyBase::fetch_and(operand)
-//        & operand);
-//  }
-//
-//  Ty operator|=(const Ty operand) noexcept {
-//    return static_cast<Ty>(this->MyBase::fetch_or(operand) | operand);
-//  }
-//
-//  Ty operator|=(const Ty operand) volatile noexcept {
-//    return static_cast<Ty>(
-//        const_cast<atomic_integral_facade*>(this)->MyBase::fetch_or(operand) |
-//        operand);
-//  }
-//
-//  Ty operator^=(const Ty operand) noexcept {
-//    return static_cast<Ty>(this->MyBase::fetch_xor(operand) ^ operand);
-//  }
-//
-//  Ty operator^=(const Ty operand) volatile noexcept {
-//    return static_cast<Ty>(
-//        const_cast<atomic_integral_facade*>(this)->MyBase::fetch_xor(operand)
-//        ^ operand);
-//  }
-//};
-//
+
+template <class Ty>
+struct integral_facade : integral_storage<Ty, sizeof(Ty)> {
+  using MyBase = integral_storage<Ty, sizeof(Ty)>;
+  using difference_type = Ty;
+
+  using MyBase::fetch_add;
+  Ty fetch_add(const Ty operand) volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::fetch_add(operand);
+  }
+
+  Ty fetch_add(const Ty operand, const memory_order _Order) volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::fetch_add(operand,
+                                                                 _Order);
+  }
+
+  Ty fetch_sub(const Ty operand) noexcept { return fetch_add(negate(operand)); }
+
+  Ty fetch_sub(const Ty operand) volatile noexcept {
+    return fetch_add(negate(operand));
+  }
+
+  Ty fetch_sub(const Ty operand, const memory_order _Order) noexcept {
+    return fetch_add(negate(operand), _Order);
+  }
+
+  Ty fetch_sub(const Ty operand, const memory_order _Order) volatile noexcept {
+    return fetch_add(negate(operand), _Order);
+  }
+
+  using MyBase::fetch_and;
+  Ty fetch_and(const Ty operand) volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::fetch_and(operand);
+  }
+
+  Ty fetch_and(const Ty operand, const memory_order _Order) volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::fetch_and(operand,
+                                                                 _Order);
+  }
+
+  using MyBase::fetch_or;
+  Ty fetch_or(const Ty operand) volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::fetch_or(operand);
+  }
+
+  Ty fetch_or(const Ty operand, const memory_order _Order) volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::fetch_or(operand,
+                                                                _Order);
+  }
+
+  using MyBase::fetch_xor;
+  Ty fetch_xor(const Ty operand) volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::fetch_xor(operand);
+  }
+
+  Ty fetch_xor(const Ty operand, const memory_order _Order) volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::fetch_xor(operand,
+                                                                 _Order);
+  }
+
+  using MyBase::operator++;
+  Ty operator++(int) volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::operator++(0);
+  }
+
+  Ty operator++() volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::operator++();
+  }
+
+  using MyBase::operator--;
+  Ty operator--(int) volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::operator--(0);
+  }
+
+  Ty operator--() volatile noexcept {
+    return const_cast<integral_facade*>(this)->MyBase::operator--();
+  }
+
+  Ty operator+=(const Ty operand) noexcept {
+    return static_cast<Ty>(this->MyBase::fetch_add(operand) + operand);
+  }
+
+  Ty operator+=(const Ty operand) volatile noexcept {
+    return static_cast<Ty>(
+        const_cast<integral_facade*>(this)->MyBase::fetch_add(operand) +
+        operand);
+  }
+
+  Ty operator-=(const Ty operand) noexcept {
+    return static_cast<Ty>(fetch_sub(operand) - operand);
+  }
+
+  Ty operator-=(const Ty operand) volatile noexcept {
+    return static_cast<Ty>(
+        const_cast<integral_facade*>(this)->fetch_sub(operand) - operand);
+  }
+
+  Ty operator&=(const Ty operand) noexcept {
+    return static_cast<Ty>(this->MyBase::fetch_and(operand) & operand);
+  }
+
+  Ty operator&=(const Ty operand) volatile noexcept {
+    return static_cast<Ty>(
+        const_cast<integral_facade*>(this)->MyBase::fetch_and(operand) &
+        operand);
+  }
+
+  Ty operator|=(const Ty operand) noexcept {
+    return static_cast<Ty>(this->MyBase::fetch_or(operand) | operand);
+  }
+
+  Ty operator|=(const Ty operand) volatile noexcept {
+    return static_cast<Ty>(
+        const_cast<integral_facade*>(this)->MyBase::fetch_or(operand) |
+        operand);
+  }
+
+  Ty operator^=(const Ty operand) noexcept {
+    return static_cast<Ty>(this->MyBase::fetch_xor(operand) ^ operand);
+  }
+
+  Ty operator^=(const Ty operand) volatile noexcept {
+    return static_cast<Ty>(
+        const_cast<integral_facade*>(this)->MyBase::fetch_xor(operand) ^
+        operand);
+  }
+
+  [[nodiscard]] static Ty negate(
+      const Ty value) noexcept {  // returns two's complement negated value of
+                                  // value
+    return static_cast<Ty>(0U - static_cast<make_unsigned_t<Ty>>(value));
+  }
+};
+
 //// STRUCT TEMPLATE atomic_integral_facade
 // template <class Ty>
 // struct atomic_integral_facade<Ty&> : atomic_integral<Ty&> {
@@ -1109,7 +833,10 @@ inline constexpr bool is_always_lock_free_v = is_always_lock_free<Ty>::value;
 //    return static_cast<Ty>(fetch_xor(operand) ^ operand);
 //  }
 //};
-//
+
+template <class Ty>
+struct atomic_floating;
+
 // template <class Ty>
 // struct atomic_floating : atomic_storage<Ty> {
 //  // provides atomic floating-point operations
@@ -1213,7 +940,10 @@ inline constexpr bool is_always_lock_free_v = is_always_lock_free<Ty>::value;
 //    return fetch_sub(operand) - operand;
 //  }
 //};
-//
+
+template <class Ty>
+struct atomic_pointer;
+
 //// STRUCT TEMPLATE atomic_pointer
 // template <class Ty>
 // struct atomic_pointer : atomic_storage<Ty> {
@@ -1356,189 +1086,189 @@ inline constexpr bool is_always_lock_free_v = is_always_lock_free<Ty>::value;
 //  }
 //};
 //
-// template <bool Cond>
-// struct atomic_template_selector {
-//  template <class Ty1, class>
-//  using type = Ty1;
-//};
-//
-// template <>
-// struct atomic_template_selector<false> {
-//  template <class, class Ty2>
-//  using type = Ty2;
-//};
-//
-// template <class ValueTy, class Ty = ValueTy>
-// struct atomic_base_type_selector {
-//  using type =
-//      typename atomic_template_selector<
-//          is_floating_point_v<ValueTy>>::template type < atomic_floating<Ty>,
-//        typename atomic_template_selector<is_integral_v<ValueTy> &&
-//                                          !is_same_v<bool, ValueTy>>::
-//            template type<
-//                atomic_integral_facade<Ty>,
-//                typename atomic_template_selector<
-//                    is_pointer_v<ValueTy> &&
-//                    is_object_v<remove_pointer_t<ValueTy>>>::
-//                    template type<atomic_pointer<Ty>, atomic_storage<Ty>>>;
-//};
-//
-// template <class Ty>
-// using atomic_base_t = typename atomic_base_type_selector<Ty>::type;
-//
-//// template <class _TVal, class _Ty = _TVal>
-//// using atomic_base_t =
-////    typename _Select<>::template _Apply<atomic_floating<_Ty>,
-////                                        _Choose_atomic_base2_t<_TVal, _Ty>>;
-//
-// template <class Ty>
-// struct atomic : atomic_base_t<Ty> {  // atomic value
-// private:
-//  using MyBase = atomic_base_t<Ty>;
-//
-// public:
-//  static_assert(is_trivially_copyable_v<Ty> && is_copy_constructible_v<Ty> &&
-//                    is_move_constructible_v<Ty> && is_copy_assignable_v<Ty> &&
-//                    is_move_assignable_v<Ty>,
-//                "atomic<Ty> requires T to be trivially copyable, copy "
-//                "constructible, move "
-//                "constructible, copy assignable, and move assignable");
-//
-//  using value_type = Ty;
-//
-//  constexpr atomic() noexcept(is_nothrow_default_constructible_v<Ty>)
-//      : MyBase() {}
-//
-//  atomic(const atomic&) = delete;
-//  atomic& operator=(const atomic&) = delete;
-//
-//  static constexpr bool is_always_lock_free = is_always_lock_free_v<Ty>;
-//
-//  [[nodiscard]] bool is_lock_free() const volatile noexcept {
-//    return is_always_lock_free_v<Ty>;
-//  }
-//
-//  [[nodiscard]] bool is_lock_free() const noexcept {
-//    return static_cast<const volatile atomic*>(this)->is_lock_free();
-//  }
-//
-//  Ty operator=(const Ty value) volatile noexcept {
-//    this->store(value);
-//    return value;
-//  }
-//
-//  Ty operator=(const Ty value) noexcept {
-//    this->store(value);
-//    return value;
-//  }
-//
-//  using MyBase::store;
-//
-//  void store(const Ty value) volatile noexcept {
-//    const_cast<atomic*>(this)->MyBase::store(value);
-//  }
-//
-//  void store(const Ty value, const memory_order _Order) volatile noexcept {
-//    const_cast<atomic*>(this)->MyBase::store(value, _Order);
-//  }
-//
-//  using MyBase::load;
-//  [[nodiscard]] Ty load() const volatile noexcept {
-//    return const_cast<const atomic*>(this)->MyBase::load();
-//  }
-//
-//  [[nodiscard]] Ty load(const memory_order _Order) const volatile noexcept {
-//    return const_cast<const atomic*>(this)->MyBase::load(_Order);
-//  }
-//
-//  using MyBase::exchange;
-//  Ty exchange(const Ty value) volatile noexcept {
-//    return const_cast<atomic*>(this)->MyBase::exchange(value);
-//  }
-//
-//  Ty exchange(const Ty value, const memory_order _Order) volatile noexcept {
-//    return const_cast<atomic*>(this)->MyBase::exchange(value, _Order);
-//  }
-//
-//  using MyBase::compare_exchange_strong;
-//  bool compare_exchange_strong(Ty& expected,
-//                               const Ty desired) volatile noexcept {
-//    return
-//    const_cast<atomic*>(this)->MyBase::compare_exchange_strong(expected,
-//                                                                      desired);
-//  }
-//
-//  bool compare_exchange_strong(Ty& expected,
-//                               const Ty desired,
-//                               const memory_order _Order) volatile noexcept {
-//    return const_cast<atomic*>(this)->MyBase::compare_exchange_strong(
-//        expected, desired, _Order);
-//  }
-//
-//  bool compare_exchange_strong(Ty& expected,
-//                               const Ty desired,
-//                               const memory_order _Success,
-//                               const memory_order _Failure) volatile noexcept
-//                               {
-//    return this->compare_exchange_strong(
-//        expected, desired, combine_cas_memory_orders(_Success, _Failure));
-//  }
-//
-//  bool compare_exchange_strong(Ty& expected,
-//                               const Ty desired,
-//                               const memory_order _Success,
-//                               const memory_order _Failure) noexcept {
-//    return this->compare_exchange_strong(
-//        expected, desired, combine_cas_memory_orders(_Success, _Failure));
-//  }
-//
-//  bool compare_exchange_weak(Ty& expected, const Ty desired) volatile noexcept
-//  {
-//    // we have no weak CAS intrinsics, even on ARM32/ARM64, so fall back to
-//    // strong
-//
-//    return this->compare_exchange_strong(expected, desired);
-//  }
-//
-//  bool compare_exchange_weak(Ty& expected, const Ty desired) noexcept {
-//    return this->compare_exchange_strong(expected, desired);
-//  }
-//
-//  bool compare_exchange_weak(Ty& expected,
-//                             const Ty desired,
-//                             const memory_order _Order) volatile noexcept {
-//    return this->compare_exchange_strong(expected, desired, _Order);
-//  }
-//
-//  bool compare_exchange_weak(Ty& expected,
-//                             const Ty desired,
-//                             const memory_order _Order) noexcept {
-//    return this->compare_exchange_strong(expected, desired, _Order);
-//  }
-//
-//  bool compare_exchange_weak(Ty& expected,
-//                             const Ty desired,
-//                             const memory_order _Success,
-//                             const memory_order _Failure) volatile noexcept {
-//    return this->compare_exchange_strong(
-//        expected, desired, combine_cas_memory_orders(_Success, _Failure));
-//  }
-//
-//  bool compare_exchange_weak(Ty& expected,
-//                             const Ty desired,
-//                             const memory_order _Success,
-//                             const memory_order _Failure) noexcept {
-//    return this->compare_exchange_strong(
-//        expected, desired, combine_cas_memory_orders(_Success, _Failure));
-//  }
-//
-//  operator Ty() const volatile noexcept { return this->load(); }
-//
-//  operator Ty() const noexcept { return this->load(); }
-//};
-//
-// template <class Ty>
-// atomic(Ty) -> atomic<Ty>;
+
+}  // namespace th::details
+
+template <bool Cond>
+struct atomic_template_selector {
+  template <class Ty1, class>
+  using type = Ty1;
+};
+
+template <>
+struct atomic_template_selector<false> {
+  template <class, class Ty2>
+  using type = Ty2;
+};
+
+template <class Ty, class ValueTy = Ty>
+struct atomic_base_type_selector {
+  using type =
+      typename atomic_template_selector<is_floating_point_v<Ty>>::template type<
+          th::details::atomic_floating<ValueTy>,
+          typename atomic_template_selector<is_integral_v<Ty> &&
+                                            !is_same_v<bool, Ty>>::
+              template type<
+                  th::details::integral_facade<ValueTy>,
+                  typename atomic_template_selector<
+                      is_pointer_v<Ty> && is_object_v<remove_pointer_t<Ty>>>::
+                      template type<th::details::atomic_pointer<ValueTy>,
+                                    th::details::atomic_storage<ValueTy>>>>;
+};
+
+template <class Ty>
+using atomic_base_t = typename atomic_base_type_selector<Ty>::type;
+
+// template <class _TVal, class _Ty = _TVal>
+// using atomic_base_t =
+//    typename _Select<>::template _Apply<atomic_floating<_Ty>,
+//                                        _Choose_atomic_base2_t<_TVal, _Ty>>;
+
+template <class Ty>
+class atomic : public atomic_base_t<Ty> {  // atomic value
+ private:
+  using MyBase = atomic_base_t<Ty>;
+
+ public:
+  using value_type = Ty;
+
+ public:
+  static constexpr bool is_always_lock_free =
+      th::details::is_always_lock_free_v<Ty>;
+
+ public:
+  static_assert(
+      is_trivially_copyable_v<Ty> && is_copy_constructible_v<Ty> &&
+          is_move_constructible_v<Ty> && is_copy_assignable_v<Ty> &&
+          is_move_assignable_v<Ty>,
+      "atomic<Ty> requires T to be trivially copyable, copy constructible, "
+      "move constructible, copy assignable, and move assignable");
+
+ public:
+  constexpr atomic() noexcept(is_nothrow_default_constructible_v<Ty>) = default;
+
+  atomic(const atomic&) = delete;
+  atomic& operator=(const atomic&) = delete;
+
+  [[nodiscard]] bool is_lock_free() const volatile noexcept {
+    return is_always_lock_free_v<Ty>;
+  }
+
+  [[nodiscard]] bool is_lock_free() const noexcept {
+    return static_cast<const volatile atomic*>(this)->is_lock_free();
+  }
+
+  Ty operator=(const Ty value) volatile noexcept {
+    MyBase::store(value);
+    return value;
+  }
+
+  Ty operator=(const Ty value) noexcept {
+    MyBase::store(value);
+    return value;
+  }
+
+  using MyBase::store;
+
+  void store(const Ty value) volatile noexcept {
+    const_cast<atomic*>(this)->MyBase::store(value);
+  }
+
+  template <memory_order order>
+  void store(const Ty value) volatile noexcept {
+    const_cast<atomic*>(this)->MyBase::store<order>(value);
+  }
+
+  using MyBase::load;
+  [[nodiscard]] Ty load() const volatile noexcept {
+    return const_cast<const atomic*>(this)->MyBase::load();
+  }
+
+  template <memory_order order>
+  [[nodiscard]] Ty load() const volatile noexcept {
+    return const_cast<const atomic*>(this)->MyBase::load<order>();
+  }
+
+  using MyBase::exchange;
+  Ty exchange(const Ty value) volatile noexcept {
+    return const_cast<atomic*>(this)->MyBase::exchange(value);
+  }
+
+  template <memory_order order>
+  Ty exchange(const Ty value) volatile noexcept {
+    return const_cast<atomic*>(this)->MyBase::exchange<order>(value);
+  }
+
+  using MyBase::compare_exchange_strong;
+
+  bool compare_exchange_strong(Ty& expected,
+                               const Ty desired) volatile noexcept {
+    return const_cast<atomic*>(this)->MyBase::compare_exchange_strong(expected,
+                                                                      desired);
+  }
+
+  template <memory_order order>
+  bool compare_exchange_strong(Ty& expected,
+                               const Ty desired) volatile noexcept {
+    return const_cast<atomic*>(this)->MyBase::compare_exchange_strong<order>(
+        expected, desired);
+  }
+
+  template <memory_order on_success, memory_order on_failure>
+  bool compare_exchange_strong(Ty& expected,
+                               const Ty desired) volatile noexcept {
+    return MyBase::compare_exchange_strong<
+        combine_cas_memory_orders<on_success, on_failure>>(expected, desired);
+  }
+
+  template <memory_order on_success, memory_order on_failure>
+  bool compare_exchange_strong(Ty& expected,
+                               const Ty desired,
+                               const memory_order _Success,
+                               const memory_order _Failure) noexcept {
+    return MyBase::compare_exchange_strong<
+        combine_cas_memory_orders<on_success, on_failure>>(expected, desired);
+  }
+
+  bool compare_exchange_weak(Ty& expected, const Ty desired) volatile noexcept {
+    // MSVC have no weak CAS intrinsics, even on ARM32/ARM64, so fall back
+    // to strong
+
+    return MyBase::compare_exchange_strong(expected, desired);
+  }
+
+  bool compare_exchange_weak(Ty& expected, const Ty desired) noexcept {
+    return MyBase::compare_exchange_strong(expected, desired);
+  }
+
+  template <memory_order order>
+  bool compare_exchange_weak(Ty& expected, const Ty desired) volatile noexcept {
+    return MyBase::compare_exchange_strong<order>(expected, desired);
+  }
+
+  template <memory_order order>
+  bool compare_exchange_weak(Ty& expected, const Ty desired) noexcept {
+    return MyBase::compare_exchange_strong<order>(expected, desired);
+  }
+
+  template <memory_order on_success, memory_order on_failure>
+  bool compare_exchange_weak(Ty& expected, const Ty desired) volatile noexcept {
+    return MyBase::compare_exchange_strong<
+        combine_cas_memory_orders<on_success, on_failure>>(expected, desired);
+  }
+
+  template <memory_order on_success, memory_order on_failure>
+  bool compare_exchange_weak(Ty& expected, const Ty desired) noexcept {
+    return MyBase::compare_exchange_strong<
+        combine_cas_memory_orders<on_success, on_failure>>(expected, desired);
+  }
+
+  operator Ty() const volatile noexcept { return load(); }
+  operator Ty() const noexcept { return load(); }
+};
+
+template <class Ty>
+atomic(Ty) -> atomic<Ty>;
 //
 // template <class Ty>
 // struct atomic_ref : atomic_base_t<Ty, Ty&> {  // atomic reference
@@ -1960,40 +1690,39 @@ inline constexpr bool is_always_lock_free_v = is_always_lock_free<Ty>::value;
 //  return target->fetch_xor(value, _Order);
 //}
 //
-//// ATOMIC TYPEDEFS
-// using atomic_bool = atomic<bool>;
-//
-// using atomic_char = atomic<char>;
-// using atomic_schar = atomic<signed char>;
-// using atomic_uchar = atomic<unsigned char>;
-// using atomic_short = atomic<short>;
-// using atomic_ushort = atomic<unsigned short>;
-// using atomic_int = atomic<int>;
-// using atomic_uint = atomic<unsigned int>;
-// using atomic_long = atomic<long>;
-// using atomic_ulong = atomic<unsigned long>;
-// using atomic_llong = atomic<long long>;
-// using atomic_ullong = atomic<unsigned long long>;
-//
-// using atomic_char16_t = atomic<char16_t>;
-// using atomic_char32_t = atomic<char32_t>;
-// using atomic_wchar_t = atomic<wchar_t>;
-//
-// using atomic_int8_t = atomic<int8_t>;
-// using atomic_uint8_t = atomic<uint8_t>;
-// using atomic_int16_t = atomic<int16_t>;
-// using atomic_uint16_t = atomic<uint16_t>;
-// using atomic_int32_t = atomic<int32_t>;
-// using atomic_uint32_t = atomic<uint32_t>;
-// using atomic_int64_t = atomic<int64_t>;
-// using atomic_uint64_t = atomic<uint64_t>;
-//
-// using atomic_intptr_t = atomic<intptr_t>;
-// using atomic_uintptr_t = atomic<uintptr_t>;
-// using atomic_size_t = atomic<size_t>;
-// using atomic_ptrdiff_t = atomic<ptrdiff_t>;
-// using atomic_intmax_t = atomic<intmax_t>;
-// using atomic_uintmax_t = atomic<uintmax_t>;
+using atomic_bool = atomic<bool>;
+
+using atomic_char = atomic<char>;
+using atomic_schar = atomic<signed char>;
+using atomic_uchar = atomic<unsigned char>;
+using atomic_short = atomic<short>;
+using atomic_ushort = atomic<unsigned short>;
+using atomic_int = atomic<int>;
+using atomic_uint = atomic<unsigned int>;
+using atomic_long = atomic<long>;
+using atomic_ulong = atomic<unsigned long>;
+using atomic_llong = atomic<long long>;
+using atomic_ullong = atomic<unsigned long long>;
+
+using atomic_char16_t = atomic<char16_t>;
+using atomic_char32_t = atomic<char32_t>;
+using atomic_wchar_t = atomic<wchar_t>;
+
+using atomic_int8_t = atomic<int8_t>;
+using atomic_uint8_t = atomic<uint8_t>;
+using atomic_int16_t = atomic<int16_t>;
+using atomic_uint16_t = atomic<uint16_t>;
+using atomic_int32_t = atomic<int32_t>;
+using atomic_uint32_t = atomic<uint32_t>;
+using atomic_int64_t = atomic<int64_t>;
+using atomic_uint64_t = atomic<uint64_t>;
+
+using atomic_intptr_t = atomic<intptr_t>;
+using atomic_uintptr_t = atomic<uintptr_t>;
+using atomic_size_t = atomic<size_t>;
+using atomic_ptrdiff_t = atomic<ptrdiff_t>;
+using atomic_intmax_t = atomic<intmax_t>;
+using atomic_uintmax_t = atomic<uintmax_t>;
 //
 //// STRUCT atomic_flag
 //#define ATOMIC_FLAG_INIT \
