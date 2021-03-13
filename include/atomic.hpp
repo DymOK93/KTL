@@ -745,348 +745,82 @@ struct integral_facade : integral_storage<Ty, sizeof(Ty)> {
   }
 };
 
-//// STRUCT TEMPLATE atomic_integral_facade
-// template <class Ty>
-// struct atomic_integral_facade<Ty&> : atomic_integral<Ty&> {
-//  // provides operator overloads and other support for atomic integral
-//  // specializations
-//  using MyBase = atomic_integral<Ty&>;
-//  using difference_type = Ty;
-//
-//  using MyBase::MyBase;
-//
-//  [[nodiscard]] static Ty _Negate(
-//      const Ty value) noexcept {  // returns two's complement negated value of
-//                                  // value
-//    return static_cast<Ty>(0U - static_cast<make_unsigned_t<Ty>>(value));
-//  }
-//
-//  Ty fetch_add(const Ty operand) const noexcept {
-//    return const_cast<atomic_integral_facade*>(this)->MyBase::fetch_add(
-//        operand);
-//  }
-//
-//  Ty fetch_add(const Ty operand, const memory_order _Order) const noexcept {
-//    return
-//    const_cast<atomic_integral_facade*>(this)->MyBase::fetch_add(operand,
-//                                                                        _Order);
-//  }
-//
-//  Ty fetch_sub(const Ty operand) const noexcept {
-//    return fetch_add(_Negate(operand));
-//  }
-//
-//  Ty fetch_sub(const Ty operand, const memory_order _Order) const noexcept {
-//    return fetch_add(_Negate(operand), _Order);
-//  }
-//
-//  Ty operator+=(const Ty operand) const noexcept {
-//    return static_cast<Ty>(fetch_add(operand) + operand);
-//  }
-//
-//  Ty operator-=(const Ty operand) const noexcept {
-//    return static_cast<Ty>(fetch_sub(operand) - operand);
-//  }
-//
-//  Ty fetch_and(const Ty operand) const noexcept {
-//    return const_cast<atomic_integral_facade*>(this)->MyBase::fetch_and(
-//        operand);
-//  }
-//
-//  Ty fetch_and(const Ty operand, const memory_order _Order) const noexcept {
-//    return
-//    const_cast<atomic_integral_facade*>(this)->MyBase::fetch_and(operand,
-//                                                                        _Order);
-//  }
-//
-//  Ty fetch_or(const Ty operand) const noexcept {
-//    return
-//    const_cast<atomic_integral_facade*>(this)->MyBase::fetch_or(operand);
-//  }
-//
-//  Ty fetch_or(const Ty operand, const memory_order _Order) const noexcept {
-//    return
-//    const_cast<atomic_integral_facade*>(this)->MyBase::fetch_or(operand,
-//                                                                       _Order);
-//  }
-//
-//  Ty fetch_xor(const Ty operand) const noexcept {
-//    return const_cast<atomic_integral_facade*>(this)->MyBase::fetch_xor(
-//        operand);
-//  }
-//
-//  Ty fetch_xor(const Ty operand, const memory_order _Order) const noexcept {
-//    return
-//    const_cast<atomic_integral_facade*>(this)->MyBase::fetch_xor(operand,
-//                                                                        _Order);
-//  }
-//
-//  Ty operator&=(const Ty operand) const noexcept {
-//    return static_cast<Ty>(fetch_and(operand) & operand);
-//  }
-//
-//  Ty operator|=(const Ty operand) const noexcept {
-//    return static_cast<Ty>(fetch_or(operand) | operand);
-//  }
-//
-//  Ty operator^=(const Ty operand) const noexcept {
-//    return static_cast<Ty>(fetch_xor(operand) ^ operand);
-//  }
-//};
-
 template <class Ty>
-struct atomic_floating;
-
-// template <class Ty>
-// struct atomic_floating : atomic_storage<Ty> {
-//  // provides atomic floating-point operations
-//  using MyBase = atomic_storage<Ty>;
-//  using difference_type = Ty;
-//
-//  using MyBase::MyBase;
-//
-//  Ty fetch_add(const Ty operand,
-//               const memory_order _Order = memory_order_seq_cst) noexcept {
-//    Ty _Temp{this->load(memory_order_relaxed)};
-//    while (!this->compare_exchange_strong(_Temp, _Temp + operand,
-//                                          _Order)) {  // keep trying
-//    }
-//
-//    return _Temp;
-//  }
-//
-//  // _Deprecate_non_lock_free_volatile is unnecessary here.
-//
-//  // note: const_cast-ing away volatile is safe because all our intrinsics add
-//  // volatile back on. We make the primary functions non-volatile for better
-//  // debug codegen, as non-volatile atomics are far more common than volatile
-//  // ones.
-//  Ty fetch_add(
-//      const Ty operand,
-//      const memory_order _Order = memory_order_seq_cst) volatile noexcept {
-//    return const_cast<atomic_floating*>(this)->fetch_add(operand, _Order);
-//  }
-//
-//  Ty fetch_sub(const Ty operand,
-//               const memory_order _Order = memory_order_seq_cst) noexcept {
-//    Ty _Temp{this->load(memory_order_relaxed)};
-//    while (!this->compare_exchange_strong(_Temp, _Temp - operand,
-//                                          _Order)) {  // keep trying
-//    }
-//
-//    return _Temp;
-//  }
-//
-//  Ty fetch_sub(
-//      const Ty operand,
-//      const memory_order _Order = memory_order_seq_cst) volatile noexcept {
-//    return const_cast<atomic_floating*>(this)->fetch_sub(operand, _Order);
-//  }
-//
-//  Ty operator+=(const Ty operand) noexcept {
-//    return fetch_add(operand) + operand;
-//  }
-//
-//  Ty operator+=(const Ty operand) volatile noexcept {
-//    return const_cast<atomic_floating*>(this)->fetch_add(operand) + operand;
-//  }
-//
-//  Ty operator-=(const Ty operand) noexcept {
-//    return fetch_sub(operand) - operand;
-//  }
-//
-//  Ty operator-=(const Ty operand) volatile noexcept {
-//    return const_cast<atomic_floating*>(this)->fetch_sub(operand) - operand;
-//  }
-//};
-//
-// template <class Ty>
-// struct atomic_floating<Ty&> : atomic_storage<Ty&> {
-//  // provides atomic floating-point operations
-//  using MyBase = atomic_storage<Ty&>;
-//  using difference_type = Ty;
-//
-//  using MyBase::MyBase;
-//
-//  Ty fetch_add(
-//      const Ty operand,
-//      const memory_order _Order = memory_order_seq_cst) const noexcept {
-//    Ty _Temp{this->load(memory_order_relaxed)};
-//    while
-//    (!const_cast<atomic_floating*>(this)->MyBase::compare_exchange_strong(
-//        _Temp, _Temp + operand, _Order)) {  // keep trying
-//    }
-//
-//    return _Temp;
-//  }
-//
-//  Ty fetch_sub(
-//      const Ty operand,
-//      const memory_order _Order = memory_order_seq_cst) const noexcept {
-//    Ty _Temp{this->load(memory_order_relaxed)};
-//    while
-//    (!const_cast<atomic_floating*>(this)->MyBase::compare_exchange_strong(
-//        _Temp, _Temp - operand, _Order)) {  // keep trying
-//    }
-//
-//    return _Temp;
-//  }
-//
-//  Ty operator+=(const Ty operand) const noexcept {
-//    return fetch_add(operand) + operand;
-//  }
-//
-//  Ty operator-=(const Ty operand) const noexcept {
-//    return fetch_sub(operand) - operand;
-//  }
-//};
+struct atomic_floating {
+  static_assert(always_false_v<Ty>, "not implemented");
+};
 
 template <class Ty>
 struct atomic_pointer;
 
-//// STRUCT TEMPLATE atomic_pointer
-// template <class Ty>
-// struct atomic_pointer : atomic_storage<Ty> {
-//  using MyBase = atomic_storage<Ty>;
-//  using difference_type = ptrdiff_t;
-//
-//  using MyBase::MyBase;
-//
-//  Ty fetch_add(const ptrdiff_t _Diff,
-//               const memory_order _Order = memory_order_seq_cst) noexcept {
-//    const ptrdiff_t _Shift_bytes = static_cast<ptrdiff_t>(
-//        static_cast<size_t>(_Diff) * sizeof(remove_pointer_t<Ty>));
-//    ptrdiff_t _Result;
-//#if defined(_M_IX86) || defined(_M_ARM)
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd,
-//                     atomic_address_as<long>(this->_Storage), _Shift_bytes);
-//#else   // ^^^ 32 bits / 64 bits vvv
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd64,
-//                     atomic_address_as<long long>(this->_Storage),
-//                     _Shift_bytes);
-//#endif  // hardware
-//    return reinterpret_cast<Ty>(_Result);
-//  }
-//
-//  // _Deprecate_non_lock_free_volatile is unnecessary here.
-//
-//  Ty fetch_add(const ptrdiff_t _Diff) volatile noexcept {
-//    return const_cast<atomic_pointer*>(this)->fetch_add(_Diff);
-//  }
-//
-//  Ty fetch_add(const ptrdiff_t _Diff,
-//               const memory_order _Order) volatile noexcept {
-//    return const_cast<atomic_pointer*>(this)->fetch_add(_Diff, _Order);
-//  }
-//
-//  Ty fetch_sub(const ptrdiff_t _Diff) volatile noexcept {
-//    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(_Diff)));
-//  }
-//
-//  Ty fetch_sub(const ptrdiff_t _Diff) noexcept {
-//    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(_Diff)));
-//  }
-//
-//  Ty fetch_sub(const ptrdiff_t _Diff,
-//               const memory_order _Order) volatile noexcept {
-//    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(_Diff)),
-//                     _Order);
-//  }
-//
-//  Ty fetch_sub(const ptrdiff_t _Diff, const memory_order _Order) noexcept {
-//    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(_Diff)),
-//                     _Order);
-//  }
-//
-//  Ty operator++(int) volatile noexcept { return fetch_add(1); }
-//
-//  Ty operator++(int) noexcept { return fetch_add(1); }
-//
-//  Ty operator++() volatile noexcept { return fetch_add(1) + 1; }
-//
-//  Ty operator++() noexcept { return fetch_add(1) + 1; }
-//
-//  Ty operator--(int) volatile noexcept { return fetch_add(-1); }
-//
-//  Ty operator--(int) noexcept { return fetch_add(-1); }
-//
-//  Ty operator--() volatile noexcept { return fetch_add(-1) - 1; }
-//
-//  Ty operator--() noexcept { return fetch_add(-1) - 1; }
-//
-//  Ty operator+=(const ptrdiff_t _Diff) volatile noexcept {
-//    return fetch_add(_Diff) + _Diff;
-//  }
-//
-//  Ty operator+=(const ptrdiff_t _Diff) noexcept {
-//    return fetch_add(_Diff) + _Diff;
-//  }
-//
-//  Ty operator-=(const ptrdiff_t _Diff) volatile noexcept {
-//    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(_Diff))) -
-//           _Diff;
-//  }
-//
-//  Ty operator-=(const ptrdiff_t _Diff) noexcept {
-//    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(_Diff))) -
-//           _Diff;
-//  }
-//};
-//
-//// STRUCT TEMPLATE atomic_pointer
-// template <class Ty>
-// struct atomic_pointer<Ty&> : atomic_storage<Ty&> {
-//  using MyBase = atomic_storage<Ty&>;
-//  using difference_type = ptrdiff_t;
-//
-//  using MyBase::MyBase;
-//
-//  Ty fetch_add(
-//      const ptrdiff_t _Diff,
-//      const memory_order _Order = memory_order_seq_cst) const noexcept {
-//    const ptrdiff_t _Shift_bytes = static_cast<ptrdiff_t>(
-//        static_cast<size_t>(_Diff) * sizeof(remove_pointer_t<Ty>));
-//    ptrdiff_t _Result;
-//#if defined(_M_IX86) || defined(_M_ARM)
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd,
-//                     atomic_address_as<long>(this->_Storage), _Shift_bytes);
-//#else   // ^^^ 32 bits / 64 bits vvv
-//    ATOMIC_INTRINSIC(_Order, _Result, _InterlockedExchangeAdd64,
-//                     atomic_address_as<long long>(this->_Storage),
-//                     _Shift_bytes);
-//#endif  // hardware
-//    return reinterpret_cast<Ty>(_Result);
-//  }
-//
-//  Ty fetch_sub(const ptrdiff_t _Diff) const noexcept {
-//    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(_Diff)));
-//  }
-//
-//  Ty fetch_sub(const ptrdiff_t _Diff,
-//               const memory_order _Order) const noexcept {
-//    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(_Diff)),
-//                     _Order);
-//  }
-//
-//  Ty operator++(int) const noexcept { return fetch_add(1); }
-//
-//  Ty operator++() const noexcept { return fetch_add(1) + 1; }
-//
-//  Ty operator--(int) const noexcept { return fetch_add(-1); }
-//
-//  Ty operator--() const noexcept { return fetch_add(-1) - 1; }
-//
-//  Ty operator+=(const ptrdiff_t _Diff) const noexcept {
-//    return fetch_add(_Diff) + _Diff;
-//  }
-//
-//  Ty operator-=(const ptrdiff_t _Diff) const noexcept {
-//    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(_Diff))) -
-//           _Diff;
-//  }
-//};
-//
+template <class Ty>
+struct atomic_pointer : integral_storage<uintptr_t, sizeof(uintptr_t)> {
+  using MyBase = integral_storage<uintptr_t, sizeof(uintptr_t)>;
+  using difference_type = ptrdiff_t;
 
+  using MyBase::MyBase;
+
+  template <memory_order order = memory_order_seq_cst>
+  Ty fetch_add(const ptrdiff_t offset) noexcept {
+    return reinterpret_cast<Ty>(MyBase::fetch_add<order>(offset));
+  }
+
+  Ty fetch_add(const ptrdiff_t offset) volatile noexcept {
+    return const_cast<atomic_pointer*>(this)->fetch_add(offset);
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  Ty fetch_add(const ptrdiff_t offset) volatile noexcept {
+    return const_cast<atomic_pointer*>(this)->fetch_add<order>(offset);
+  }
+
+  Ty fetch_sub(const ptrdiff_t offset) volatile noexcept {
+    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(offset)));
+  }
+
+  Ty fetch_sub(const ptrdiff_t offset) noexcept {
+    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(offset)));
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  Ty fetch_sub(const ptrdiff_t offset) volatile noexcept {
+    return fetch_add<order>(
+        static_cast<ptrdiff_t>(0 - static_cast<size_t>(offset)));
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  Ty fetch_sub(const ptrdiff_t offset) noexcept {
+    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(offset)));
+  }
+
+  Ty operator++(int) volatile noexcept { return fetch_add(1); }
+  Ty operator++(int) noexcept { return fetch_add(1); }
+  Ty operator++() volatile noexcept { return fetch_add(1) + 1; }
+  Ty operator++() noexcept { return fetch_add(1) + 1; }
+
+  Ty operator--(int) volatile noexcept { return fetch_add(-1); }
+  Ty operator--(int) noexcept { return fetch_add(-1); }
+  Ty operator--() volatile noexcept { return fetch_add(-1) - 1; }
+  Ty operator--() noexcept { return fetch_add(-1) - 1; }
+
+  Ty operator+=(const ptrdiff_t offset) volatile noexcept {
+    return fetch_add(offset) + offset;
+  }
+
+  Ty operator+=(const ptrdiff_t offset) noexcept {
+    return fetch_add(offset) + offset;
+  }
+
+  Ty operator-=(const ptrdiff_t offset) volatile noexcept {
+    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(offset))) -
+           offset;
+  }
+
+  Ty operator-=(const ptrdiff_t offset) noexcept {
+    return fetch_add(static_cast<ptrdiff_t>(0 - static_cast<size_t>(offset))) -
+           offset;
+  }
+};
 }  // namespace th::details
 
 template <bool Cond>
@@ -1118,11 +852,6 @@ struct atomic_base_type_selector {
 
 template <class Ty>
 using atomic_base_t = typename atomic_base_type_selector<Ty>::type;
-
-// template <class _TVal, class _Ty = _TVal>
-// using atomic_base_t =
-//    typename _Select<>::template _Apply<atomic_floating<_Ty>,
-//                                        _Choose_atomic_base2_t<_TVal, _Ty>>;
 
 template <class Ty>
 class atomic : public atomic_base_t<Ty> {  // atomic value
@@ -1269,427 +998,12 @@ class atomic : public atomic_base_t<Ty> {  // atomic value
 
 template <class Ty>
 atomic(Ty) -> atomic<Ty>;
-//
-// template <class Ty>
-// struct atomic_ref : atomic_base_t<Ty, Ty&> {  // atomic reference
-// private:
-//  using MyBase = atomic_base_t<Ty, Ty&>;
-//
-// public:
-//  static_assert(
-//      is_trivially_copyable_v<Ty> && is_copy_constructible_v<Ty> &&
-//          is_move_constructible_v<Ty> && is_copy_assignable_v<Ty> &&
-//          is_move_assignable_v<Ty>,
-//      "atomic_ref<T> requires T to be trivially copyable, copy constructible,
-//      " "move constructible, copy assignable, and move assignable");
-//
-//  using value_type = Ty;
-//
-//  explicit atomic_ref(Ty& value) noexcept /* strengthened */ : MyBase(value) {
-//    if constexpr (_Is_potentially_lock_free) {
-//      _Check_alignment(value);
-//    } else {
-//      this->_Init_spinlock_for_ref();
-//    }
-//  }
-//
-//  atomic_ref(const atomic_ref&) noexcept = default;
-//
-//  atomic_ref& operator=(const atomic_ref&) = delete;
-//
-//  static constexpr bool is_always_lock_free =
-//  _Is_always_lock_free<sizeof(Ty)>;
-//
-//  static constexpr bool _Is_potentially_lock_free =
-//      sizeof(Ty) <= 2 * sizeof(void*) && (sizeof(Ty) & (sizeof(Ty) - 1)) == 0;
-//
-//  static constexpr size_t required_alignment =
-//      _Is_potentially_lock_free ? sizeof(Ty) : alignof(Ty);
-//
-//  [[nodiscard]] bool is_lock_free() const noexcept {
-//#if _ATOMIC_HAS_DCAS
-//    return is_always_lock_free;
-//#else   // ^^^ _ATOMIC_HAS_DCAS / !_ATOMIC_HAS_DCAS vvv
-//    if constexpr (is_always_lock_free) {
-//      return true;
-//    } else {
-//      return __std_atomic_has_cmpxchg16b() != 0;
-//    }
-//#endif  // _ATOMIC_HAS_DCAS
-//  }
-//
-//  void store(const Ty value) const noexcept {
-//    const_cast<atomic_ref*>(this)->MyBase::store(value);
-//  }
-//
-//  void store(const Ty value, const memory_order _Order) const noexcept {
-//    const_cast<atomic_ref*>(this)->MyBase::store(value, _Order);
-//  }
-//
-//  Ty operator=(const Ty value) const noexcept {
-//    store(value);
-//    return value;
-//  }
-//
-//  Ty exchange(const Ty value) const noexcept {
-//    return const_cast<atomic_ref*>(this)->MyBase::exchange(value);
-//  }
-//
-//  Ty exchange(const Ty value, const memory_order _Order) const noexcept {
-//    return const_cast<atomic_ref*>(this)->MyBase::exchange(value, _Order);
-//  }
-//
-//  bool compare_exchange_strong(Ty& expected, const Ty desired) const noexcept
-//  {
-//    return const_cast<atomic_ref*>(this)->MyBase::compare_exchange_strong(
-//        expected, desired);
-//  }
-//
-//  bool compare_exchange_strong(Ty& expected,
-//                               const Ty desired,
-//                               const memory_order _Order) const noexcept {
-//    return const_cast<atomic_ref*>(this)->MyBase::compare_exchange_strong(
-//        expected, desired, _Order);
-//  }
-//
-//  bool compare_exchange_strong(Ty& expected,
-//                               const Ty desired,
-//                               const memory_order _Success,
-//                               const memory_order _Failure) const noexcept {
-//    return compare_exchange_strong(
-//        expected, desired, combine_cas_memory_orders(_Success, _Failure));
-//  }
-//
-//  bool compare_exchange_weak(Ty& expected, const Ty desired) const noexcept {
-//    return compare_exchange_strong(expected, desired);
-//  }
-//
-//  bool compare_exchange_weak(Ty& expected,
-//                             const Ty desired,
-//                             const memory_order _Order) const noexcept {
-//    return compare_exchange_strong(expected, desired, _Order);
-//  }
-//
-//  bool compare_exchange_weak(Ty& expected,
-//                             const Ty desired,
-//                             const memory_order _Success,
-//                             const memory_order _Failure) const noexcept {
-//    return compare_exchange_strong(
-//        expected, desired, combine_cas_memory_orders(_Success, _Failure));
-//  }
-//
-//  operator Ty() const noexcept { return this->load(); }
-//
-//  void notify_one() const noexcept {
-//    const_cast<atomic_ref*>(this)->MyBase::notify_one();
-//  }
-//
-//  void notify_all() const noexcept {
-//    const_cast<atomic_ref*>(this)->MyBase::notify_all();
-//  }
-//
-// private:
-//  static void _Check_alignment([[maybe_unused]] const Ty& value) {
-//    _ATOMIC_REF_CHECK_ALIGNMENT(
-//        (reinterpret_cast<uintptr_t>(addressof(value)) &
-//         (required_alignment - 1)) == 0,
-//        "atomic_ref underlying object is not aligned as required_alignment");
-//  }
-//};
-//
-//// NONMEMBER OPERATIONS ON ATOMIC TYPES
-// template <class Ty>
-//[[nodiscard]] bool atomic_is_lock_free(
-//    const volatile atomic<Ty>* target) noexcept {
-//  return target->is_lock_free();
-//}
-//
-// template <class Ty>
-//[[nodiscard]] bool atomic_is_lock_free(const atomic<Ty>* target) noexcept {
-//  return target->is_lock_free();
-//}
-//
-// template <class Ty>
-// void atomic_store(volatile atomic<Ty>* const target,
-//                  const identity_t<Ty> value) noexcept {
-//  target->store(value);
-//}
-//
-// template <class Ty>
-// void atomic_store(atomic<Ty>* const target, const identity_t<Ty> value)
-// noexcept {
-//  target->store(value);
-//}
-//
-// template <class Ty>
-// void atomic_store_explicit(volatile atomic<Ty>* const target,
-//                           const identity_t<Ty> value,
-//                           const memory_order _Order) noexcept {
-//  target->store(value, _Order);
-//}
-//
-// template <class Ty>
-// void atomic_store_explicit(atomic<Ty>* const target,
-//                           const identity_t<Ty> value,
-//                           const memory_order _Order) noexcept {
-//  target->store(value, _Order);
-//}
-//
-// template <class Ty>
-//[[nodiscard]] Ty atomic_load(const volatile atomic<Ty>* const target) noexcept
-//{
-//  return target->load();
-//}
-//
-// template <class Ty>
-//[[nodiscard]] Ty atomic_load(const atomic<Ty>* const target) noexcept {
-//  return target->load();
-//}
-//
-// template <class Ty>
-//[[nodiscard]] Ty atomic_load_explicit(const volatile atomic<Ty>* const target,
-//                                      const memory_order _Order) noexcept {
-//  return target->load(_Order);
-//}
-//
-// template <class Ty>
-//[[nodiscard]] Ty atomic_load_explicit(const atomic<Ty>* const target,
-//                                      const memory_order _Order) noexcept {
-//  return target->load(_Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_exchange(volatile atomic<Ty>* const target,
-//                   const identity_t<Ty> value) noexcept {
-//  return target->exchange(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_exchange(atomic<Ty>* const target,
-//                   const identity_t<Ty> value) noexcept {
-//  return target->exchange(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_exchange_explicit(volatile atomic<Ty>* const target,
-//                            const identity_t<Ty> value,
-//                            const memory_order _Order) noexcept {
-//  return target->exchange(value, _Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_exchange_explicit(atomic<Ty>* const target,
-//                            const identity_t<Ty> value,
-//                            const memory_order _Order) noexcept {
-//  return target->exchange(value, _Order);
-//}
-//
-// template <class Ty>
-// bool atomic_compare_exchange_strong(volatile atomic<Ty>* const target,
-//                                    identity_t<Ty>* const expected,
-//                                    const identity_t<Ty> desired) noexcept {
-//  return target->compare_exchange_strong(*expected, desired);
-//}
-//
-// template <class Ty>
-// bool atomic_compare_exchange_strong(atomic<Ty>* const target,
-//                                    identity_t<Ty>* const expected,
-//                                    const identity_t<Ty> desired) noexcept {
-//  return target->compare_exchange_strong(*expected, desired);
-//}
-//
-// template <class Ty>
-// bool atomic_compare_exchange_strong_explicit(
-//    volatile atomic<Ty>* const target,
-//    identity_t<Ty>* const expected,
-//    const identity_t<Ty> desired,
-//    const memory_order _Success,
-//    const memory_order _Failure) noexcept {
-//  return target->compare_exchange_strong(
-//      *expected, desired, combine_cas_memory_orders(_Success, _Failure));
-//}
-//
-// template <class Ty>
-// bool atomic_compare_exchange_strong_explicit(
-//    atomic<Ty>* const target,
-//    identity_t<Ty>* const expected,
-//    const identity_t<Ty> desired,
-//    const memory_order _Success,
-//    const memory_order _Failure) noexcept {
-//  return target->compare_exchange_strong(
-//      *expected, desired, combine_cas_memory_orders(_Success, _Failure));
-//}
-//
-// template <class Ty>
-// bool atomic_compare_exchange_weak(volatile atomic<Ty>* const target,
-//                                  identity_t<Ty>* const expected,
-//                                  const identity_t<Ty> desired) noexcept {
-//  return target->compare_exchange_strong(*expected, desired);
-//}
-//
-// template <class Ty>
-// bool atomic_compare_exchange_weak(atomic<Ty>* const target,
-//                                  identity_t<Ty>* const expected,
-//                                  const identity_t<Ty> desired) noexcept {
-//  return target->compare_exchange_strong(*expected, desired);
-//}
-//
-// template <class Ty>
-// bool atomic_compare_exchange_weak_explicit(
-//    volatile atomic<Ty>* const target,
-//    identity_t<Ty>* const expected,
-//    const identity_t<Ty> desired,
-//    const memory_order _Success,
-//    const memory_order _Failure) noexcept {
-//  return target->compare_exchange_strong(
-//      *expected, desired, combine_cas_memory_orders(_Success, _Failure));
-//}
-//
-// template <class Ty>
-// bool atomic_compare_exchange_weak_explicit(
-//    atomic<Ty>* const target,
-//    identity_t<Ty>* const expected,
-//    const identity_t<Ty> desired,
-//    const memory_order _Success,
-//    const memory_order _Failure) noexcept {
-//  return target->compare_exchange_strong(
-//      *expected, desired, combine_cas_memory_orders(_Success, _Failure));
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_add(volatile atomic<Ty>* target,
-//                    const typename atomic<Ty>::difference_type value) noexcept
-//                    {
-//  return target->fetch_add(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_add(atomic<Ty>* target,
-//                    const typename atomic<Ty>::difference_type value) noexcept
-//                    {
-//  return target->fetch_add(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_add_explicit(volatile atomic<Ty>* target,
-//                             const typename atomic<Ty>::difference_type value,
-//                             const memory_order _Order) noexcept {
-//  return target->fetch_add(value, _Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_add_explicit(atomic<Ty>* target,
-//                             const typename atomic<Ty>::difference_type value,
-//                             const memory_order _Order) noexcept {
-//  return target->fetch_add(value, _Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_sub(volatile atomic<Ty>* target,
-//                    const typename atomic<Ty>::difference_type value) noexcept
-//                    {
-//  return target->fetch_sub(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_sub(atomic<Ty>* target,
-//                    const typename atomic<Ty>::difference_type value) noexcept
-//                    {
-//  return target->fetch_sub(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_sub_explicit(volatile atomic<Ty>* target,
-//                             const typename atomic<Ty>::difference_type value,
-//                             const memory_order _Order) noexcept {
-//  return target->fetch_sub(value, _Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_sub_explicit(atomic<Ty>* target,
-//                             const typename atomic<Ty>::difference_type value,
-//                             const memory_order _Order) noexcept {
-//  return target->fetch_sub(value, _Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_and(volatile atomic<Ty>* target,
-//                    const typename atomic<Ty>::value_type value) noexcept {
-//  return target->fetch_and(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_and(atomic<Ty>* target,
-//                    const typename atomic<Ty>::value_type value) noexcept {
-//  return target->fetch_and(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_and_explicit(volatile atomic<Ty>* target,
-//                             const typename atomic<Ty>::value_type value,
-//                             const memory_order _Order) noexcept {
-//  return target->fetch_and(value, _Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_and_explicit(atomic<Ty>* target,
-//                             const typename atomic<Ty>::value_type value,
-//                             const memory_order _Order) noexcept {
-//  return target->fetch_and(value, _Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_or(volatile atomic<Ty>* target,
-//                   const typename atomic<Ty>::value_type value) noexcept {
-//  return target->fetch_or(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_or(atomic<Ty>* target,
-//                   const typename atomic<Ty>::value_type value) noexcept {
-//  return target->fetch_or(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_or_explicit(volatile atomic<Ty>* target,
-//                            const typename atomic<Ty>::value_type value,
-//                            const memory_order _Order) noexcept {
-//  return target->fetch_or(value, _Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_or_explicit(atomic<Ty>* target,
-//                            const typename atomic<Ty>::value_type value,
-//                            const memory_order _Order) noexcept {
-//  return target->fetch_or(value, _Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_xor(volatile atomic<Ty>* target,
-//                    const typename atomic<Ty>::value_type value) noexcept {
-//  return target->fetch_xor(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_xor(atomic<Ty>* target,
-//                    const typename atomic<Ty>::value_type value) noexcept {
-//  return target->fetch_xor(value);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_xor_explicit(volatile atomic<Ty>* target,
-//                             const typename atomic<Ty>::value_type value,
-//                             const memory_order _Order) noexcept {
-//  return target->fetch_xor(value, _Order);
-//}
-//
-// template <class Ty>
-// Ty atomic_fetch_xor_explicit(atomic<Ty>* target,
-//                             const typename atomic<Ty>::value_type value,
-//                             const memory_order _Order) noexcept {
-//  return target->fetch_xor(value, _Order);
-//}
-//
+
+template <class Ty>
+struct atomic_ref {
+  static_assert(always_false_v<Ty>, "not implemented");
+};
+
 using atomic_bool = atomic<bool>;
 
 using atomic_char = atomic<char>;
@@ -1723,119 +1037,117 @@ using atomic_size_t = atomic<size_t>;
 using atomic_ptrdiff_t = atomic<ptrdiff_t>;
 using atomic_intmax_t = atomic<intmax_t>;
 using atomic_uintmax_t = atomic<uintmax_t>;
-//
-//// STRUCT atomic_flag
-//#define ATOMIC_FLAG_INIT \
-//  {}
-//
-// struct atomic_flag {  // flag with test-and-set semantics
-//#if _HAS_CXX20
-//  [[nodiscard]] bool test(
-//      const memory_order _Order = memory_order_seq_cst) const noexcept {
-//    return _Storage.load(_Order) != 0;
-//  }
-//
-//  [[nodiscard]] bool test(const memory_order _Order =
-//                              memory_order_seq_cst) const volatile noexcept {
-//    return _Storage.load(_Order) != 0;
-//  }
-//#endif  // _HAS_CXX20
-//
-//  bool test_and_set(const memory_order _Order = memory_order_seq_cst) noexcept
-//  {
-//    return _Storage.exchange(true, _Order) != 0;
-//  }
-//
-//  bool test_and_set(
-//      const memory_order _Order = memory_order_seq_cst) volatile noexcept {
-//    return _Storage.exchange(true, _Order) != 0;
-//  }
-//
-//  void clear(const memory_order _Order = memory_order_seq_cst) noexcept {
-//    _Storage.store(false, _Order);
-//  }
-//
-//  void clear(
-//      const memory_order _Order = memory_order_seq_cst) volatile noexcept {
-//    _Storage.store(false, _Order);
-//  }
-//
-//  constexpr atomic_flag() noexcept = default;
-//
-//#if 1  // TRANSITION, ABI
-//  atomic<long> _Storage;
-//#else   // ^^^ don't break ABI / break ABI vvv
-//  atomic<bool> _Storage;
-//#endif  // TRANSITION, ABI
-//};
-//
-//// atomic_flag NONMEMBERS
-//#if _HAS_CXX20
-//[[nodiscard]] inline bool atomic_flag_test(
-//    const volatile atomic_flag* const _Flag) noexcept {
-//  return _Flag->test();
-//}
-//
-//[[nodiscard]] inline bool atomic_flag_test(
-//    const atomic_flag* const _Flag) noexcept {
-//  return _Flag->test();
-//}
-//
-//[[nodiscard]] inline bool atomic_flag_test_explicit(
-//    const volatile atomic_flag* const _Flag,
-//    const memory_order _Order) noexcept {
-//  return _Flag->test(_Order);
-//}
-//
-//[[nodiscard]] inline bool atomic_flag_test_explicit(
-//    const atomic_flag* const _Flag,
-//    const memory_order _Order) noexcept {
-//  return _Flag->test(_Order);
-//}
-//#endif  // _HAS_CXX20
-//
-// inline bool atomic_flag_test_and_set(atomic_flag* const _Flag) noexcept {
-//  return _Flag->test_and_set();
-//}
-//
-// inline bool atomic_flag_test_and_set(
-//    volatile atomic_flag* const _Flag) noexcept {
-//  return _Flag->test_and_set();
-//}
-//
-// inline bool atomic_flag_test_and_set_explicit(
-//    atomic_flag* const _Flag,
-//    const memory_order _Order) noexcept {
-//  return _Flag->test_and_set(_Order);
-//}
-//
-// inline bool atomic_flag_test_and_set_explicit(
-//    volatile atomic_flag* const _Flag,
-//    const memory_order _Order) noexcept {
-//  return _Flag->test_and_set(_Order);
-//}
-//
-// inline void atomic_flag_clear(atomic_flag* const _Flag) noexcept {
-//  _Flag->clear();
-//}
-//
-// inline void atomic_flag_clear(volatile atomic_flag* const _Flag) noexcept {
-//  _Flag->clear();
-//}
-//
-// inline void atomic_flag_clear_explicit(atomic_flag* const _Flag,
-//                                       const memory_order _Order) noexcept {
-//  _Flag->clear(_Order);
-//}
-//
-// inline void atomic_flag_clear_explicit(volatile atomic_flag* const _Flag,
-//                                       const memory_order _Order) noexcept {
-//  _Flag->clear(_Order);
-//}
-//
-//#undef ATOMIC_INTRINSIC
-//#undef COMPILER_BARRIER
-//
-//#pragma warning(pop)
-//#pragma pack(pop)
+
+#define ATOMIC_FLAG_INIT \
+  {}
+
+class atomic_flag {  // flag with test-and-set semantics
+ public:
+  constexpr atomic_flag() noexcept = default;
+
+  template <memory_order order = memory_order_seq_cst>
+  [[nodiscard]] bool test() const noexcept {
+    return m_storage.load<order>() != false;
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  [[nodiscard]] bool test() const volatile noexcept {
+    return m_storage.load<order>() != false;
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  bool test_and_set() noexcept {
+    return m_storage.exchange<order>(true) != false;
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  bool test_and_set() volatile noexcept {
+    return m_storage.exchange<order>(true) != false;
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  void clear() noexcept {
+    m_storage.store<order>(false);
+  }
+
+  template <memory_order order = memory_order_seq_cst>
+  void clear() volatile noexcept {
+    m_storage.store<order>(false);
+  }
+
+ private:
+  atomic<bool> m_storage{};
+};
+
+template <memory_order order>
+[[nodiscard]] inline bool atomic_flag_test(
+    const volatile atomic_flag* const flag) noexcept {
+  return flag->test();
+}
+
+template <memory_order order>
+[[nodiscard]] inline bool atomic_flag_test(
+    const atomic_flag* const flag) noexcept {
+  return flag->test();
+}
+
+template <memory_order order>
+[[nodiscard]] inline bool atomic_flag_test_explicit(
+    const volatile atomic_flag* const flag) noexcept {
+  return flag->test();
+}
+
+template <memory_order order>
+[[nodiscard]] inline bool atomic_flag_test_explicit(
+    const atomic_flag* const flag) noexcept {
+  return flag->test();
+}
+
+template <memory_order order>
+inline bool atomic_flag_test_and_set(atomic_flag* const flag) noexcept {
+  return flag->test_and_set();
+}
+
+template <memory_order order>
+inline bool atomic_flag_test_and_set(
+    volatile atomic_flag* const flag) noexcept {
+  return flag->test_and_set();
+}
+
+template <memory_order order>
+inline bool atomic_flag_test_and_set_explicit(
+    atomic_flag* const flag) noexcept {
+  return flag->test_and_set();
+}
+
+template <memory_order order>
+inline bool atomic_flag_test_and_set_explicit(
+    volatile atomic_flag* const flag) noexcept {
+  return flag->test_and_set();
+}
+
+template <memory_order order>
+inline void atomic_flag_clear(atomic_flag* const flag) noexcept {
+  flag->clear();
+}
+
+template <memory_order order>
+inline void atomic_flag_clear(volatile atomic_flag* const flag) noexcept {
+  flag->clear();
+}
+
+template <memory_order order>
+inline void atomic_flag_clear_explicit(atomic_flag* const flag) noexcept {
+  flag->clear();
+}
+
+template <memory_order order>
+inline void atomic_flag_clear_explicit(
+    volatile atomic_flag* const flag) noexcept {
+  flag->clear();
+}
+
+// TODO: atomic_ref, atomic_floating, Ty& specializations for atomic_pointer and
+// atomic_integral
+
 }  // namespace ktl
