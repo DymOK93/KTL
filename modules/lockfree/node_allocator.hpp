@@ -1,6 +1,6 @@
 ﻿#pragma once
 // С " " вместо <> нет необходимости добавлять в зависимости lockfree/ целиком
-#include "tagged_pointer.hpp"  
+#include "tagged_pointer.hpp"
 
 #include <basic_types.h>
 #include <crt_attributes.h>
@@ -30,10 +30,10 @@ class node_allocator {
  private:
   struct memory_block_header;
   using node_pointer = tagged_pointer<memory_block_header>;
-  using node_pointer_holder = typename node_pointer::placeholder_type;
+  using node_pointer_holder = atomic<typename node_pointer::placeholder_type>;
 
   ALIGN(NODE_ALIGNMENT) struct memory_block_header {
-    node_pointer_holder next;
+    node_pointer_holder next{};
   };
 
   using memory_block =
@@ -86,7 +86,7 @@ class node_allocator {
 
   Ty* allocate() {
     auto& head{get_head()};
-    auto old_top{load_acquire(head)};
+    auto old_top{node_pointer{head.load<memory_order_acquire>()}};
 
     Ty* ptr{nullptr};
     while (!ptr) {
@@ -97,7 +97,7 @@ class node_allocator {
             node_pointer{old_top->next}.get_pointer();
         node_pointer new_pool{new_top_ptr, old_top.get_next_tag()};
 
-        if (compare_exchange_strong(head, old_top, new_pool)) {
+        if (compare_exchange_helper(head, old_top, new_pool)) {
           ptr = reinterpret_cast<Ty*>(old_top.get_pointer());
         }
       }
@@ -107,7 +107,7 @@ class node_allocator {
 
   void deallocate(Ty* ptr) noexcept {
     auto& head{get_head()};
-    auto old_top{load_acquire(head)};
+    auto old_top{node_pointer{head.load<memory_order_acquire>()}};
 
     auto* new_top_ptr = reinterpret_cast<memory_block_header*>(ptr);
 
@@ -115,7 +115,7 @@ class node_allocator {
       node_pointer new_top{new_top_ptr, old_top.get_tag()};
       new_top->next = old_top.get_value();
 
-      if (compare_exchange_strong(head, old_top, new_top)) {
+      if (compare_exchange_helper(head, old_top, new_top)) {
         break;
       }
     }
@@ -134,14 +134,14 @@ class node_allocator {
 
   Ty* pop_unsafe_without_allocation() {
     auto& head{get_head()};
-    auto old_top{load_acquire(head)};
+    auto old_top{node_pointer{head.load<memory_order_acquire>()}};
 
     Ty* ptr{nullptr};
     if (old_top) {
       memory_block_header* new_top_ptr =
           node_pointer{old_top->next}.get_pointer();
-      node_pointer new_pool{new_top_ptr, old_top.get_next_tag()};
-      store_relaxed(head, new_pool);
+      node_pointer new_top{new_top_ptr, old_top.get_next_tag()};
+      head.store<memory_order_relaxed>(new_top.get_value());
       ptr = reinterpret_cast<Ty*>(old_top.get_pointer());
     }
     return ptr;
@@ -161,30 +161,11 @@ class node_allocator {
     return m_freelist.get_second().next;
   }
 
-  static node_pointer load_acquire(const node_pointer_holder& place) noexcept {
-    const auto raw_bytes{*atomic_address_as<node_pointer_holder>(place)};
-    th::details::make_compiler_barrier();
-    return node_pointer{raw_bytes};
-  }
-
-  static void store_relaxed(node_pointer_holder& place,
-                            node_pointer new_ptr) noexcept {
-    auto* address{atomic_address_as<node_pointer_holder>(place)};
-    *address = new_ptr.get_value();
-  }
-
-  static bool compare_exchange_strong(node_pointer_holder& place,
-                                      node_pointer& expected,
-                                      node_pointer new_ptr) noexcept {
-    auto* address{atomic_address_as<long long>(place)};
-    const auto raw_bytes{InterlockedCompareExchange64(
-        address, new_ptr.get_value(), expected.get_value())};
-    const auto result{static_cast<node_pointer_holder>(raw_bytes)};
-    if (result == expected.get_value()) {
-      return true;
-    }
-    expected = node_pointer{result};
-    return false;
+  static bool compare_exchange_helper(node_pointer_holder& place,
+                                      node_pointer expected,
+                                      node_pointer new_ptr) {
+    auto expected_value{expected.get_value()};
+    return place.compare_exchange_strong(expected_value, new_ptr.get_value());
   }
 
  private:

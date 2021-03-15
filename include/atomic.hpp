@@ -119,23 +119,38 @@ Ty kill_dependency(Ty arg) noexcept {  // "magic" template that kills
   return arg;
 }
 
-template <memory_order order>
-void check_store_memory_order() noexcept {}
-
-template <>
-void check_store_memory_order<memory_order::consume>() noexcept;
-template <>
-void check_store_memory_order<memory_order::acquire>() noexcept;
-template <>
-void check_store_memory_order<memory_order::acq_rel>() noexcept;
+template <memory_order order, typename Dummy = memory_order>
+struct invalid_memory_order {
+  invalid_memory_order() {
+    static_assert(always_false_v<Dummy>, "invalid memory order");
+  }
+};
 
 template <memory_order order>
-void check_load_memory_order() noexcept {}
+struct store_memory_order_checker {};
 
 template <>
-void check_load_memory_order<memory_order::release>() noexcept;
+struct store_memory_order_checker<memory_order::consume>
+    : invalid_memory_order<memory_order::consume> {};
+
 template <>
-void check_store_memory_order<memory_order::acq_rel>() noexcept;
+struct store_memory_order_checker<memory_order::acquire>
+    : invalid_memory_order<memory_order::acquire> {};
+
+template <>
+struct store_memory_order_checker<memory_order::acq_rel>
+    : invalid_memory_order<memory_order::acq_rel> {};
+
+template <memory_order order>
+struct load_memory_order_checker {};
+
+template <>
+struct load_memory_order_checker<memory_order::release>
+    : invalid_memory_order<memory_order::release> {};
+
+template <>
+struct load_memory_order_checker<memory_order::acq_rel>
+    : invalid_memory_order<memory_order::acq_rel> {};
 
 template <memory_order on_success, memory_order on_failure>
 [[nodiscard]] constexpr memory_order combine_cas_memory_orders() noexcept {
@@ -186,7 +201,7 @@ template <class IntegralTy, class Ty>
 
 template <memory_order order>
 void make_load_barrier() noexcept {
-  check_load_memory_order<order>();
+  load_memory_order_checker<order>{};
   if constexpr (order != memory_order::relaxed) {
     make_compiler_barrier();
   }
@@ -194,7 +209,7 @@ void make_load_barrier() noexcept {
 
 template <memory_order order>
 void make_store_barrier() noexcept {
-  check_store_memory_order<order>();
+  store_memory_order_checker<order>{};
   if constexpr (order != memory_order::relaxed) {
     make_compiler_barrier();
   }
@@ -303,10 +318,10 @@ class interlocked_storage {
 
  public:
   template <memory_order order = memory_order_seq_cst>
-  value_type load() noexcept {
+  value_type load() const noexcept {
     internal_value_type result{*get_storage()};
     th::details::make_load_barrier<order>();
-    return reinterpret_cast<ValueTy&>(result);
+    return reinterpret_cast<value_type&>(result);
   }
 
   template <memory_order order = memory_order_seq_cst>
@@ -354,7 +369,7 @@ class interlocked_storage {
   }
 
   auto* get_storage() const noexcept {
-    return ñonst_cast<internal_value_type*>(
+    return const_cast<internal_value_type*>(
         atomic_address_as<const internal_value_type>(m_value));
   }
 

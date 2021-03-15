@@ -192,7 +192,7 @@ class basic_winnt_string {
 
   basic_winnt_string(basic_winnt_string&& other) noexcept(
       is_nothrow_move_constructible_v<allocator_type>)
-      : m_str{move(other.m_str)} {
+      : m_str{move(other.m_str)} {  // Перемещение аллокатора
     if (other.is_small()) {
       native_string_traits_type::set_buffer(get_native_str(), m_buffer);
       traits_type::copy(data(), other.data(), other.size());

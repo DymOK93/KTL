@@ -51,7 +51,7 @@ class tagged_pointer {
   reference operator*() noexcept { return *get_pointer(); }
   pointer operator->() noexcept { return get_pointer(); }
 
-  operator bool() const noexcept { return m_ptr.address != 0; }
+  explicit operator bool() const noexcept { return m_ptr.address != 0; }
 
  private:
   static constexpr Ty* extract_ptr(
@@ -89,14 +89,14 @@ class tagged_pointer {
 };
 
 template <class Ty>
-bool operator==(const volatile tagged_pointer<Ty>& lhs,
-                const volatile tagged_pointer<Ty>& rhs) noexcept {
+bool operator==(const tagged_pointer<Ty>& lhs,
+                const tagged_pointer<Ty>& rhs) noexcept {
   return lhs.get_pointer() == rhs.get_pointer();
 }
 
 template <class Ty>
-bool operator!=(const volatile tagged_pointer<Ty>& lhs,
-                const volatile tagged_pointer<Ty>& rhs) noexcept {
+bool operator!=(const tagged_pointer<Ty>& lhs,
+                const tagged_pointer<Ty>& rhs) noexcept {
   return !(lhs == rhs);
 }
 }  // namespace ktl::lockfree
