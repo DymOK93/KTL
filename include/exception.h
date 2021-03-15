@@ -1,6 +1,6 @@
 #pragma once
 #include <crt_attributes.h>
-#include <exception_impl.hpp>
+#include <exception_impl.h>
 #include <string_fwd.hpp>
 #include <utility.hpp>
 
@@ -41,6 +41,7 @@ class out_of_range : public logic_error {
 
  public:
   using MyBase::MyBase;
+  NTSTATUS code() const noexcept override;
 };
 
 class length_error : public logic_error {
@@ -65,6 +66,7 @@ class overflow_error : public runtime_error {
 
  public:
   using MyBase::MyBase;
+  NTSTATUS code() const noexcept override;
 };
 
 // Make sure this is not inlined as it is slow and dramatically enlarges code,
@@ -73,6 +75,13 @@ class overflow_error : public runtime_error {
 template <class Exc, class... Types>
 [[noreturn]] NOINLINE void throw_exception(Types&&... args) {
   throw Exc(forward<Types>(args)...);
+}
+
+template <class Exc, class Ty, class... Types>
+static void throw_exception_if(const Ty& cond, Types&&... args) {
+  if (cond) {
+    throw_exception<Exc>(forward<Types>(args)...);
+  }
 }
 
 template <class Exc, class Ty, class... Types>

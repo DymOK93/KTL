@@ -1,14 +1,16 @@
 #pragma once
 
-namespace ktl {
-using byte = unsigned char;
-enum class align_val_t : size_t {};
-}
-
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <cstdint>
 using std::nothrow_t;
+using std::size_t;
 #else
+namespace std {
+enum class align_val_t : size_t {
+};  // Предопределённый тип - определить и использовать только
+    // ktl::align_val_t{} невозможно
+}
+
 using int8_t = signed char;
 using int16_t = short;
 using int32_t = int;
@@ -54,3 +56,8 @@ using max_align_t = double;  // Most aligned type
 #define INTMAX_C(x) INT64_C(x)
 #define UINTMAX_C(x) UINT64_C(x)
 #endif
+
+namespace ktl {
+using byte = unsigned char;
+using std::align_val_t;
+}  // namespace ktl

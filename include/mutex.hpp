@@ -10,17 +10,12 @@
 namespace ktl {  // threads management
 namespace th::details {
 template <class SyncPrimitive>
-class sync_primitive_base {
+class sync_primitive_base : non_relocatable {
  public:
   using sync_primitive_t = SyncPrimitive;
   using native_handle_t = sync_primitive_t*;
 
  public:
-  template <class SP>
-  sync_primitive_base(const sync_primitive_base<SP>&) = delete;
-  template <class SP>
-  sync_primitive_base& operator=(const sync_primitive_base<SP>&) = delete;
-
   native_handle_t native_handle() noexcept { return addressof(m_native_sp); }
 
  protected:
@@ -129,17 +124,21 @@ class shared_mutex
   void lock() {  //Вход в критическую секцию
     ExEnterCriticalRegionAndAcquireResourceExclusive(native_handle());
   }
+
   void lock_shared() {
     ExEnterCriticalRegionAndAcquireResourceShared(native_handle());
   }
+
   void unlock() {  //Выход из критической секции
     ExReleaseResourceAndLeaveCriticalRegion(native_handle());
   }
+
   void unlock_shared() {
     ExReleaseResourceAndLeaveCriticalRegion(native_handle());
   }
 };
 
+// TODO: автонастройка IRQL
 class dpc_spin_lock
     : public th::details::sync_primitive_base<KSPIN_LOCK> {  // DISPATCH_LEVEL
                                                              // spin
@@ -280,53 +279,6 @@ using notify_event =
     th::details::event<th::details::event_type::NotificationEvent>;
 
 namespace th::details {
-bool unlock_impl() {
-  return true;  // Dummy
-}
-
-template <class FirstLocable, class... RestLockables>
-bool unlock_impl(FirstLocable& first, RestLockables&... rest) {
-  bool current_unlock_success{true};
-  __try {
-    first.unlock();
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    current_unlock_success = false;
-  }
-  return current_unlock_success && unlock_impl(rest...);
-}
-}  // namespace th::details
-
-template <class... Lockable>
-void unlock(Lockable&... locables) {
-  th::details::unlock_impl(locables);
-}
-
-namespace th::details {
-bool lock_impl() {
-  return true;  // Dummy
-}
-
-template <class FirstLocable, class... RestLockables>
-bool lock_impl(FirstLocable& first, RestLockables&... rest) {
-  __try {
-    first.lock();
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return false;
-  }
-  bool lock_chain_result{lock_impl(rest...)};
-  if (!lock_chain_result) {
-    unlock(first);
-  }
-  return lock_chain_result;
-}
-}  // namespace th::details
-
-template <class... Lockable>
-void lock(Lockable&... locables) {
-  th::details::lock_impl(locables);
-}
-
-namespace th::details {
 template <class Locable, class Duration, class = void>
 struct has_try_lock_for : false_type {};
 
@@ -362,65 +314,59 @@ template <class Mutex>
 using get_duration_type_t = typename get_duration_type<Mutex>::type;
 
 template <class Mutex>
-class mutex_guard_base {
+class mutex_guard_base : non_copyable {
  public:
   using mutex_t = Mutex;
   using duration_t = get_duration_type_t<mutex_t>;
 
  public:
-  mutex_guard_base(const mutex_guard_base& mtx) = delete;
-  mutex_guard_base& operator=(const mutex_guard_base& mtx) = delete;
-
   void swap(mutex_guard_base& other) {
-    interlocked_swap_pointer(this->m_mtx, other.m_mtx);
-    interlocked_swap(this->m_owned, other.m_owned);
+    swap(m_mtx, other.m_mtx);
+    swap(m_owned, other.m_owned);
   }
 
-  bool owns() const noexcept { return m_owned; }
+  bool owns_lock() const noexcept { return m_owned; }
   Mutex* mutex() noexcept { return m_mtx; }
 
  protected:
-  constexpr mutex_guard_base() = default;
-  mutex_guard_base(Mutex& mtx, bool owned = false)
+  constexpr mutex_guard_base() noexcept = default;
+  mutex_guard_base(Mutex& mtx, bool owned = false) noexcept
       : m_mtx{addressof(mtx)}, m_owned{owned} {}
 
-  mutex_guard_base& move_construct_from(mutex_guard_base&& mtx) {
-    interlocked_exchange_pointer(
-        this->m_mtx, interlocked_exchange_pointer(other.m_mtx, nullptr));
-    interlocked_exchange(this->m_owned,
-                         interlocked_exchange(other.m_owned, false));
+  mutex_guard_base& move_construct_from(mutex_guard_base&& other) noexcept {
+    m_mtx = exchange(other.m_mtx, nullptr);
+    m_owned = exchange(other.m_owned, false);
   }
 
   void lock() {
     m_mtx->lock();
-    interlocked_exchange(m_owned, true);
+    m_owned = true;
   }
 
   void lock_shared() {
     m_mtx->lock_shared();
-    interlocked_exchange(m_owned, true);
+    m_owned = true;
   }
 
   bool try_lock_for(duration_t timeout_duration) {
     static_assert(has_try_lock_for_v<mutex_t, duration_t>,
                   "Mutex doesn't support locking with timeout");
-    interlocked_exchange(m_owned, m_mtx->try_lock_for(timeout_duration));
+    m_owned = m_mtx->try_lock_for(timeout_duration);
   }
 
   void unlock() {
     m_mtx->unlock();
-    interlocked_exchange(m_owned, false);
+    m_owned = false;
   }
 
   void unlock_shared() {
     m_mtx->unlock_shared();
-    interlocked_exchange(m_owned, false);
+    m_owned = false;
   }
 
   mutex_t* release() {
-    mutex_t* mtx{interlocked_exchange_pointer(m_owned, false)};
-    interlocked_exchange(m_owned, false);
-    return mtx;
+    m_owned = false;
+    return exchange(m_mtx, nullptr);
   }
 
  protected:
@@ -545,11 +491,11 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
   ~shared_lock() { reset(); }
 
   mutex_t* release() noexcept { return MyBase::release(); }
-  operator bool() const noexcept { return MyBase::owns(); }
+  operator bool() const noexcept { return MyBase::owns_lock(); }
 
  private:
   void reset() {
-    if (MyBase::owns()) {
+    if (MyBase::owns_lock()) {
       MyBase::unlock_shared();
     }
   }

@@ -6,6 +6,7 @@
 #include <crt_attributes.h>
 #include <allocator.hpp>
 #include <assert.hpp>
+#include <atomic.hpp>
 #include <limits.hpp>
 #include <type_traits.hpp>
 
@@ -13,7 +14,8 @@
 
 namespace ktl::lockfree {
 template <class Ty, template <typename, align_val_t> class BasicNodeAllocator>
-class mpmc_queue {  // multi-producer, multi-consumer
+class mpmc_queue
+    : public ktl::non_relocatable {  // multi-producer, multi-consumer
  public:
   using value_type = Ty;
   using reference = Ty&;
@@ -28,7 +30,7 @@ class mpmc_queue {  // multi-producer, multi-consumer
  private:
   struct node;
   using node_pointer = tagged_pointer<node>;
-  using node_pointer_holder = typename node_pointer::placeholder_type;
+  using node_pointer_holder = atomic<typename node_pointer::placeholder_type>;
 
   ALIGN(NODE_ALIGNMENT) struct node {
     node() noexcept(is_nothrow_default_constructible_v<Ty>) = default;
@@ -37,8 +39,8 @@ class mpmc_queue {  // multi-producer, multi-consumer
 
     node(const Ty& value_) noexcept : value(value_) {
       // increment tag to avoid ABA problem
-      store_release(next,
-                    node_pointer(nullptr, node_pointer{next}.get_next_tag()));
+      next.store<memory_order_release>(
+          node_pointer(nullptr, node_pointer{next}.get_next_tag()).get_value());
     }
 
     node_pointer_holder next{0};
@@ -46,8 +48,8 @@ class mpmc_queue {  // multi-producer, multi-consumer
   };
 
   ALIGN(NODE_ALIGNMENT) struct aligned_node_pointer_holder {
-    operator node_pointer_holder&() noexcept { return ptr; }
-    operator const node_pointer_holder&() const noexcept { return ptr; }
+    node_pointer_holder& get_ptr() noexcept { return ptr; }
+    const node_pointer_holder& get_ptr() const noexcept { return ptr; }
 
     node_pointer_holder ptr{};
   };
@@ -73,30 +75,23 @@ class mpmc_queue {  // multi-producer, multi-consumer
     initialize();
   }
 
-  mpmc_queue(const mpmc_queue&) = delete;
-  mpmc_queue(mpmc_queue&&) = delete;
-  mpmc_queue& operator=(const mpmc_queue&) = delete;
-  mpmc_queue& operator=(mpmc_queue&&) = delete;
-
-#pragma warning(disable : 4722)
   ~mpmc_queue() {
     Ty dummy;
     while (unsynchronized_pop_impl<false>(dummy))
       ;
-    destroy_node(node_pointer{load_relaxed(m_head)});
+    destroy_node(node_pointer{m_head.get_ptr().load<memory_order_relaxed>()});
   }
-#pragma warning(default : 4722)
 
   // OtherTy имеет право бросить исключение при конвертации в Ty
   template <typename OtherTy,
-            enable_if_t<is_convertible_v<Ty, OtherTy>, int> = 0>
+            enable_if_t<is_constructible_v<Ty, OtherTy>, int> = 0>
   bool unsynchronized_push(const OtherTy& value) {
     return unsynchronized_push_impl(value);
   }
 
   template <typename OtherTy,
-            enable_if_t<is_convertible_v<Ty, OtherTy> &&
-                            is_nothrow_assignable_v<OtherTy, Ty>,
+            enable_if_t<is_convertible_v<OtherTy, Ty> &&
+                            is_nothrow_assignable_v<OtherTy&, Ty>,
                         int> = 0>
   bool unsynchronized_pop(OtherTy& value) {
     return unsynchronized_pop_impl<true>(value);
@@ -104,66 +99,65 @@ class mpmc_queue {  // multi-producer, multi-consumer
 
   // OtherTy имеет право бросить исключение при конвертации в Ty
   template <typename OtherTy,
-            enable_if_t<is_convertible_v<Ty, OtherTy>, int> = 0>
+            enable_if_t<is_constructible_v<Ty, OtherTy>, int> = 0>
   bool push(const OtherTy& value) {
     auto* new_node{create_data_node(value)};
 
     for (;;) {
-      auto tail{load_acquire(m_tail)};
+      auto tail{node_pointer{m_tail.get_ptr().load<memory_order_acquire>()}};
       node* tail_ptr{tail.get_pointer()};
-      auto next{load_acquire(tail_ptr->next)};
+      auto next{node_pointer{tail_ptr->next.load<memory_order_acquire>()}};
 
-      if (tail == load_acquire(m_tail)) {
+      if (tail == node_pointer{m_tail.get_ptr().load<memory_order_acquire>()}) {
         if (!next) {
           node_pointer new_tail_next{new_node, next.get_next_tag()};
 
-          if (compare_exchange(tail_ptr->next, next, new_tail_next)) {
+          if (compare_exchange_helper(tail_ptr->next, next, new_tail_next)) {
             node_pointer new_tail{new_node, tail.get_next_tag()};
-            compare_exchange(m_tail, tail, new_tail);
+            compare_exchange_helper(m_tail.get_ptr(), tail, new_tail);
             return true;
           }
         } else {
           node_pointer new_tail{next.get_pointer(), tail.get_next_tag()};
-          compare_exchange(m_tail, tail, new_tail);
+          compare_exchange_helper(m_tail.get_ptr(), tail, new_tail);
         }
       }
     }
   }
 
   template <typename OtherTy,
-            enable_if_t<is_convertible_v<Ty, OtherTy>, int> = 0>
+            enable_if_t<is_convertible_v<OtherTy, Ty> &&
+                            is_nothrow_assignable_v<OtherTy&, Ty>,
+                        int> = 0>
   bool pop(OtherTy& value) {
     for (;;) {
-      auto head{load_acquire(m_head)};
+      auto head{node_pointer{m_head.get_ptr().load<memory_order_acquire>()}};
       node* head_ptr{head.get_pointer()};
 
-      auto tail{load_acquire(m_tail)};
-
-      auto next{load_acquire(head_ptr->next)};
+      auto tail{node_pointer{m_tail.get_ptr().load<memory_order_acquire>()}};
+      auto next{node_pointer{head_ptr->next.load<memory_order_acquire>()}};
       node* next_ptr = next.get_pointer();
 
-      if (head == load_acquire(m_head)) {
+      if (head == node_pointer{m_head.get_ptr().load<memory_order_acquire>()}) {
         if (head == tail) {
           if (!next) {
             return false;
           }
           node_pointer new_tail{next_ptr, tail.get_next_tag()};
-          compare_exchange(m_tail, tail, new_tail);
+          compare_exchange_helper(m_tail.get_ptr(), tail, new_tail);
         } else {
           if (!next) {
             /* this check is not part of the original algorithm as published
-            by
-             * michael and scott
-             * however we reuse the tagged_ptr part for the freelist and clear
-             * the next part during node allocation. we can observe a
-             * null-pointer here.
+             * by michael and scott however we reuse the tagged_ptr part for
+             * the freelist and clear he next part during node allocation
+             * we can observe a null-pointer here.
              * */
             continue;
           }
           value = next_ptr->value;
           node_pointer new_head{next_ptr, head.get_next_tag()};
 
-          store_release(m_head, new_head);
+          m_head.get_ptr().store<memory_order_release>(new_head.get_value());
           destroy_node(head);
           return true;
         }
@@ -177,13 +171,12 @@ class mpmc_queue {  // multi-producer, multi-consumer
 
  private:
   void initialize() {
-    static_assert(is_trivially_copyable_v<Ty>, "Ty must be trivially copyable");
     static_assert(is_trivially_destructible_v<Ty>,
                   "Ty must be trivially destructible");
 
     node_pointer dummy_node_ptr{create_empty_node(), 0};
-    store_relaxed(m_head, dummy_node_ptr);
-    store_release(m_tail, dummy_node_ptr);
+    m_head.get_ptr().store<memory_order_relaxed>(dummy_node_ptr.get_value());
+    m_tail.get_ptr().store<memory_order_release>(dummy_node_ptr.get_value());
   }
 
   node* create_empty_node() {
@@ -224,16 +217,18 @@ class mpmc_queue {  // multi-producer, multi-consumer
   template <bool CopyToOutput, typename OtherTy>
   bool unsynchronized_pop_impl(OtherTy& value) {
     for (;;) {
-      auto head{load_relaxed(m_head)};
+      auto head{node_pointer{m_head.get_ptr().load<memory_order_relaxed>()}};
       auto* head_ptr{head.get_pointer()};
       node_pointer next{head_ptr->next};
 
-      if (auto tail = load_relaxed(m_tail); head == tail) {
+      if (auto tail =
+              node_pointer{m_tail.get_ptr().load<memory_order_relaxed>()};
+          head == tail) {
         if (!next) {
           return false;
         }
         node_pointer new_tail{next.get_pointer(), tail.get_next_tag()};
-        store_release(m_tail, new_tail);
+        m_tail.get_ptr().store<memory_order_release>(new_tail.get_value());
 
       } else {
         if (!next) {
@@ -245,11 +240,12 @@ class mpmc_queue {  // multi-producer, multi-consumer
            * */
           continue;
         }
+        auto next_ptr{next.get_pointer()};
         if constexpr (CopyToOutput) {
           value = next_ptr->value;  // aligned load
         }
-        node_pointer new_head{next.get_pointer(), head.get_next_tag()};
-        store_release(m_head, new_head);
+        node_pointer new_head{next_ptr, head.get_next_tag()};
+        m_head.get_ptr().store<memory_order_release>(new_head.get_value());
         destroy_node(head);
 
         return true;
@@ -259,44 +255,11 @@ class mpmc_queue {  // multi-producer, multi-consumer
 
   allocator_type& get_alloc() noexcept { return m_alc; }
 
-  static node_pointer load_relaxed(const node_pointer_holder& place) noexcept {
-    auto* address{atomic_address_as<node_pointer_holder>(place)};
-    return node_pointer{*address};
-  }
-
-  static node_pointer load_acquire(const node_pointer_holder& place) noexcept {
-    const auto raw_bytes{*atomic_address_as<node_pointer_holder>(place)};
-    read_write_barrier();  // acquire
-    return node_pointer{raw_bytes};
-  }
-
-  static void store_relaxed(node_pointer_holder& place,
-                            node_pointer new_ptr) noexcept {
-    auto* address{atomic_address_as<node_pointer_holder>(place)};
-    *address = new_ptr.get_value();
-  }
-
-  static void store_release(node_pointer_holder& place,
-                            node_pointer new_ptr) noexcept {
-    assert(new_ptr.get_value() > 1'000'000);
-
-    auto* address{atomic_address_as<node_pointer_holder>(place)};
-    read_write_barrier();
-    *address = new_ptr.get_value();
-  }
-
-  static bool compare_exchange(node_pointer_holder& place,
-                               node_pointer& expected,
-                               node_pointer new_ptr) noexcept {
-    auto* address{atomic_address_as<long long>(place)};
-    const auto raw_bytes{InterlockedCompareExchange64(
-        address, new_ptr.get_value(), expected.get_value())};
-    const auto result{static_cast<node_pointer_holder>(raw_bytes)};
-    if (result == expected.get_value()) {
-      return true;
-    }
-    expected = node_pointer{result};
-    return false;
+  static bool compare_exchange_helper(node_pointer_holder& place,
+                                      node_pointer expected,
+                                      node_pointer new_ptr) noexcept {
+    auto expected_value{expected.get_value()};
+    return place.compare_exchange_strong(expected_value, new_ptr.get_value());
   }
 
  private:

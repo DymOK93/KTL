@@ -241,10 +241,10 @@ class compressed_pair : private Ty1 {
  public:
   using MyBase = Ty1;
 
- public:
   using first_type = Ty1;
   using second_type = Ty2;
 
+ public:
   template <typename U1 = Ty1,
             typename U2 = Ty2,
             typename =
@@ -260,8 +260,8 @@ class compressed_pair : private Ty1 {
       : MyBase(move(a)), m_value(move(b)) {}
 
   template <class... Types,
-            enable_if_t<is_default_constructible_v<Ty1> &&
-                            is_constructible_v<Ty2, Types...>,
+            enable_if_t<is_constructible_v<Ty2, Types...> &&
+                            is_default_constructible_v<Ty1>,
                         int> = 0>
   constexpr compressed_pair(zero_then_variadic_args, Types&&... args) noexcept(
       is_nothrow_default_constructible_v<Ty1>&&
@@ -316,7 +316,6 @@ class compressed_pair : private Ty1 {
   }
 
   second_type& get_second() noexcept { return m_value; }
-
   const second_type& get_second() const noexcept { return m_value; }
 
  private:
@@ -335,8 +334,8 @@ class compressed_pair<Ty1, Ty2, false> : private pair<Ty1, Ty2> {
   using MyBase::MyBase;
 
   template <class... Types,
-            enable_if_t<is_default_constructible_v<Ty1> &&
-                            is_constructible_v<Ty2, Types...>,
+            enable_if_t<is_constructible_v<Ty2, Types...> &&
+                            is_default_constructible_v<Ty1>,
                         int> = 0>
   constexpr compressed_pair(zero_then_variadic_args, Types&&... args) noexcept(
       is_nothrow_default_constructible_v<Ty1>&&

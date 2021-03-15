@@ -95,23 +95,22 @@ class basic_winnt_string;
 inline constexpr size_t DEFAULT_SSO_CH_BUFFER_COUNT{16};
 }  // namespace str::details
 
-template <typename CharT>
+template <typename NativeStrTy,
+          template <typename... CharT> class Traits = char_traits>
 using basic_winnt_string_view =
-    str::details::basic_winnt_string_view<native_ansi_str_t, char_traits>;
+    str::details::basic_winnt_string_view<NativeStrTy, Traits>;
 
 template <template <typename... CharT> class Traits>
 using basic_ansi_string_view =
-    str::details::basic_winnt_string_view<native_ansi_str_t, Traits>;
+    basic_winnt_string_view<native_ansi_str_t, Traits>;
 
-using ansi_string_view =
-    str::details::basic_winnt_string_view<native_ansi_str_t, char_traits>;
+using ansi_string_view = basic_ansi_string_view<char_traits>;
 
 template <template <typename... CharT> class Traits>
 using basic_unicode_string_view =
-    str::details::basic_winnt_string_view<native_unicode_str_t, Traits>;
+    basic_winnt_string_view<native_unicode_str_t, Traits>;
 
-using unicode_string_view =
-    str::details::basic_winnt_string_view<native_unicode_str_t, char_traits>;
+using unicode_string_view = basic_unicode_string_view<char_traits>;
 
 template <size_t SsoBufferChCount,
           template <typename... CharT> class Traits = char_traits,

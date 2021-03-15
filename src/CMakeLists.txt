@@ -16,7 +16,7 @@ set(
 set(TARGET_LIB cpp_runtime)
 
 wdk_add_library(
-	${TARGET_LIB} STATIC 
+	${TARGET_LIB} STATIC
 		${KTL_HEADER_FILES}
 		${KTL_SOURCE_FILES}
 		EXTENDED_CPP_FEATURES

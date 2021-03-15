@@ -1,7 +1,7 @@
 #pragma once
 #include <heap.h>
 #include <placement_new.h>
-#include <exception_impl.hpp>
+#include <exception_impl.h>
 
 namespace ktl {
 struct paged_new_tag_t {};
@@ -52,14 +52,14 @@ operator new(size_t bytes,
 
 void* CRTCALL
 operator new(size_t bytes,
-             ktl::align_val_t alignment);  // throw ktl::bad_alloc if fails
+             std::align_val_t alignment);  // throw ktl::bad_alloc if fails
 void* CRTCALL
 operator new(size_t bytes,
-             ktl::align_val_t alignment,
+             std::align_val_t alignment,
              ktl::paged_new_tag_t);  // throw ktl::bad_alloc if fails
 void* CRTCALL
 operator new(size_t bytes,
-             ktl::align_val_t alignment,
+             std::align_val_t alignment,
              ktl::non_paged_new_tag_t);  // throw ktl::bad_alloc if fails
 
 void* CRTCALL operator new(size_t bytes, const nothrow_t&) noexcept;
@@ -71,19 +71,19 @@ void* CRTCALL operator new(size_t bytes,
                            ktl::non_paged_new_tag_t) noexcept;
 
 void* CRTCALL operator new(size_t bytes,
-                           ktl::align_val_t alignment,
+                           std::align_val_t alignment,
                            const nothrow_t&) noexcept;
 void* CRTCALL operator new(size_t bytes,
-                           ktl::align_val_t alignment,
+                           std::align_val_t alignment,
                            const nothrow_t&,
                            ktl::paged_new_tag_t) noexcept;
 void* CRTCALL operator new(size_t bytes,
-                           ktl::align_val_t alignment,
+                           std::align_val_t alignment,
                            const nothrow_t&,
                            ktl::non_paged_new_tag_t) noexcept;
 
 void CRTCALL operator delete(void* ptr,
                              size_t bytes_count,
-                             ktl::align_val_t alignment) noexcept;
+                             std::align_val_t alignment) noexcept;
 void CRTCALL operator delete(void* ptr, size_t bytes_count) noexcept;
 void CRTCALL operator delete(void* ptr) noexcept;

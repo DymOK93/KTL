@@ -76,6 +76,47 @@ constexpr ForwardIt1 find_subrange(ForwardIt1 range_first,
   }
   return range_last;
 }
+
+template <class InBidirectionalIt, class OutBidirectionalIt>
+OutBidirectionalIt copy_backward(InBidirectionalIt first,
+                                 InBidirectionalIt last,
+                                 OutBidirectionalIt d_last) {
+  for (; first != last; first = next(first)) {
+    last = prev(last);
+    d_last = prev(d_last);
+    *d_last = *last;
+  }
+  return d_last;
+}
+
+namespace algo::details {
+template <class InTy, class OutTy>
+OutTy* copy_impl(InTy* first, InTy* last, OutTy* d_first, true_type) {
+  return static_cast<OutTy*>(
+      memmove(d_first, first, static_cast<size_t>(last - first)));
+}
+
+template <class InputIt, class OutputIt>
+OutputIt copy_impl(InputIt first, InputIt last, OutputIt d_first, false_type) {
+  for (; first != last; first = next(first), d_first = next(d_first)) {
+    *d_first = *first;
+  }
+  return d_first;
+}
+}  // namespace algo::details
+
+template <class InputIt, class OutputIt>
+OutputIt copy(InputIt first, InputIt last, OutputIt d_first) {
+  using input_value_type = typename iterator_traits<InputIt>::value_type;
+
+  return algo::details::copy_impl(
+      first, last, d_first,
+      bool_tag_t < is_pointer_v<InputIt> && is_pointer_v<OutputIt> &&
+          is_trivially_copyable_v<input_value_type> &&
+          is_trivially_constructible_v<
+              typename iterator_traits<OutputIt>::value_type,
+              input_value_type> > {});
+}
 }  // namespace ktl
 #endif
 

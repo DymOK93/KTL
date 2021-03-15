@@ -104,6 +104,9 @@ using std::is_trivially_destructible_v;
 using std::aligned_storage;
 using std::aligned_storage_t;
 
+using std::is_floating_point_v;
+using std::is_integral_v;
+
 }  // namespace ktl
 #else
 namespace ktl {
@@ -383,6 +386,15 @@ template <class Ty, class... Types>
 inline constexpr bool is_constructible_v =
     is_constructible<void_t<>, Ty, Types...>::value;
 
+template <class Ty, class... Types>
+struct is_trivially_constructible {
+  static constexpr bool value = __is_trivially_constructible(Ty, Types...);
+};
+
+template <class Ty, class... Types>
+inline constexpr bool is_trivially_constructible_v =
+    is_trivially_constructible<Ty, Types...>::value;
+
 template <class Ty>
 struct is_default_constructible {
   static constexpr bool value = is_constructible_v<Ty>;
@@ -463,17 +475,17 @@ template <class Ty>
 inline constexpr bool is_nothrow_move_constructible_v =
     is_nothrow_move_constructible<Ty>::value;
 
-template <class Ty, class Other, class = void>
+template <class To, class From, class = void>
 struct is_assignable : false_type {};
 
-template <class Ty, class Other>
-struct is_assignable<Ty,
-                     Other,
-                     void_t<decltype(declval<Ty>() = declval<Other>())> >
+template <class To, class From>
+struct is_assignable<To,
+                     From,
+                     void_t<decltype(declval<To&>() = declval<From>())> >
     : true_type {};
 
-template <class Ty, class Other>
-inline constexpr bool is_assignable_v = is_assignable<Ty, Other>::value;
+template <class To, class From>
+inline constexpr bool is_assignable_v = is_assignable<To, From>::value;
 
 template <class Ty>
 struct is_copy_assignable {
@@ -493,15 +505,15 @@ struct is_move_assignable {
 template <class Ty>
 inline constexpr bool is_move_assignable_v = is_move_assignable<Ty>::value;
 
-template <class Ty, class Other>
+template <class To, class From>
 struct is_nothrow_assignable {
   static constexpr bool value =
-      is_assignable_v<Ty, Other>&& noexcept(declval<Ty>() = declval<Other>());
+      is_assignable_v<To, From>&& noexcept(declval<To>() = declval<From>());
 };
 
-template <class Ty, class Other>
+template <class To, class From>
 inline constexpr bool is_nothrow_assignable_v =
-    is_nothrow_assignable<Ty, Other>::value;
+    is_nothrow_assignable<To, From>::value;
 
 template <class Ty>
 struct is_nothrow_copy_assignable {
@@ -522,6 +534,15 @@ struct is_nothrow_move_assignable {
 template <class Ty>
 inline constexpr bool is_nothrow_move_assignable_v =
     is_nothrow_move_assignable<Ty>::value;
+
+template <class To, class From>
+struct is_trivially_assignable {
+  static constexpr bool value = __is_trivially_assignable(To, From);
+};
+
+template <class To, class From>
+inline constexpr bool is_trivially_assignable_v =
+    is_trivially_assignable<To, From>::value;
 
 template <class Ty>
 struct is_swappable {
@@ -563,6 +584,17 @@ struct is_function {
 
 template <class Ty>
 inline constexpr bool is_function_v = is_function<Ty>::value;
+
+template <class Ty>
+struct is_object {
+  static constexpr bool value =
+      is_const_v<const Ty> &&
+      !is_void_v<Ty>;  // only function types and reference
+                       // types can't be const qualified
+};
+
+template <class Ty>
+inline constexpr bool is_object_v = is_object<Ty>::value;
 
 template <class Ty>
 struct is_pointer : false_type {};
@@ -861,5 +893,13 @@ struct is_integral {
 template <class Ty>
 inline constexpr bool is_integral_v = is_integral<Ty>::value;
 
+template <class Ty>
+struct is_floating_point {
+  static constexpr bool value =
+      is_in_typelist_v<remove_cv_t<Ty>, float, double, long double>;
+};
+
+template <class Ty>
+inline constexpr bool is_floating_point_v = is_floating_point<Ty>::value;
 }  // namespace ktl
 #endif

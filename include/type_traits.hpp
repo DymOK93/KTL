@@ -95,4 +95,61 @@ struct bool_tag<false> {
 
 template <bool Value>
 using bool_tag_t = typename bool_tag<Value>::type;
+
+template <class Ty>
+struct identity {
+  using type = Ty;
+};
+
+template <class Ty>
+using identity_t = typename identity<Ty>::type;
+
+template <class IntegralTy>
+struct make_unsigned;
+
+template <>
+struct make_unsigned<char> {
+    using type = unsigned char;
+};
+
+template <>
+struct make_unsigned<short> {
+  using type = unsigned short;
+};
+
+template <>
+struct make_unsigned<int> {
+  using type = unsigned int;
+};
+
+template <>
+struct make_unsigned<long> {
+  using type = unsigned long;
+};
+
+
+template <>
+struct make_unsigned<long long> {
+  using type = unsigned long long;
+};
+
+template <class IntegralTy>
+using make_unsigned_t = typename make_unsigned<IntegralTy>::type;
+
+
+struct non_copyable {
+  non_copyable() = default;
+  non_copyable(const non_copyable&) = delete;
+  non_copyable& operator=(const non_copyable&) = delete;
+  non_copyable(non_copyable&&) = default;
+  non_copyable& operator=(non_copyable&&) = default;
+};
+
+struct non_relocatable {
+  non_relocatable() = default;
+  non_relocatable(const non_relocatable&) = delete;
+  non_relocatable& operator=(const non_relocatable&) = delete;
+  non_relocatable(non_relocatable&&) = delete;
+  non_relocatable& operator=(non_relocatable&&) = delete;
+};
 }  // namespace ktl

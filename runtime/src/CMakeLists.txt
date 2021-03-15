@@ -12,6 +12,7 @@ set(
 		"basic_runtime.cpp"
 		"bugcheck.cpp"
 		"exception_base.cpp"
+		"exception_impl.cpp"
 		"irql.cpp"
 		"heap.cpp"
 		"placement_new.cpp"

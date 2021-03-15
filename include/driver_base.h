@@ -11,6 +11,7 @@ struct device_info {
   bool exclusive{false};
 };
 
+// TODO: use ktl::pair
 struct device_io_response {
   NTSTATUS status{STATUS_SUCCESS};
   uint32_t info{0};
@@ -24,6 +25,6 @@ Ty* get_from_device_extension(PDEVICE_OBJECT device_object) {
 
 template <class Ty>
 Ty* get_from_device_extension(PDRIVER_OBJECT driver_object) {
-  return GetDriverFromDeviceExtension<Ty>(driver_object->DeviceObject);
+  return get_from_device_extension<Ty>(driver_object->DeviceObject);
 }
 }  // namespace ktl

@@ -40,9 +40,9 @@ struct numeric_limits<unsigned char> {
   static constexpr bool traps = true;
   static constexpr bool tinyness_before = false;
 
-  static constexpr unsigned int(min)() noexcept { return 0; };
-  static constexpr unsigned int lowest() noexcept { return (min)(); };
-  static constexpr unsigned int(max)() noexcept { return UCHAR_MAX; };
+  static constexpr unsigned char(min)() noexcept { return 0; };
+  static constexpr unsigned char lowest() noexcept { return (min)(); };
+  static constexpr unsigned char(max)() noexcept { return UCHAR_MAX; };
 };
 
 template <>
