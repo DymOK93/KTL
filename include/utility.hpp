@@ -319,7 +319,7 @@ class compressed_pair : private Ty1 {
   const second_type& get_second() const noexcept { return m_value; }
 
  private:
-  Ty2 m_value;
+  Ty2 m_value{};
 };
 
 template <class Ty1, class Ty2>
@@ -355,11 +355,8 @@ class compressed_pair<Ty1, Ty2, false> : private pair<Ty1, Ty2> {
       : MyBase(forward<U1>(value)), m_value(forward<Types>(args)...) {}
 
   first_type& get_first() noexcept { return this->first; }
-
   const first_type& get_first() const noexcept { return this->first; }
-
   second_type& get_second() noexcept { return this->second; }
-
   const second_type& get_second() const noexcept { return this->second; }
 };
 }  // namespace ktl
