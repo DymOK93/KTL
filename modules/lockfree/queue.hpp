@@ -149,6 +149,12 @@ class mpmc_queue
           cas_strong_helper(m_tail.get_ptr(), tail, new_tail);
         } else {
           if (!next) {
+            /*
+             * This check is not part of the original algorithm as published
+             * by michael and scott however we reuse the tagged_pointer part for
+             * the freelist and clear he next part during node allocation
+             * we can observe a null-pointer here
+             */
             continue;
           }
           value = next_ptr->value;
@@ -174,8 +180,7 @@ class mpmc_queue
 
     node_pointer dummy_node_ptr{create_empty_node(), 0};
     m_head.get_ptr().store<memory_order_relaxed>(dummy_node_ptr.get_value());
-    m_tail.get_ptr().store<memory_order_release>(
-        dummy_node_ptr.get_value());
+    m_tail.get_ptr().store<memory_order_release>(dummy_node_ptr.get_value());
   }
 
   node* create_empty_node() {
@@ -186,6 +191,7 @@ class mpmc_queue
 
   node* create_data_node(const Ty& value) {
     auto* node{allocator_traits_type::allocate_single_object(m_alc)};
+    ++m_allocated;
     return allocator_traits_type::construct(m_alc, node, value);
   }
 
@@ -193,6 +199,7 @@ class mpmc_queue
     // node is guaranteed to be trivially destructible
     allocator_traits_type::deallocate_single_object(m_alc,
                                                     target.get_pointer());
+    ++m_freed;
   }
 
   template <typename OtherTy>
@@ -233,6 +240,13 @@ class mpmc_queue
 
       } else {
         if (!next) {
+          /*
+           * This check is not part of the original algorithm as
+           * published by michael and scott however we reuse the
+           * tagged_pointer part for the freelist and clear he next
+           * part during node allocation we can observe a
+           * null-pointer here
+           */
           continue;
         }
         auto next_ptr{next.get_pointer()};
@@ -268,6 +282,7 @@ class mpmc_queue
   aligned_node_pointer_holder m_head{};
   aligned_node_pointer_holder m_tail{};
   internal_allocator_type m_alc{};
+  atomic_size_t m_allocated{0}, m_freed{0};
 
 };  // namespace ktl::lockfree
 
