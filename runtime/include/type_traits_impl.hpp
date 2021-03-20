@@ -479,9 +479,10 @@ template <class To, class From, class = void>
 struct is_assignable : false_type {};
 
 template <class To, class From>
-struct is_assignable<To,
-                     From,
-                     void_t<decltype(declval<To&>() = declval<From>())> >
+struct is_assignable<
+    To,
+    From,
+    void_t<decltype(declval<add_lvalue_reference_t<To> >() = declval<From>())> >
     : true_type {};
 
 template <class To, class From>
@@ -507,8 +508,8 @@ inline constexpr bool is_move_assignable_v = is_move_assignable<Ty>::value;
 
 template <class To, class From>
 struct is_nothrow_assignable {
-  static constexpr bool value =
-      is_assignable_v<To, From>&& noexcept(declval<To>() = declval<From>());
+  static constexpr bool value = is_assignable_v<To, From>&& noexcept(
+      declval<add_lvalue_reference_t<To> >() = declval<From>());
 };
 
 template <class To, class From>
@@ -518,7 +519,8 @@ inline constexpr bool is_nothrow_assignable_v =
 template <class Ty>
 struct is_nothrow_copy_assignable {
   static constexpr bool value = is_copy_assignable_v<Ty>&& noexcept(
-      declval<Ty>() = declval<add_const_t<add_lvalue_reference_t<Ty> > >());
+      declval<add_lvalue_reference_t<Ty> >() =
+          declval<add_const_t<add_lvalue_reference_t<Ty> > >());
 };
 
 template <class Ty>
@@ -528,7 +530,8 @@ inline constexpr bool is_nothrow_copy_assignable_v =
 template <class Ty>
 struct is_nothrow_move_assignable {
   static constexpr bool value = is_move_assignable_v<Ty>&& noexcept(
-      declval<Ty>() = declval<add_rvalue_reference_t<Ty> >());
+      declval<add_lvalue_reference_t<Ty> >() =
+          declval<add_rvalue_reference_t<Ty> >());
 };
 
 template <class Ty>
