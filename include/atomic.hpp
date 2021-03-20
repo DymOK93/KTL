@@ -179,8 +179,7 @@ template <memory_order on_success, memory_order on_failure>
       {memory_order_seq_cst, memory_order_seq_cst, memory_order_seq_cst,
        memory_order_seq_cst, memory_order_seq_cst, memory_order_seq_cst}};
 
-  //_Check_memory_order(_Success);
-  check_load_memory_order<on_failure>();
+  load_memory_order_checker<on_failure>{};
   return COMBINED[static_cast<underlying_type_t<memory_order>>(on_success)]
                  [static_cast<underlying_type_t<memory_order>>(on_failure)];
 }
@@ -322,6 +321,13 @@ class interlocked_storage {
     internal_value_type result{*get_storage()};
     th::details::make_load_barrier<order>();
     return reinterpret_cast<value_type&>(result);
+  }
+
+  template <>
+  value_type load<memory_order_seq_cst>() const noexcept {
+    internal_value_type empty{};
+    return InterlockedPolicy::compare_exchange_strong(
+        const_cast<internal_value_type*>(get_storage()), empty, empty);
   }
 
   template <memory_order order = memory_order_seq_cst>
@@ -962,16 +968,13 @@ class atomic : public atomic_base_t<Ty> {  // atomic value
   bool compare_exchange_strong(Ty& expected,
                                const Ty desired) volatile noexcept {
     return MyBase::compare_exchange_strong<
-        combine_cas_memory_orders<on_success, on_failure>>(expected, desired);
+        combine_cas_memory_orders<on_success, on_failure>()>(expected, desired);
   }
 
   template <memory_order on_success, memory_order on_failure>
-  bool compare_exchange_strong(Ty& expected,
-                               const Ty desired,
-                               const memory_order _Success,
-                               const memory_order _Failure) noexcept {
+  bool compare_exchange_strong(Ty& expected, const Ty desired) noexcept {
     return MyBase::compare_exchange_strong<
-        combine_cas_memory_orders<on_success, on_failure>>(expected, desired);
+        combine_cas_memory_orders<on_success, on_failure>()>(expected, desired);
   }
 
   bool compare_exchange_weak(Ty& expected, const Ty desired) volatile noexcept {
@@ -998,13 +1001,13 @@ class atomic : public atomic_base_t<Ty> {  // atomic value
   template <memory_order on_success, memory_order on_failure>
   bool compare_exchange_weak(Ty& expected, const Ty desired) volatile noexcept {
     return MyBase::compare_exchange_strong<
-        combine_cas_memory_orders<on_success, on_failure>>(expected, desired);
+        combine_cas_memory_orders<on_success, on_failure>()>(expected, desired);
   }
 
   template <memory_order on_success, memory_order on_failure>
   bool compare_exchange_weak(Ty& expected, const Ty desired) noexcept {
     return MyBase::compare_exchange_strong<
-        combine_cas_memory_orders<on_success, on_failure>>(expected, desired);
+        combine_cas_memory_orders<on_success, on_failure>()>(expected, desired);
   }
 
   operator Ty() const volatile noexcept { return load(); }

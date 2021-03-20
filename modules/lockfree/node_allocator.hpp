@@ -65,7 +65,6 @@ class node_allocator {
       : m_freelist{one_then_variadic_args{}, forward<Allocator>(alloc)} {
     for (size_type idx = 0; idx < initial_count; ++idx) {
       push_unsafe(create_memory_block());
-      ++m_allocated;
     }
   }
 
@@ -86,10 +85,11 @@ class node_allocator {
 
   Ty* allocate() {
     auto& head{get_head()};
-    auto old_top{node_pointer{head.load<memory_order_acquire>()}};
+    auto old_top_value{head.load<memory_order_consume>()};
 
     Ty* ptr{nullptr};
     while (!ptr) {
+      auto old_top{node_pointer{old_top_value}};
       if (!old_top) {
         ptr = create_memory_block();
       } else {
@@ -97,7 +97,8 @@ class node_allocator {
             node_pointer{old_top->next}.get_pointer();
         node_pointer new_pool{new_top_ptr, old_top.get_next_tag()};
 
-        if (compare_exchange_helper(head, old_top, new_pool)) {
+        // old_top_value may be rewritten
+        if (head.compare_exchange_weak(old_top_value, new_pool.get_value())) {
           ptr = reinterpret_cast<Ty*>(old_top.get_pointer());
         }
       }
@@ -107,15 +108,16 @@ class node_allocator {
 
   void deallocate(Ty* ptr) noexcept {
     auto& head{get_head()};
-    auto old_top{node_pointer{head.load<memory_order_acquire>()}};
+    auto old_top_value{head.load<memory_order_consume>()};
 
     auto* new_top_ptr = reinterpret_cast<memory_block_header*>(ptr);
 
     for (;;) {
-      node_pointer new_top{new_top_ptr, old_top.get_tag()};
-      new_top->next = old_top.get_value();
+      node_pointer new_top{new_top_ptr, node_pointer{old_top_value}.get_tag()};
+      new_top->next = old_top_value;
 
-      if (compare_exchange_helper(head, old_top, new_top)) {
+      // old_top_value may be rewritten
+      if (head.compare_exchange_weak(old_top_value, new_top.get_value())) {
         break;
       }
     }
@@ -134,7 +136,7 @@ class node_allocator {
 
   Ty* pop_unsafe_without_allocation() {
     auto& head{get_head()};
-    auto old_top{node_pointer{head.load<memory_order_acquire>()}};
+    auto old_top{node_pointer{head.load<memory_order_relaxed>()}};
 
     Ty* ptr{nullptr};
     if (old_top) {
@@ -152,20 +154,13 @@ class node_allocator {
     auto* new_top_ptr = reinterpret_cast<memory_block_header*>(ptr);
     node_pointer new_top{new_top_ptr, head.get_tag()};
     new_top->next.set_pointer(old_pool.get_pointer());
-    store_relaxed(head, new_top);
+    head.store<memory_order_relaxed>(new_top);
   }
 
   allocator_type& get_alloc() noexcept { return m_freelist.get_first(); }
 
   node_pointer_holder& get_head() noexcept {
     return m_freelist.get_second().next;
-  }
-
-  static bool compare_exchange_helper(node_pointer_holder& place,
-                                      node_pointer expected,
-                                      node_pointer new_ptr) {
-    auto expected_value{expected.get_value()};
-    return place.compare_exchange_strong(expected_value, new_ptr.get_value());
   }
 
  private:

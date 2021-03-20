@@ -78,7 +78,7 @@ class unique_ptr {
   constexpr unique_ptr(nullptr_t) noexcept {}
 
   explicit unique_ptr(pointer ptr) noexcept
-      : m_value{/*zero_then_variadic_args{}*/ deleter_type{}, ptr} {}
+      : m_value{zero_then_variadic_args{}, ptr} {}
 
   template <class Dx = Deleter,
             enable_if_t<is_constructible_v<Dx, const Dx&>, int> = 0>

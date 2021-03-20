@@ -108,7 +108,7 @@ class basic_winnt_string_view {
 
   constexpr void remove_prefix(size_type count) noexcept {
     assert_with_msg(count <= size(), "prefix is too long");
-    native_string_traits_type::set_buffer(m_str, data() + count);
+    native_string_traits_type::set_buffer(m_str, const_cast<value_type*>(data() + count));
     native_string_traits_type::decrease_size(m_str, +count);
   }
 

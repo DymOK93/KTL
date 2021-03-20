@@ -108,18 +108,19 @@ class mpmc_queue
       node* tail_ptr{tail.get_pointer()};
       auto next{node_pointer{tail_ptr->next.load<memory_order_acquire>()}};
 
-      if (tail == node_pointer{m_tail.get_ptr().load<memory_order_acquire>()}) {
+      node_pointer current_tail{m_tail.get_ptr().load<memory_order_acquire>()};
+      if (tail == current_tail) {
         if (!next) {
           node_pointer new_tail_next{new_node, next.get_next_tag()};
 
-          if (compare_exchange_helper(tail_ptr->next, next, new_tail_next)) {
+          if (cas_weak_helper(tail_ptr->next, next, new_tail_next)) {
             node_pointer new_tail{new_node, tail.get_next_tag()};
-            compare_exchange_helper(m_tail.get_ptr(), tail, new_tail);
+            cas_strong_helper(m_tail.get_ptr(), tail, new_tail);
             return true;
           }
         } else {
           node_pointer new_tail{next.get_pointer(), tail.get_next_tag()};
-          compare_exchange_helper(m_tail.get_ptr(), tail, new_tail);
+          cas_strong_helper(m_tail.get_ptr(), tail, new_tail);
         }
       }
     }
@@ -138,28 +139,31 @@ class mpmc_queue
       auto next{node_pointer{head_ptr->next.load<memory_order_acquire>()}};
       node* next_ptr = next.get_pointer();
 
-      if (head == node_pointer{m_head.get_ptr().load<memory_order_acquire>()}) {
+      node_pointer current_head{m_head.get_ptr().load<memory_order_acquire>()};
+      if (head == current_head) {
         if (head == tail) {
           if (!next) {
             return false;
           }
           node_pointer new_tail{next_ptr, tail.get_next_tag()};
-          compare_exchange_helper(m_tail.get_ptr(), tail, new_tail);
+          cas_strong_helper(m_tail.get_ptr(), tail, new_tail);
         } else {
           if (!next) {
-            /* this check is not part of the original algorithm as published
-             * by michael and scott however we reuse the tagged_ptr part for
+            /*
+             * This check is not part of the original algorithm as published
+             * by michael and scott however we reuse the tagged_pointer part for
              * the freelist and clear he next part during node allocation
-             * we can observe a null-pointer here.
-             * */
+             * we can observe a null-pointer here
+             */
             continue;
           }
           value = next_ptr->value;
           node_pointer new_head{next_ptr, head.get_next_tag()};
 
-          m_head.get_ptr().store<memory_order_release>(new_head.get_value());
-          destroy_node(head);
-          return true;
+          if (cas_weak_helper(m_head.get_ptr(), head, new_head)) {
+            destroy_node(head);
+            return true;
+          }
         }
       }
     }
@@ -187,6 +191,7 @@ class mpmc_queue
 
   node* create_data_node(const Ty& value) {
     auto* node{allocator_traits_type::allocate_single_object(m_alc)};
+    ++m_allocated;
     return allocator_traits_type::construct(m_alc, node, value);
   }
 
@@ -194,6 +199,7 @@ class mpmc_queue
     // node is guaranteed to be trivially destructible
     allocator_traits_type::deallocate_single_object(m_alc,
                                                     target.get_pointer());
+    ++m_freed;
   }
 
   template <typename OtherTy>
@@ -201,16 +207,18 @@ class mpmc_queue
     auto new_node{create_data_node(value)};
 
     for (;;) {
-      auto tail{load_relaxed(m_tail)};
-      auto next{load_relaxed(tail->next)};
+      auto tail{node_pointer{m_tail.get_ptr().load<memory_order_relaxed>()}};
+      auto next{node_pointer{tail->next.load<memory_order_relaxed>()}};
 
       if (!next) {
-        store_relaxed(tail->next, node_pointer{new_node, next.get_next_tag()});
-        store_relaxed(tail, node_pointer{new_node, next.get_next_tag()});
+        tail->next.store<memory_order_relaxed>(
+            node_pointer{new_node, next.get_next_tag()}.get_value());
+        m_tail.get_ptr().store<memory_order_relaxed>(
+            node_pointer{new_node, next.get_next_tag()}.get_value());
         return true;
       } else
-        store_relaxed(m_tail,
-                      node_pointer{next.get_pointer(), tail.get_next_tag()});
+        m_tail.get_ptr().store<memory_order_relaxed>(
+            node_pointer{next.get_pointer(), tail.get_next_tag()}.get_value());
     }
   }
 
@@ -232,12 +240,13 @@ class mpmc_queue
 
       } else {
         if (!next) {
-          /* this check is not part of the original algorithm as published by
-           * michael and scott
-           * however we reuse the tagged_ptr part for the freelist and clear
-           * the next part during node allocation. we can observe a
-           * null-pointer here.
-           * */
+          /*
+           * This check is not part of the original algorithm as
+           * published by michael and scott however we reuse the
+           * tagged_pointer part for the freelist and clear he next
+           * part during node allocation we can observe a
+           * null-pointer here
+           */
           continue;
         }
         auto next_ptr{next.get_pointer()};
@@ -255,17 +264,25 @@ class mpmc_queue
 
   allocator_type& get_alloc() noexcept { return m_alc; }
 
-  static bool compare_exchange_helper(node_pointer_holder& place,
-                                      node_pointer expected,
-                                      node_pointer new_ptr) noexcept {
+  static bool cas_strong_helper(node_pointer_holder& place,
+                                node_pointer expected,
+                                node_pointer new_ptr) noexcept {
     auto expected_value{expected.get_value()};
     return place.compare_exchange_strong(expected_value, new_ptr.get_value());
+  }
+
+  static bool cas_weak_helper(node_pointer_holder& place,
+                              node_pointer expected,
+                              node_pointer new_ptr) noexcept {
+    auto expected_value{expected.get_value()};
+    return place.compare_exchange_weak(expected_value, new_ptr.get_value());
   }
 
  private:
   aligned_node_pointer_holder m_head{};
   aligned_node_pointer_holder m_tail{};
   internal_allocator_type m_alc{};
+  atomic_size_t m_allocated{0}, m_freed{0};
 
 };  // namespace ktl::lockfree
 
