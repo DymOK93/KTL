@@ -1,6 +1,7 @@
 #pragma once
 #include <basic_types.h>
 #include <crt_attributes.h>
+#include <irql.h>
 #include <intrinsic.hpp>
 #include <limits.hpp>
 #include <type_traits.hpp>
@@ -9,42 +10,6 @@
 #include <ntddk.h>
 
 namespace ktl {
-namespace th {
-inline bool interlocked_exchange(bool& target, bool new_value) {
-  return InterlockedExchange8(
-      reinterpret_cast<volatile char*>(addressof(target)),
-      static_cast<char>(new_value));
-}
-
-inline void interlocked_swap(bool& lhs, bool& rhs) {
-  bool old_lhs = lhs;
-  interlocked_exchange(lhs, rhs);
-  interlocked_exchange(rhs, old_lhs);
-}
-
-template <class Ty>
-Ty* interlocked_exchange_pointer(Ty* const* ptr_place, Ty* new_ptr) noexcept {
-  return static_cast<Ty*>(InterlockedExchangePointer(
-      reinterpret_cast<volatile PVOID*>(const_cast<Ty**>(ptr_place)), new_ptr));
-}
-
-template <class Ty>
-Ty* interlocked_compare_exchange_pointer(Ty* const* ptr_place,
-                                         Ty* new_ptr,
-                                         Ty* expected) noexcept {
-  return static_cast<Ty*>(InterlockedCompareExchangePointer(
-      reinterpret_cast<volatile PVOID*>(const_cast<Ty**>(ptr_place)), new_ptr,
-      expected));
-}
-
-template <class Ty>
-void interlocked_swap_pointer(Ty* const lhs, Ty* const rhs) noexcept {
-  Ty* old_lhs = lhs;
-  interlocked_exchange(lhs, rhs);
-  interlocked_exchange(rhs, old_lhs);
-}
-}  // namespace th
-
 template <typename IntegralTy, typename Ty>
 static volatile IntegralTy* atomic_address_as(Ty& value) noexcept {
   static_assert(is_integral_v<IntegralTy>, "value must be integral");
@@ -62,23 +27,33 @@ inline void make_compiler_barrier() noexcept {
   _ReadWriteBarrier();
 }
 
-class spin_lock {
+class universal_lock : non_relocatable {
  public:
-  using lock_type = long;
-
- public:
-  spin_lock() noexcept = default;
-
-  void lock() noexcept {
-    while (InterlockedCompareExchange(atomic_address_as<long>(m_lock), 1, 0))
-      ;
+  universal_lock() noexcept {
+    KeInitializeSpinLock(addressof(m_spinlock));
+    KeInitializeMutex(addressof(m_mtx), 0);
   }
-  void unlock() noexcept {
-    InterlockedExchange(atomic_address_as<long>(m_lock), 0);
+
+  void lock() {
+    if (get_current_irql() < DISPATCH_LEVEL) {
+      KeWaitForSingleObject(addressof(m_mtx), Executive, KernelMode, false,
+                            nullptr);
+    } else {
+      KeAcquireSpinLockAtDpcLevel(addressof(m_spinlock));
+    }
+  }
+
+  void unlock() {
+    if (get_current_irql() < DISPATCH_LEVEL) {
+      KeReleaseMutex(addressof(m_mtx), false);
+    } else {
+      KeReleaseSpinLockFromDpcLevel(addressof(m_spinlock));
+    }
   }
 
  private:
-  lock_type m_lock{0};
+  KMUTEX m_mtx;
+  KSPIN_LOCK m_spinlock;
 };
 
 template <class Lock>
@@ -223,13 +198,13 @@ struct atomic_padded {
 template <class Ty>
 struct atomic_storage_selector {
   using storage_type = atomic_padded<Ty>;
-  using lock_type = spin_lock;
+  using lock_type = universal_lock;
 };
 
 template <class Ty>
 struct atomic_storage_selector<Ty&> {
   using storage_type = Ty&;
-  using lock_type = spin_lock;
+  using lock_type = universal_lock;
 };
 
 template <class Ty, size_t = sizeof(remove_reference_t<Ty>)>

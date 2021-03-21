@@ -590,48 +590,40 @@ class PtrBase {
   explicit PtrBase(Ty* ptr, ref_counter_t* ref_counter) noexcept
       : m_value_ptr{ptr}, m_ref_counter{ref_counter} {}
 
-  Ty* get_value_ptr() const noexcept {
-    return interlocked_compare_exchange_pointer<Ty>(addressof(m_value_ptr),
-                                                    nullptr, nullptr);
-  }
-  ref_counter_t* get_ref_counter() const noexcept {
-    return th::interlocked_compare_exchange_pointer<ref_counter_t>(
-        addressof(m_ref_counter), nullptr, nullptr);
-  }
+  Ty* get_value_ptr() const noexcept { return m_value_ptr; }
+  ref_counter_t* get_ref_counter() const noexcept { return m_ref_counter; }
 
   void incref() noexcept;  //Дочерние классы ConcretePtr
   void decref() noexcept;  //должны переопределить два этих метода
 
   template <class U, class OtherPtr>
   ConcretePtr& copy_construct_from(const PtrBase<U, OtherPtr>& other) noexcept {
-    static_assert(is_convertible_v<U*, Ty*>, "Can't convert value pointer");
+    static_assert(is_convertible_v<U*, Ty*>, "can't convert value pointer");
     decref_if_not_null();
-    exchange_value_ptr(static_cast<Ty*>(other.m_value_ptr));
-    exchange_ref_counter(other.m_ref_counter);
+    m_value_ptr = static_cast<Ty*>(other.m_value_ptr);
+    m_ref_counter = other.m_ref_counter;
     incref_if_not_null();
     return get_context();
   }
 
   template <class U, class OtherPtr>
   ConcretePtr& move_construct_from(PtrBase<U, OtherPtr>&& other) noexcept {
-    static_assert(is_convertible_v<U*, Ty*>, "Can't convert value pointer");
+    static_assert(is_convertible_v<U*, Ty*>, "can't convert value pointer");
     decref_if_not_null();
-    exchange_value_ptr(static_cast<Ty*>(other.exchange_value_ptr(nullptr)));
-    exchange_ref_counter(other.exchange_ref_counter(nullptr));
+    m_value_ptr = static_cast<Ty*>(exchange(other.m_value_ptr, nullptr));
+    m_ref_counter = exchange(other.m_ref_counter, nullptr);
     return get_context();
   }
 
   void reset() {
     decref_if_not_null();
-    exchange_value_ptr(nullptr);
-    exchange_ref_counter(nullptr);
+    m_value_ptr = nullptr;
+    m_ref_counter = nullptr;
   }
 
   void swap(PtrBase& other) noexcept {
-    Ty* value_ptr{m_value_ptr};
-    ref_counter_t* ref_counter{m_ref_counter};
-    exchange_value_ptr(other.exchange_value_ptr(value_ptr));
-    exchange_ref_counter(other.exchange_ref_counter(ref_counter));
+    ::swap(m_value_ptr, other.m_value_ptr);
+    ::swap(m_ref_counter, other.m_ref_counter);
   }
 
  private:
@@ -648,16 +640,6 @@ class PtrBase {
 
   ConcretePtr& get_context() noexcept {
     return static_cast<ConcretePtr&>(*this);
-  }
-
-  Ty* exchange_value_ptr(Ty* new_value_ptr) noexcept {
-    return th::interlocked_exchange_pointer(addressof(m_value_ptr),
-                                            new_value_ptr);
-  }
-
-  ref_counter_t* exchange_ref_counter(ref_counter_t* new_ref_counter) noexcept {
-    return th::interlocked_exchange_pointer(addressof(m_ref_counter),
-                                            new_ref_counter);
   }
 
  private:
