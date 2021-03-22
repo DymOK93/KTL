@@ -189,13 +189,11 @@ class unique_ptr {
 
   operator bool() const noexcept { return static_cast<bool>(get()); }
 
-  add_lvalue_reference_t<Ty> operator*()
-      const& {  //Перегруженный Ty::operator*() способен вызвать
-                //исключение
-    return *get();
-  }
+  add_lvalue_reference_t<Ty> operator*() const& noexcept { return *get(); }
 
-  add_rvalue_reference_t<Ty> operator*() const&& { return move(*get()); }
+  add_rvalue_reference_t<Ty> operator*() const&& noexcept {
+    return move(*get());
+  }
 
   pointer operator->() const noexcept { return m_value.get_second(); }
 
