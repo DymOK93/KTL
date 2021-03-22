@@ -107,6 +107,8 @@ using std::aligned_storage_t;
 using std::is_floating_point_v;
 using std::is_integral_v;
 
+using std::conjunction;
+using std::conjunction_v;
 }  // namespace ktl
 #else
 namespace ktl {
@@ -375,16 +377,23 @@ template <class From, class To>
 inline constexpr bool is_nothrow_convertible_v =
     is_nothrow_convertible<From, To>::value;
 
+namespace tt::details {
 template <class, class Ty, class... Types>
-struct is_constructible : false_type {};
+struct is_constructible_impl : false_type {};
 
 template <class Ty, class... Types>
-struct is_constructible<void_t<decltype(Ty(declval<Types>()...))>, Ty, Types...>
-    : true_type {};
+struct is_constructible_impl<void_t<decltype(Ty(declval<Types>()...))>,
+                             Ty,
+                             Types...> : true_type {};
+}  // namespace tt::details
+
+template <class Ty, class... Types>
+struct is_constructible
+    : tt::details::is_constructible_impl<void_t<>, Ty, Types...> {};
 
 template <class Ty, class... Types>
 inline constexpr bool is_constructible_v =
-    is_constructible<void_t<>, Ty, Types...>::value;
+    is_constructible<Ty, Types...>::value;
 
 template <class Ty, class... Types>
 struct is_trivially_constructible {
@@ -904,5 +913,25 @@ struct is_floating_point {
 
 template <class Ty>
 inline constexpr bool is_floating_point_v = is_floating_point<Ty>::value;
+
+template <bool IsFirst, class Head, class... Tail>
+struct conjunction_impl {
+  using type = Head;
+};
+
+template <class True, class Next, class... Tail>
+struct conjunction_impl<true, True, Next, Tail...> {
+  using type = typename conjunction_impl<Next::value, Next, Tail...>::type;
+};
+
+template <class... Traits>
+struct conjunction : true_type {};
+
+template <class Head, class... Tail>
+struct conjunction<Head, Tail...>
+    : conjunction_impl<Head::value, Head, Tail...>::type {};
+
+template <class... Traits>
+inline constexpr bool conjunction_v = conjunction<Traits...>::value;
 }  // namespace ktl
 #endif

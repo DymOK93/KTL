@@ -1,6 +1,7 @@
 #pragma once
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
+#include <tuple>
 #include <utility>
 
 namespace ktl {
@@ -35,6 +36,15 @@ template <class Ty, size_t N>
 constexpr size_t size(const Ty (&arr)[N]) {
   return N;
 }
+
+struct piecewise_construct_t {
+  explicit piecewise_construct_t() = default;
+};
+
+inline constexpr piecewise_construct_t piecewise_construct{};
+
+template <class...>
+class tuple;
 
 // A custom pair implementation
 template <typename Ty1, typename Ty2>
@@ -85,39 +95,22 @@ struct pair {
           is_nothrow_constructible_v<Ty2, U2&&>)
       : first(move(other.first)), second(move(other.second)) {}
 
-  // template <typename... U1, typename... U2>
-  // constexpr pair(
-  //    ktl::piecewise_construct_t /*unused*/,
-  //    ktl::tuple<U1...> a,
-  //    ktl::tuple<U2...>
-  //        b) noexcept(noexcept(pair(declval<ktl::tuple<U1...>&>(),
-  //                                  declval<ktl::tuple<U2...>&>(),
-  //                                  ROBIN_HOOD_STyD::index_sequence_for<U1...>(),
-  //                                  ROBIN_HOOD_STyD::index_sequence_for<
-  //                                      U2...>())))
-  //    : pair(a,
-  //           b,
-  //           ROBIN_HOOD_STyD::index_sequence_for<U1...>(),
-  //           ROBIN_HOOD_STyD::index_sequence_for<U2...>()) {}
+  template <typename... U1, typename... U2>
+  constexpr pair(
+      piecewise_construct_t /*unused*/,
+      tuple<U1...> a,
+      tuple<U2...> b) noexcept(noexcept(pair(declval<tuple<U1...>&>(),
+                                             declval<tuple<U2...>&>(),
+                                             index_sequence_for<U1...>(),
+                                             index_sequence_for<U2...>())))
+      : pair(a, b, index_sequence_for<U1...>(), index_sequence_for<U2...>()) {}
 
-  //// constructor called from the ktl::piecewise_construct_t ctor
-  // template <typename... U1, size_t... I1, typename... U2, size_t... I2>
-  // pair(ktl::tuple<U1...>& a, ktl::tuple<U2...>& b,
-  // ROBIN_HOOD_STyD::index_sequence<I1...> /*unused*/,
-  // ROBIN_HOOD_STyD::index_sequence<I2...> /*unused*/) noexcept(
-  //    noexcept(Ty1(forward<U1>(ktl::get<I1>(
-  //        declval<ktl::tuple<
-  //            U1...>&>()))...)) && noexcept(Ty2(ktl::
-  //                                                 forward<U2>(ktl::get<I2>(
-  //                                                     declval<ktl::tuple<
-  //                                                         U2...>&>()))...)))
-  //    : first(forward<U1>(ktl::get<I1>(a))...),
-  //      second(forward<U2>(ktl::get<I2>(b))...) {
-  //  // make visual studio compiler happy about warning about unused a & b.
-  //  // Visual studio's pair implementation disables warning 4100.
-  //  (void)a;
-  //  (void)b;
-  //}
+  // constructor called from the piecewise_construct_t ctor
+  template <typename... U1, size_t... I1, typename... U2, size_t... I2>
+  pair([[maybe_unused]] tuple<U1...>& a, [[maybe_unused]] tuple<U2...>& b, index_sequence<I1...>, index_sequence<I2...>) noexcept(
+      noexcept(Ty1(forward<U1>(get<I1>(declval<tuple<U1...>&>()))...)) && noexcept(
+          Ty2(forward<U2>(get<I2>(declval<tuple<U2...>&>()))...)))
+      : first(forward<U1>(get<I1>(a))...), second(forward<U2>(get<I2>(b))...) {}
 
   void swap(pair<Ty1, Ty2>& o) noexcept(
       is_nothrow_swappable_v<Ty1>&& is_nothrow_swappable_v<Ty2>) {
@@ -139,10 +132,12 @@ template <typename Ty1, typename Ty2>
 constexpr bool operator==(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) {
   return (x.first == y.first) && (x.second == y.second);
 }
+
 template <typename Ty1, typename Ty2>
 constexpr bool operator!=(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) {
   return !(x == y);
 }
+
 template <typename Ty1, typename Ty2>
 constexpr bool
 operator<(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) noexcept(
@@ -151,19 +146,41 @@ operator<(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) noexcept(
                                                 declval<Ty2 const&>())) {
   return x.first < y.first || (!(y.first < x.first) && x.second < y.second);
 }
+
 template <typename Ty1, typename Ty2>
 constexpr bool operator>(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) {
   return y < x;
 }
+
 template <typename Ty1, typename Ty2>
 constexpr bool operator<=(pair<Ty1, Ty2> const& x, pair<Ty1, Ty2> const& y) {
   return !(x > y);
 }
+
 template <typename Ty1, typename Ty2>
 inline constexpr bool operator>=(pair<Ty1, Ty2> const& x,
                                  pair<Ty1, Ty2> const& y) {
   return !(x < y);
 }
+
+ // template <class U1, class U2>
+// constexpr tuple_base(const pair<U1, U2>& pair) noexcept(
+//    noexcept(is_nothrow_constructible_v<decltype(extract_type<0>(*this)),
+//                                        add_lvalue_reference_t<U1>>&&
+//                 is_nothrow_constructible_v<decltype(extract_type<1>(*this)),
+//                                            add_lvalue_reference_t<U2>>))
+//    : MyElementBase<0, decltype(extract_type<0>(*this))>{pair.first},
+//      MyElementBase<1, decltype(extract_type<1>(*this))>{pair.second} {}
+
+// template <class U1, class U2>
+// constexpr tuple_base(pair<U1, U2>&& pair) noexcept(
+//    noexcept(is_nothrow_constructible_v<decltype(extract_type<0>(*this)),
+//                                        add_rvalue_reference_t<U1>>&&
+//                 is_nothrow_constructible_v<decltype(extract_type<1>(*this)),
+//                                            add_rvalue_reference_t<U2>>))
+//    : MyElementBase<0, decltype(extract_type<0>(*this))>{move(pair.first)},
+//      MyElementBase<1, decltype(extract_type<1>(*this))>{move(pair.second)}
+//      {}
 
 namespace tt::details {
 template <class Ty>
@@ -359,9 +376,4 @@ class compressed_pair<Ty1, Ty2, false> : private pair<Ty1, Ty2> {
   second_type& get_second() noexcept { return this->second; }
   const second_type& get_second() const noexcept { return this->second; }
 };
-
-struct piecewise_construct_t {
-  explicit piecewise_construct_t() = default;
-};
-inline constexpr piecewise_construct_t piecewise_construct{};
 }  // namespace ktl

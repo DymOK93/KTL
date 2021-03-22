@@ -47,6 +47,7 @@
 #include <intrinsic.hpp>
 #include <iterator.hpp>
 #include <limits.hpp>
+#include <tuple.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
@@ -1224,32 +1225,31 @@ class Table
     return r;
   }
 
-  // Is unavaliable now
-  // template <typename... Args>
-  // pair<iterator, bool> try_emplace(const key_type& key, Args&&... args) {
-  //  return try_emplace_impl(key, forward<Args>(args)...);
-  //}
-  //
-  // template <typename... Args>
-  // pair<iterator, bool> try_emplace(key_type&& key, Args&&... args) {
-  //  return try_emplace_impl(move(key), forward<Args>(args)...);
-  //}
+  template <typename... Args>
+  pair<iterator, bool> try_emplace(const key_type& key, Args&&... args) {
+    return try_emplace_impl(key, forward<Args>(args)...);
+  }
 
-  // template <typename... Args>
-  // pair<iterator, bool> try_emplace(const_iterator hint,
-  //                                 const key_type& key,
-  //                                 Args&&... args) {
-  //  (void)hint;
-  //  return try_emplace_impl(key, forward<Args>(args)...);
-  //}
+  template <typename... Args>
+  pair<iterator, bool> try_emplace(key_type&& key, Args&&... args) {
+    return try_emplace_impl(move(key), forward<Args>(args)...);
+  }
 
-  // template <typename... Args>
-  // pair<iterator, bool> try_emplace([[maybe_unused]] const_iterator hint,
-  //                                 key_type&& key,
-  //                                 Args&&... args) {
-  //  (void)hint;
-  //  return try_emplace_impl(move(key), forward<Args>(args)...);
-  //}
+  template <typename... Args>
+  pair<iterator, bool> try_emplace(const_iterator hint,
+                                   const key_type& key,
+                                   Args&&... args) {
+    (void)hint;
+    return try_emplace_impl(key, forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  pair<iterator, bool> try_emplace([[maybe_unused]] const_iterator hint,
+                                   key_type&& key,
+                                   Args&&... args) {
+    (void)hint;
+    return try_emplace_impl(move(key), forward<Args>(args)...);
+  }
 
   template <typename Mapped>
   pair<iterator, bool> insert_or_assign(const key_type& key, Mapped&& obj) {
@@ -1603,16 +1603,16 @@ class Table
     throw_exception<overflow_error>(L"robin_hood::map overflow");
   }
 
-  // template <typename OtherKey, typename... Args>
-  // pair<iterator, bool> try_emplace_impl(OtherKey&& key, Args&&... args) {
-  //  auto it = find(key);
-  //  if (it == end()) {
-  //    return emplace(piecewise_construct,
-  //                   forward_as_tuple(forward<OtherKey>(key)),
-  //                   forward_as_tuple(forward<Args>(args)...));
-  //  }
-  //  return {it, false};
-  //}
+  template <typename OtherKey, typename... Args>
+  pair<iterator, bool> try_emplace_impl(OtherKey&& key, Args&&... args) {
+    auto it = find(key);
+    if (it == end()) {
+      return emplace(piecewise_construct,
+                     forward_as_tuple(forward<OtherKey>(key)),
+                     forward_as_tuple(forward<Args>(args)...));
+    }
+    return {it, false};
+  }
 
   template <typename OtherKey, typename Mapped>
   pair<iterator, bool> insert_or_assign_impl(OtherKey&& key, Mapped&& obj) {
@@ -1684,9 +1684,8 @@ class Table
       if (idx == insertion_idx) {
         // put at empty spot. This forwards all arguments into the node where
         // the object is constructed exactly where it is needed.
-        ::new (static_cast<void*>(&l))
-            Node(*this, piecewise_construct,
-                 forward_as_tuple(forward<Arg>(key)), forward_as_tuple());
+        construct_at(&l, *this, piecewise_construct,
+                     forward_as_tuple(forward<Arg>(key)), forward_as_tuple());
       } else {
         shiftUp(idx, insertion_idx);
         l = Node(*this, piecewise_construct,

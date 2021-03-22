@@ -39,78 +39,6 @@ constexpr Ty&& get_value(tuple_element<Idx, Ty>&& element) {
   return forward<Ty>(element.value);
 }
 
-template <size_t Idx, class... Types>
-struct unreferenced_type_by_index {
- private:
-  template <size_t CurrentIdx, size_t TargetIdx, class Head, class... Tail>
-  static constexpr auto get_arg_by_idx(  // implicit reference removing
-      [[maybe_unused]] Head&& head,
-      [[maybe_unused]] Tail&&... tail) {
-    if constexpr (CurrentIdx == TargetIdx) {
-      return forward<Head>(head);
-    } else {
-      return get_arg_by_idx<CurrentIdx + 1, TargetIdx>(forward<Tail>(tail)...);
-    }
-  }
-
- public:
-  using value_type = decltype(get_arg_by_idx<0, Idx>(declval<Types>()...));
-};
-
-template <size_t Idx, class... Types>
-using unreferenced_type_by_index_t =
-    typename unreferenced_type_by_index<Idx, Types...>::value_type;
-
-template <size_t Half,
-          template <typename, typename>
-          class Trait,
-          class IndexType,
-          class... Types>
-struct apply_trait_to_pairs;
-
-template <size_t Half,
-          template <typename, typename>
-          class Trait,
-          size_t... Indices,
-          class... Types>
-struct apply_trait_to_pairs<Half, Trait, index_sequence<Indices...>, Types...> {
- private:
-  template <size_t LhsIdx, size_t RhsIdx>
-  static constexpr bool trait_wrapper() noexcept {
-    return Trait<unreferenced_type_by_index_t<LhsIdx, Types...>,
-                 unreferenced_type_by_index_t<RhsIdx, Types...>>::value;
-  }
-
- public:
-  static constexpr bool value =
-      ((trait_wrapper<Indices, Half + Indices>()), ...);
-};
-
-template <class... Types>
-struct is_constructible_in_pairs {
-  static constexpr bool value =
-      apply_trait_to_pairs<sizeof...(Types) / 2,
-                           is_constructible,
-                           make_index_sequence<sizeof...(Types) / 2>,
-                           Types...>::value;
-};
-
-template <class... Types>
-inline constexpr bool is_constructible_in_pairs_v =
-    is_constructible_in_pairs<Types...>::value;
-
-template <class... Types>
-struct is_same_in_pairs {
-  static constexpr bool value =
-      apply_trait_to_pairs<sizeof...(Types) / 2,
-                           is_same,
-                           make_index_sequence<sizeof...(Types) / 2>,
-                           Types...>::value;
-};
-
-template <class... Types>
-inline constexpr bool is_same_in_pairs_v = is_same_in_pairs<Types...>::value;
-
 template <class IndexType, class... Types>
 class tuple_base {};
 
@@ -123,49 +51,48 @@ class tuple_base<index_sequence<Indices...>, Types...>
 
  public:
   explicit constexpr tuple_base() noexcept(
-      is_all_v<is_nothrow_default_constructible, Types...>) {}
+      conjunction_v<is_nothrow_default_constructible<Types>...>) {}
 
   constexpr tuple_base(const tuple_base&) = default;
   constexpr tuple_base(tuple_base&&) = default;
   constexpr tuple_base& operator=(const tuple_base&) = default;
   constexpr tuple_base& operator=(tuple_base&&) = default;
 
-  template <enable_if_t<is_all_v<is_copy_constructible,
-                                 add_lvalue_reference_t<Types>...>,
-                        int> = 0>
+  template <
+      enable_if_t<conjunction_v<is_copy_constructible<Types>...>, int> = 0>
   constexpr tuple_base(const Types&... args) noexcept(
-      is_all_v<is_nothrow_copy_constructible, Types...>)
+      conjunction_v<is_nothrow_copy_constructible<Types>...>)
       : MyElementBase<Indices, Types>{args}... {}
 
-  template <enable_if_t<is_all_v<is_move_constructible,
-                                 add_rvalue_reference_t<Types>...>,
-                        int> = 0>
-  constexpr tuple_base(Types&&... args) noexcept(
-      is_all_v<is_nothrow_move_constructible, Types...>)
-      : MyElementBase<Indices, Types>{move(args)}... {}
-
-  template <class... OtherTypes,
-            enable_if_t<is_constructible_in_pairs_v<Types..., OtherTypes...> &&
-                            sizeof...(OtherTypes) == sizeof...(Types),
-                        int> = 0>
+  template <
+      class... OtherTypes,
+      enable_if_t<sizeof...(OtherTypes) == sizeof...(Types) &&
+                      conjunction_v<is_constructible<Types, OtherTypes>...>,
+                  int> = 0>
   explicit constexpr tuple_base(OtherTypes&&... args) noexcept(
-      noexcept(MyElementBase<Indices, Types>{forward<OtherTypes>(args)}...))
+      conjunction_v<is_nothrow_constructible<Types, OtherTypes>...>)
       : MyElementBase<Indices, Types>{forward<OtherTypes>(args)}... {}
 
-  template <class... OtherTypes>
+  template <class... OtherTypes,
+            enable_if_t<sizeof...(OtherTypes) == sizeof...(Types) &&
+                            conjunction<is_constructible<Types, OtherTypes>...>,
+                        int> = 0>
   constexpr tuple_base(const tuple_base<OtherTypes...>& other)
       : MyElementBase<Indices, Types>{get_value<Indices>(other)}... {}
 
-  template <class... OtherTypes>
+  template <class... OtherTypes,
+            enable_if_t<sizeof...(OtherTypes) == sizeof...(Types) &&
+                            conjunction<is_constructible<Types, OtherTypes>...>,
+                        int> = 0>
   constexpr tuple_base(tuple_base<OtherTypes...>&& other)
       : MyElementBase<Indices, Types>{move(get_value<Indices>(other))}... {}
 
   template <class U1, class U2>
-  constexpr tuple_base(const pair<U1, U2>& pair) noexcept(
-      noexcept(is_nothrow_constructible_v<decltype(extract_type<0>(*this)),
-                                          add_lvalue_reference_t<U1>>&&
-                   is_nothrow_constructible_v<decltype(extract_type<1>(*this)),
-                                              add_lvalue_reference_t<U2>>))
+  constexpr tuple_base(const pair<U1, U2>& pair) noexcept(noexcept(
+      is_nothrow_constructible_v<decltype(extract_type<0>(*this)),
+                                 add_const_t<add_lvalue_reference_t<U1>>>&&
+          is_nothrow_constructible_v<decltype(extract_type<1>(*this)),
+                                     add_lvalue_reference_t<U2>>))
       : MyElementBase<0, decltype(extract_type<0>(*this))>{pair.first},
         MyElementBase<1, decltype(extract_type<1>(*this))>{pair.second} {}
 
@@ -179,12 +106,7 @@ class tuple_base<index_sequence<Indices...>, Types...>
         MyElementBase<1, decltype(extract_type<1>(*this))>{move(pair.second)} {}
 
   template <class... OtherTypes>
-  constexpr tuple_base&
-  operator=(const tuple_base<OtherTypes...>& other) noexcept(
-      noexcept(is_nothrow_assignable_v<decltype(extract_type<0>(*this)),
-                                       add_lvalue_reference_t<U1>>&&
-                   is_nothrow_assignable_v<decltype(extract_type<1>(*this)),
-                                           add_lvalue_reference_t<U2>>)) {
+  constexpr tuple_base& operator=(const tuple_base<OtherTypes...>& other) {
     if (addressof(this) != other) {
       ((get_value<Indices>(*this) = get_value<Indices>(other)), ...);
     }
@@ -192,11 +114,7 @@ class tuple_base<index_sequence<Indices...>, Types...>
   }
 
   template <class... OtherTypes>
-  constexpr tuple_base& operator=(tuple_base<OtherTypes...>&& other) noexcept(
-      noexcept(is_nothrow_assignable_v<decltype(extract_type<0>(*this)),
-                                       add_rvalue_reference_t<U1>>&&
-                   is_nothrow_assignable_v<decltype(extract_type<1>(*this)),
-                                           add_rvalue_reference_t<U2>>)) {
+  constexpr tuple_base& operator=(tuple_base<OtherTypes...>&& other) {
     if (addressof(this) != other) {
       ((get_value<Indices>(*this) = move(get_value<Indices>(other))), ...);
     }
@@ -215,7 +133,7 @@ class tuple_base<index_sequence<Indices...>, Types...>
   }
 
   constexpr void swap(tuple_base& other) noexcept(
-      is_all_v<is_nothrow_swappable, Types...>) {
+      conjunction_v<is_nothrow_swappable<Types>...>) {
     ((::swap(get_value<Indices>(*this), get_value<Indices>(other))), ...);
   }
 
@@ -297,11 +215,11 @@ using tuple_element = remove_reference<decltype(get<Idx>(declval<Ty>()))>;
 template <class... Types>
 tuple(Types...) -> tuple<Types...>;
 
-template <class Ty1, class Ty2>
-tuple(const pair<Ty1, Ty2>&) -> tuple<Ty1, Ty2>;
-
-template <class Ty1, class Ty2>
-tuple(pair<Ty1, Ty2>&&) -> tuple<Ty1, Ty2>;
+// template <class Ty1, class Ty2>
+// tuple(const pair<Ty1, Ty2>&) -> tuple<Ty1, Ty2>;
+//
+// template <class Ty1, class Ty2>
+// tuple(pair<Ty1, Ty2>&&) -> tuple<Ty1, Ty2>;
 
 template <class... Types>
 void swap(tuple<Types...>& lhs, tuple<Types...>& rhs) noexcept(
@@ -344,7 +262,7 @@ struct ignore_tag {
 inline constexpr tt::details::ignore_tag ignore;
 
 template <class... Types>
-[[nodiscard]] constexpr tuple<Types&...> tie(Types&... args) {
+[[nodiscard]] constexpr tuple<Types&...> tie(Types&... args) noexcept {
   return tuple<Types&...>(args...);
 }
 

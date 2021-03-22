@@ -75,14 +75,6 @@ using index_sequence_for = make_index_sequence<sizeof...(
     Types)>;  // sizeof...(arg_pack) вычисляет количество
               // аргументов variadic-шаблона
 
-template <template <typename> class Trait, class... Types>
-struct is_all {
-  static constexpr bool value = (Trait<Types>::value && ...);
-};
-
-template <template <typename> class Trait, class... Types>
-inline constexpr bool is_all_v = is_all<Trait, Types...>::value;
-
 template <bool Value>
 struct bool_tag {
   using type = true_type;
