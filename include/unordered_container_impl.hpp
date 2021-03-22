@@ -1166,7 +1166,7 @@ class Table
     // clear everything, then set the sentinel again
     uint8_t const z = 0;
     // TODO: ktl::fill
-    //fill(mInfo, mInfo + calcNumBytesInfo(numElementsWithBuffer), z);
+    // fill(mInfo, mInfo + calcNumBytesInfo(numElementsWithBuffer), z);
     memset(mInfo, z, calcNumBytesInfo(numElementsWithBuffer));
     mInfo[numElementsWithBuffer] = 1;
 
@@ -1193,18 +1193,16 @@ class Table
 
   bool operator!=(const Table& other) const { return !operator==(other); }
 
-  // Not ready because we hasn't tuple and piecewise_construct
-  // template <typename Q = mapped_type>
-  // typename enable_if<!is_void<Q>::value, Q&>::type operator[](
-  //    const key_type& key) {
-  //  return doCreateByKey(key);
-  //}
-  //
-  // template <typename Q = mapped_type>
-  // typename enable_if<!is_void<Q>::value, Q&>::type operator[](key_type&& key)
-  // {
-  //  return doCreateByKey(move(key));
-  //}
+  template <typename Q = mapped_type>
+  typename enable_if<!is_void<Q>::value, Q&>::type operator[](
+      const key_type& key) {
+    return doCreateByKey(key);
+  }
+
+  template <typename Q = mapped_type>
+  typename enable_if<!is_void<Q>::value, Q&>::type operator[](key_type&& key) {
+    return doCreateByKey(move(key));
+  }
 
   template <typename Iter>
   void insert(Iter first, Iter last) {
@@ -1646,63 +1644,62 @@ class Table
     mInfoHashShift = InitialInfoHashShift;
   }
 
-  // Not implemented
-  // template <typename Arg, typename Q = mapped_type>
-  // typename enable_if<!is_void<Q>::value, Q&>::type doCreateByKey(Arg&& key) {
-  //  while (true) {
-  //    size_t idx{};
-  //    InfoType info{};
-  //    keyToIdx(key, &idx, &info);
-  //    nextWhileLess(&info, &idx);
+  template <typename Arg, typename Q = mapped_type>
+  typename enable_if<!is_void<Q>::value, Q&>::type doCreateByKey(Arg&& key) {
+    while (true) {
+      size_t idx{};
+      InfoType info{};
+      keyToIdx(key, &idx, &info);
+      nextWhileLess(&info, &idx);
 
-  //    // while we potentially have a match. Can't do a do-while here because
-  //    // when mInfo is 0 we don't want to skip forward
-  //    while (info == mInfo[idx]) {
-  //      if (WKeyEqual::operator()(key, mKeyVals[idx].getFirst())) {
-  //        // key already exists, do not insert.
-  //        return mKeyVals[idx].getSecond();
-  //      }
-  //      next(&info, &idx);
-  //    }
+      // while we potentially have a match. Can't do a do-while here because
+      // when mInfo is 0 we don't want to skip forward
+      while (info == mInfo[idx]) {
+        if (WKeyEqual::operator()(key, mKeyVals[idx].getFirst())) {
+          // key already exists, do not insert.
+          return mKeyVals[idx].getSecond();
+        }
+        next(&info, &idx);
+      }
 
-  //    // unlikely that this evaluates to true
-  //    if (mNumElements >= mMaxNumElementsAllowed) {
-  //      increase_size();
-  //      continue;
-  //    }
+      // unlikely that this evaluates to true
+      if (mNumElements >= mMaxNumElementsAllowed) {
+        increase_size();
+        continue;
+      }
 
-  //    // key not found, so we are now exactly where we want to insert it.
-  //    auto const insertion_idx = idx;
-  //    auto const insertion_info = info;
-  //    if (insertion_info + mInfoInc > 0xFF) {
-  //      mMaxNumElementsAllowed = 0;
-  //    }
+      // key not found, so we are now exactly where we want to insert it.
+      auto const insertion_idx = idx;
+      auto const insertion_info = info;
+      if (insertion_info + mInfoInc > 0xFF) {
+        mMaxNumElementsAllowed = 0;
+      }
 
-  //    // find an empty spot
-  //    while (0 != mInfo[idx]) {
-  //      next(&info, &idx);
-  //    }
+      // find an empty spot
+      while (0 != mInfo[idx]) {
+        next(&info, &idx);
+      }
 
-  //    auto& l = mKeyVals[insertion_idx];
-  //    if (idx == insertion_idx) {
-  //      // put at empty spot. This forwards all arguments into the node where
-  //      // the object is constructed exactly where it is needed.
-  //      ::new (static_cast<void*>(&l))
-  //          Node(*this, piecewise_construct,
-  //               forward_as_tuple(forward<Arg>(key)), forward_as_tuple());
-  //    } else {
-  //      shiftUp(idx, insertion_idx);
-  //      l = Node(*this, piecewise_construct,
-  //               forward_as_tuple(forward<Arg>(key)), forward_as_tuple());
-  //    }
+      auto& l = mKeyVals[insertion_idx];
+      if (idx == insertion_idx) {
+        // put at empty spot. This forwards all arguments into the node where
+        // the object is constructed exactly where it is needed.
+        ::new (static_cast<void*>(&l))
+            Node(*this, piecewise_construct,
+                 forward_as_tuple(forward<Arg>(key)), forward_as_tuple());
+      } else {
+        shiftUp(idx, insertion_idx);
+        l = Node(*this, piecewise_construct,
+                 forward_as_tuple(forward<Arg>(key)), forward_as_tuple());
+      }
 
-  //    // mKeyVals[idx].getFirst() = move(key);
-  //    mInfo[insertion_idx] = static_cast<uint8_t>(insertion_info);
+      // mKeyVals[idx].getFirst() = move(key);
+      mInfo[insertion_idx] = static_cast<uint8_t>(insertion_info);
 
-  //    ++mNumElements;
-  //    return mKeyVals[insertion_idx].getSecond();
-  //  }
-  //}
+      ++mNumElements;
+      return mKeyVals[insertion_idx].getSecond();
+    }
+  }
 
   // This is exactly the same code as operator[], except for the return values
   template <typename Arg>

@@ -359,4 +359,9 @@ class compressed_pair<Ty1, Ty2, false> : private pair<Ty1, Ty2> {
   second_type& get_second() noexcept { return this->second; }
   const second_type& get_second() const noexcept { return this->second; }
 };
+
+struct piecewise_construct_t {
+  explicit piecewise_construct_t() = default;
+};
+inline constexpr piecewise_construct_t piecewise_construct{};
 }  // namespace ktl
