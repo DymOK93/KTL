@@ -353,85 +353,97 @@ template <class... Types>
 //}
 
 namespace tt::details {
-template <size_t... Indices, class LhsTuple, class RhsTuple, class Predicate>
-constexpr bool apply_to_tuple_pair_impl(const LhsTuple& lhs,
-                                        const RhsTuple& rhs,
-                                        Predicate pred) {
-  return ((pred(get<Indices>(lhs), get<Indices>(rhs))), ...);
+template <size_t... Indices, class LhsTuple, class RhsTuple>
+constexpr bool equal_to_impl(const LhsTuple& lhs,
+                             const RhsTuple& rhs,
+                             index_sequence<Indices...>) {
+  return ((get<Indices>(lhs) == get<Indices>(rhs)) && ...);
 }
 
-template <size_t... Indices, class LhsTuple, class RhsTuple, class Predicate>
-constexpr bool apply_to_tuple_pair_proxy(const LhsTuple& lhs,
-                                         const RhsTuple& rhs,
-                                         Predicate pred,
-                                         index_sequence<Indices...>) {
-  return apply_to_tuple_pair_impl<Indices...>(lhs, rhs, pred);
-}
-
-template <class... LhsTypes,
-          class... RhsTypes,
-          class Predicate,
-          enable_if_t<sizeof...(LhsTypes) == sizeof...(RhsTypes), int> = 0>
-constexpr bool apply_to_tuple_pair(const tuple<LhsTypes...>& lhs,
-                                   const tuple<RhsTypes...>& rhs,
-                                   Predicate pred) {
-  return apply_to_tuple_pair_proxy(lhs, rhs, pred,
-                                   make_index_sequence<sizeof...(LhsTypes)>{});
+template <class... LhsTypes, class... RhsTypes>
+constexpr bool equal_to(const tuple<LhsTypes...>& lhs,
+                        const tuple<RhsTypes...>& rhs) {
+  if constexpr (sizeof...(LhsTypes) != sizeof...(RhsTypes)) {
+    return false;
+  } else {
+    return equal_to_impl(lhs, rhs, make_index_sequence<sizeof...(LhsTypes)>{});
+  }
 }
 }  // namespace tt::details
 
 template <class... LhsTypes, class... RhsTypes>
 constexpr bool operator==(const tuple<LhsTypes...>& lhs,
                           const tuple<RhsTypes...>& rhs) {
-  return tt::details::apply_to_tuple_pair(
-      lhs, rhs, [](const auto& lhs_val, const auto& rhs_val) {
-        return lhs_val == rhs_val;
-      });
+  return tt::details::equal_to(lhs, rhs);
 }
 
 template <class... LhsTypes, class... RhsTypes>
 constexpr bool operator!=(const tuple<LhsTypes...>& lhs,
                           const tuple<RhsTypes...>& rhs) {
-  return tt::details::apply_to_tuple_pair(
-      lhs, rhs, [](const auto& lhs_val, const auto& rhs_val) {
-        return lhs_val != rhs_val;
-      });
+  return !(lhs == rhs);
 }
+
+namespace tt::details {
+template <size_t Idx, class... LhsTypes, class... RhsTypes>
+constexpr bool less_impl(const tuple<LhsTypes...>& lhs,
+                         const tuple<RhsTypes...>& rhs);
+
+template <size_t Idx, class... LhsTypes, class... RhsTypes>
+constexpr bool less_helper(const tuple<LhsTypes...>& lhs,
+                           const tuple<RhsTypes...>& rhs) {
+  const auto& left{get<Idx>(lhs)};
+  const auto& right{get<Idx>(rhs)};
+
+  if (left < right) {
+    return true;
+  } else if (right < left) {
+    return false;
+  }
+  return less_impl<Idx + 1>(lhs, rhs);
+}
+
+template <size_t Idx, class... LhsTypes, class... RhsTypes>
+constexpr bool less_impl([[maybe_unused]] const tuple<LhsTypes...>& lhs,
+                         [[maybe_unused]] const tuple<RhsTypes...>& rhs) {
+  if constexpr (sizeof...(LhsTypes) >= sizeof...(RhsTypes) &&
+                Idx == sizeof...(RhsTypes)) {
+    return false;
+  } else if constexpr (Idx == sizeof...(LhsTypes)) {
+    return true;
+  } else {
+    return less_helper<Idx>(lhs, rhs);
+  }
+}
+
+template <class... LhsTypes, class... RhsTypes>
+constexpr bool less(const tuple<LhsTypes...>& lhs,
+                    const tuple<RhsTypes...>& rhs) {
+  return less_impl<0>(lhs, rhs);
+}
+}  // namespace tt::details
 
 template <class... LhsTypes, class... RhsTypes>
 constexpr bool operator<(const tuple<LhsTypes...>& lhs,
                          const tuple<RhsTypes...>& rhs) {
-  return tt::details::apply_to_tuple_pair(
-      lhs, rhs, [](const auto& lhs_val, const auto& rhs_val) {
-        return lhs_val < rhs_val;
-      });
+  return tt::details::less(lhs, rhs);
 }
 
 template <class... LhsTypes, class... RhsTypes>
 constexpr bool operator<=(const tuple<LhsTypes...>& lhs,
                           const tuple<RhsTypes...>& rhs) {
-  return tt::details::apply_to_tuple_pair(
-      lhs, rhs, [](const auto& lhs_val, const auto& rhs_val) {
-        return lhs_val <= rhs_val;
-      });
+  return !(rhs < lhs);
 }
 
 template <class... LhsTypes, class... RhsTypes>
 constexpr bool operator>(const tuple<LhsTypes...>& lhs,
                          const tuple<RhsTypes...>& rhs) {
-  return tt::details::apply_to_tuple_pair(
-      lhs, rhs, [](const auto& lhs_val, const auto& rhs_val) {
-        return lhs_val > rhs_val;
-      });
+  return rhs < lhs;
 }
 
 template <class... LhsTypes, class... RhsTypes>
 constexpr bool operator>=(const tuple<LhsTypes...>& lhs,
                           const tuple<RhsTypes...>& rhs) {
-  return tt::details::apply_to_tuple_pair(
-      lhs, rhs, [](const auto& lhs_val, const auto& rhs_val) {
-        return lhs_val >= rhs_val;
-      });
+  return !(lhs < rhs);
 }
 
 }  // namespace ktl
