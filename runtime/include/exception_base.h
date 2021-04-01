@@ -46,7 +46,7 @@ class exception_base {
   bool has_shared_data() const noexcept;
   exception_data* as_shared_data() const noexcept;
 
-  static void* try_create_masked_shared_data(const exc_char_t* msg,
+  static const void* try_create_masked_shared_data(const exc_char_t* msg,
                                              size_t msg_length) noexcept;
   static void destroy_shared_data(exception_data* target) noexcept;
 

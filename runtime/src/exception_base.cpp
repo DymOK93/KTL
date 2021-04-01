@@ -56,7 +56,7 @@ const exc_char_t* exception_base::get_message() const noexcept {
                            : static_cast<const exc_char_t*>(m_data);
 }
 
-void* exception_base::try_create_masked_shared_data(
+const void* exception_base::try_create_masked_shared_data(
     const exc_char_t* msg,
     size_t msg_length) noexcept {
   auto* buffer{static_cast<byte*>(alloc_non_paged(
