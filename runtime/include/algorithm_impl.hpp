@@ -20,14 +20,14 @@ constexpr bool binary_search(ForwardIt first,
   while (0 < count) {
     const auto count_half{count / 2};
     auto middle{next(first, count_half)};
-    if (pred(*middle, val)) {
+    if (pred(*middle, value)) {
       first = next(middle);
       count -= count_half + 1;
     } else {
       count = count_half;
     }
   }
-  return (first == last) ? false : *first == val;
+  return (first == last) ? false : *first == value;
 }
 
 template <class ForwardIt, class Ty>

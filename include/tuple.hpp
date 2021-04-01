@@ -242,7 +242,7 @@ template <class Ty>
 using unwrap_refwrapper_t = typename unwrap_refwrapper<Ty>::type;
 
 template <class Ty>
-using unwrap_decay_t = typename unwrap_refwrapper_t<decay_t<Ty>>;
+using unwrap_decay_t = unwrap_refwrapper_t<decay_t<Ty>>;
 }  // namespace tt::details
 
 template <class... Types>

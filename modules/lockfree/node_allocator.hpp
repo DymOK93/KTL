@@ -161,7 +161,7 @@ class node_allocator {
     auto& head{get_head()};
     auto* new_top_ptr = reinterpret_cast<memory_block_header*>(ptr);
     node_pointer new_top{new_top_ptr, head.get_tag()};
-    new_top->next.set_pointer(old_pool.get_pointer());
+    new_top->next.set_pointer(get_head().get_pointer());
     head.store<memory_order_relaxed>(new_top);
   }
 

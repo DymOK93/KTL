@@ -163,7 +163,7 @@ inline constexpr bool operator>=(pair<Ty1, Ty2> const& x,
   return !(x < y);
 }
 
- // template <class U1, class U2>
+// template <class U1, class U2>
 // constexpr tuple_base(const pair<U1, U2>& pair) noexcept(
 //    noexcept(is_nothrow_constructible_v<decltype(extract_type<0>(*this)),
 //                                        add_lvalue_reference_t<U1>>&&
@@ -357,7 +357,7 @@ class compressed_pair<Ty1, Ty2, false> : private pair<Ty1, Ty2> {
   constexpr compressed_pair(zero_then_variadic_args, Types&&... args) noexcept(
       is_nothrow_default_constructible_v<Ty1>&&
           is_nothrow_constructible_v<Ty2, Types...>)
-      : m_value(forward<Types>(args)...) {}
+      : MyBase(piecewise_construct_t{}, {}, forward<Types>(args)...) {}
 
   template <class U1,
             class... Types,
@@ -369,7 +369,9 @@ class compressed_pair<Ty1, Ty2, false> : private pair<Ty1, Ty2> {
       U1&& value,
       Types&&... args) noexcept(is_nothrow_default_constructible_v<Ty1>&&
                                     is_nothrow_constructible_v<Ty2, Types...>)
-      : MyBase(forward<U1>(value)), m_value(forward<Types>(args)...) {}
+      : MyBase(piecewise_construct_t{},
+               forward<U1>(value),
+               forward<Types>(args)...) {}
 
   first_type& get_first() noexcept { return this->first; }
   const first_type& get_first() const noexcept { return this->first; }

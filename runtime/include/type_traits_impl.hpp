@@ -574,40 +574,6 @@ struct is_nothrow_swappable {
 template <class Ty>
 inline constexpr bool is_nothrow_swappable_v = is_nothrow_swappable<Ty>::value;
 
-template <class>
-inline constexpr bool is_array_v = false;
-
-template <class Ty, size_t N>
-inline constexpr bool is_array_v<Ty[N]> = true;
-
-template <class Ty>
-inline constexpr bool is_array_v<Ty[]> = true;
-
-template <class Ty>
-struct is_array : bool_constant<is_array_v<Ty> > {};
-
-template <class Ty>
-struct is_function {
-  static constexpr bool value =
-      !is_const_v<const Ty> &&
-      !is_reference_v<Ty>;  // only function types and reference types can't be
-                            // const qualified
-};
-
-template <class Ty>
-inline constexpr bool is_function_v = is_function<Ty>::value;
-
-template <class Ty>
-struct is_object {
-  static constexpr bool value =
-      is_const_v<const Ty> &&
-      !is_void_v<Ty>;  // only function types and reference
-                       // types can't be const qualified
-};
-
-template <class Ty>
-inline constexpr bool is_object_v = is_object<Ty>::value;
-
 template <class Ty>
 struct is_pointer : false_type {};
 
@@ -659,6 +625,14 @@ template <class Ty1, class Ty2>
 inline constexpr bool is_same_v = is_same<Ty1, Ty2>::value;
 
 template <class Ty>
+struct is_void {
+  static constexpr bool value = is_same_v<remove_cv_t<Ty>, void>;
+};
+
+template <class Ty>
+inline constexpr bool is_void_v = is_void<Ty>::value;
+
+template <class Ty>
 struct is_const : false_type {};
 
 template <class Ty>
@@ -666,6 +640,40 @@ struct is_const<const Ty> : true_type {};
 
 template <class Ty>
 inline constexpr bool is_const_v = is_const<Ty>::value;
+
+template <class>
+inline constexpr bool is_array_v = false;
+
+template <class Ty, size_t N>
+inline constexpr bool is_array_v<Ty[N]> = true;
+
+template <class Ty>
+inline constexpr bool is_array_v<Ty[]> = true;
+
+template <class Ty>
+struct is_array : bool_constant<is_array_v<Ty> > {};
+
+template <class Ty>
+struct is_function {
+  static constexpr bool value =
+      !is_const_v<const Ty> &&
+      !is_reference_v<Ty>;  // only function types and reference types can't be
+                            // const qualified
+};
+
+template <class Ty>
+inline constexpr bool is_function_v = is_function<Ty>::value;
+
+template <class Ty>
+struct is_object {
+  static constexpr bool value =
+      is_const_v<const Ty> &&
+      !is_void_v<Ty>;  // only function types and reference
+                       // types can't be const qualified
+};
+
+template <class Ty>
+inline constexpr bool is_object_v = is_object<Ty>::value;
 
 template <class Ty>
 struct is_trivially_copyable {
@@ -790,14 +798,6 @@ struct is_enum {
 
 template <class Ty>
 inline constexpr bool is_enum_v = is_enum<Ty>::value;
-
-template <class Ty>
-struct is_void {
-  static constexpr bool value = is_same_v<remove_cv_t<Ty>, void>;
-};
-
-template <class Ty>
-inline constexpr bool is_void_v = is_void<Ty>::value;
 
 namespace tt::details {
 template <class Ty, bool = is_enum_v<Ty> >

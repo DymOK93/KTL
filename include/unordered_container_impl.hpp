@@ -95,8 +95,8 @@ class BulkPoolAllocator {
   BulkPoolAllocator(BulkPoolAllocator&& other) noexcept(
       is_nothrow_move_constructible_v<allocator_type>)
       : m_bytes_alc{move(other.m_bytes_alc)},
-        mHead{exchange(o.mHead, nullptr)},
-        mListForFree{(o.mListForFree, nullptr)} {}
+        mHead{exchange(other.mHead, nullptr)},
+        mListForFree{(other.mListForFree, nullptr)} {}
 
   BulkPoolAllocator& operator=(BulkPoolAllocator&& other) noexcept(
       is_nothrow_move_assignable_v<allocator_type>) {
@@ -177,7 +177,7 @@ class BulkPoolAllocator {
       BulkPoolAllocator<Ty, BasicBytesAllocator, MinNumAllocs, MaxNumAllocs>&
           other) noexcept(is_nothrow_swappable_v<allocator_type>) {
     using ktl::swap;
-    swap(m_bytes_alloc, other.m_bytes_alloc);
+    swap(m_bytes_alc, other.m_bytes_alc);
     swap(mHead, other.mHead);
     swap(mListForFree, other.mListForFree);
   }
@@ -417,10 +417,10 @@ class Table
 
   using key_type = Key;
   using mapped_type = Ty;
-  using value_type = typename conditional_t<
-      is_set,
-      Key,
-      pair<typename conditional_t<is_flat, Key, Key const>, Ty>>;
+  using value_type =
+      typename conditional_t<is_set,
+                             Key,
+                             pair<conditional_t<is_flat, Key, const Key>, Ty>>;
   using size_type = size_t;
   using hasher = Hash;
   using key_equal = KeyEqual;
@@ -959,7 +959,7 @@ class Table
   using const_iterator = Iter<true>;
 
   Table() noexcept(noexcept(Hash()) && noexcept(KeyEqual()))
-      : WHash(), WKeyEqual(), NodeAllocator() {}
+      : WHash(), WKeyEqual(), DataPool() {}
 
   // Creates an empty hash map. Nothing is allocated yet, this happens at the
   // first insert. This tremendously speeds up ctor & dtor of a map that never
@@ -972,7 +972,7 @@ class Table
       const Hash& h = Hash{},
       const KeyEqual& equal =
           KeyEqual{}) noexcept(noexcept(Hash(h)) && noexcept(KeyEqual(equal)))
-      : WHash(h), WKeyEqual(equal), NodeAllocator() {}
+      : WHash(h), WKeyEqual(equal), DataPool() {}
 
   template <class BytesAlloc>
   explicit Table(
@@ -981,7 +981,7 @@ class Table
       const KeyEqual& equal = KeyEqual{},
       BytesAlloc&& alloc =
           BytesAlloc{}) noexcept(noexcept(Hash(h)) && noexcept(KeyEqual(equal)))
-      : WHash(h), WKeyEqual(equal), NodeAllocator(forward<BytesAlloc>(alloc)) {}
+      : WHash(h), WKeyEqual(equal), DataPool(forward<BytesAlloc>(alloc)) {}
 
   template <typename Iter>
   Table(Iter first,
@@ -1633,7 +1633,7 @@ class Table
 
     // calloc also zeroes everything
     auto const numBytesTotal = calcNumBytesTotal(numElementsWithBuffer);
-    mKeyVals = reinterpret_cast<Node*>(allocate_bytes(numBytesTotal));
+    mKeyVals = reinterpret_cast<Node*>(this->allocate_bytes(numBytesTotal));
     memset(mKeyVals, 0, numBytesTotal);
     mInfo = reinterpret_cast<uint8_t*>(mKeyVals + numElementsWithBuffer);
 
@@ -1816,7 +1816,7 @@ class Table
     // non-heap object 'fm'
     // [-Werror=free-nonheap-object]
     if (mKeyVals != reinterpret_cast_no_cast_align_warning<Node*>(&mMask)) {
-      deallocate_bytes(mKeyVals, mNumElements * sizeof(Node));
+      this->deallocate_bytes(mKeyVals, mNumElements * sizeof(Node));
     }
   }
 

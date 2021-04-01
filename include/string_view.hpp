@@ -76,7 +76,7 @@ class basic_winnt_string_view {
  public:
   value_type& at(size_type idx) const {
     throw_out_of_range_if_not(idx < size, "index is out of range");
-    return buf[idx];
+    return data()[idx];
   }
 
   constexpr const value_type& operator[](size_type idx) const noexcept {
@@ -108,7 +108,8 @@ class basic_winnt_string_view {
 
   constexpr void remove_prefix(size_type count) noexcept {
     assert_with_msg(count <= size(), L"prefix is too long");
-    native_string_traits_type::set_buffer(m_str, const_cast<value_type*>(data() + count));
+    native_string_traits_type::set_buffer(
+        m_str, const_cast<value_type*>(data() + count));
     native_string_traits_type::decrease_size(m_str, +count);
   }
 
@@ -125,7 +126,7 @@ class basic_winnt_string_view {
   constexpr basic_winnt_string_view substr(
       size_type pos,
       size_type count = npos) const noexcept {
-    MyBase::throw_out_of_range_if_not(pos < size());
+    throw_out_of_range_if_not(pos < size());
     return substr_unchecked(pos, count);
   }
 
@@ -223,24 +224,24 @@ class basic_winnt_string_view {
     }
     const auto first{begin()}, last{end()};
     const auto found_ptr{find_subrange(begin() + my_pos, last, other.begin(),
-                                       other.end(),
-                                       MyBase::make_ch_comparator())};
+                                       other.end(), make_ch_comparator())};
     return found_ptr == last ? npos : static_cast<size_type>(found_ptr - first);
   }
 
   constexpr size_type find(value_type ch, size_type my_pos = 0) const noexcept {
-    if (pos >= current_size) {
+    const size_type current_size{size()};
+    if (my_pos >= current_size) {
       return npos;
     }
-    const auto first{data() + pos};
-    const auto found_pos{traits_type::find(first, current_size - pos, ch) -
+    const auto first{data() + my_pos};
+    const auto found_pos{traits_type::find(first, current_size - my_pos, ch) -
                          first};
     return found_pos == size() ? npos : static_cast<size_type>(found_pos);
   }
 
   constexpr size_type find(const value_type* null_terminated_str,
                            size_type my_pos = 0) const noexcept {
-    return find(basic_winnt_string_view{null_terminated_str}, my_pos)
+    return find(basic_winnt_string_view{null_terminated_str}, my_pos);
   }
 
   constexpr size_type find(native_string_type native_str) const noexcept {
@@ -270,7 +271,7 @@ class basic_winnt_string_view {
   constexpr size_type find_first_of(const value_type* null_terminated_str,
                                     size_type my_pos,
                                     size_type other_count) const noexcept {
-    return find(ch, pos) != npos;
+    return find(null_terminated_str, my_pos, other_count) != npos;
   }
 
   constexpr size_type find_first_of(const value_type* null_terminated_str,
@@ -322,6 +323,12 @@ class basic_winnt_string_view {
       cmp_result = lhs_count < rhs_count ? -1 : 1;
     }
     return cmp_result;
+  }
+
+  static constexpr auto make_ch_comparator() noexcept {
+    return [](value_type lhs, value_type rhs) noexcept {
+      return traits_type::eq(lhs, rhs);
+    };
   }
 
   template <class Ty>

@@ -766,7 +766,7 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
   shared_ptr(U* ptr, Alloc&& alloc, custom_allocator_tag_t)
       : MyBase(ptr,
                make_special_ref_counter<
-                   details::ref_counter_with_allocator_default_delete_itself>(
+                mm::details::ref_counter_with_allocator_default_delete_itself>(
                    ptr,
                    forward<Alloc>(alloc))) {}
 
