@@ -765,8 +765,8 @@ template <class Ty>
 struct atomic_pointer;
 
 template <class Ty>
-struct atomic_pointer : integral_storage<uintptr_t, sizeof(uintptr_t)> {
-  using MyBase = integral_storage<uintptr_t, sizeof(uintptr_t)>;
+struct atomic_pointer : integral_storage<Ty, sizeof(uintptr_t)> {
+  using MyBase = integral_storage<Ty, sizeof(uintptr_t)>;
   using difference_type = ptrdiff_t;
 
   using MyBase::MyBase;
