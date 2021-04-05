@@ -17,6 +17,21 @@ template <class Target, class Ty>
 using get_pointer_type_t = typename get_pointer_type<Target, Ty>::type;
 
 template <class Target, class Ty, class = void>
+struct get_const_pointer_type {
+  using type = add_pointer_t<add_const_t<Ty>>;
+};
+
+template <class Target, class Ty>
+struct get_const_pointer_type<Target,
+                             Ty,
+                             void_t<typename Target::const_pointer>> {
+  using type = typename Target::pointer;
+};
+
+template <class Target, class Ty>
+using get_const_pointer_type_t = typename get_const_pointer_type<Target, Ty>::type;
+
+template <class Target, class Ty, class = void>
 struct get_reference_type {
   using type = add_lvalue_reference_t<Ty>;
 };
@@ -103,9 +118,19 @@ template <class Target>
 using get_propagate_on_container_swap_t =
     typename get_propagate_on_container_swap<Target>::type;
 
+template <class Target, bool empty>
+struct get_always_equal_helper : false_type {};
+
+template <class Target>
+struct get_always_equal_helper<Target, true> : true_type {};
+
+template <class Target, bool empty>
+using get_always_equal_helper_t =
+    typename get_always_equal_helper<Target, empty>::type;
+
 template <class Target, class = void>
 struct get_always_equal {
-  using type = false_type;
+  using type = get_always_equal_helper_t<Target, is_empty_v<Target>>;
 };
 
 template <class Target>
@@ -137,9 +162,9 @@ struct has_allocate_single_object<Alloc,
                                   void_t<decltype(declval<Alloc>().allocate())>>
     : true_type {};
 
-template <class Alloc, class size_type>
+template <class Alloc>
 inline constexpr bool has_allocate_single_object_v =
-    has_allocate_single_object<Alloc, size_type>::value;
+    has_allocate_single_object<Alloc>::value;
 
 template <class Alloc, class size_type, class = void>
 struct has_allocate_bytes : false_type {};
@@ -183,7 +208,7 @@ struct has_deallocate_single_object<
 
 template <class Alloc, class Pointer>
 inline constexpr bool has_deallocate_single_object_v =
-    has_deallocate_single_object<Alloc, Pointer, size_type>::value;
+    has_deallocate_single_object<Alloc, Pointer>::value;
 
 template <class Alloc, class Pointer, class size_type, class = void>
 struct has_deallocate_bytes : false_type {};
@@ -228,6 +253,19 @@ struct has_destroy<
 
 template <class Alloc, class Pointer>
 inline constexpr bool has_destroy_v = has_destroy<Alloc, Pointer>::value;
+
+template <class Alloc, class = void>
+struct has_select_on_container_copy_construction : false_type {};
+
+template <class Alloc>
+struct has_select_on_container_copy_construction<
+    Alloc,
+    void_t<decltype(declval<Alloc>().select_on_container_copy_construction())>>
+    : true_type {};
+
+template <class Alloc>
+inline constexpr bool has_select_on_container_copy_construction_v =
+    has_select_on_container_copy_construction<Alloc>::value;
 
 template <class Deleter, class = void>
 struct get_enable_delete_null : false_type {};

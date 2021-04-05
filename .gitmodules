@@ -1,3 +1,4 @@
 [submodule "FindWDK"]
 	path = FindWDK
 	url = https://github.com/DymOK93/FindWDK
+	branch = develop

@@ -85,19 +85,28 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* dispatcher_ctx) noexcept {
   if (exception_record) {
-    crt_critical_failure_if_not(
+    KdPrint(("SEH exception caught in CXX handler! Code: %x, address %p (in "
+             "function [%u - %u, unwind info: %u], module starts at %p)\n",
+             exception_record->code, exception_record->address,
+             dispatcher_ctx->fn->begin.value(), dispatcher_ctx->fn->end.value(),
+             dispatcher_ctx->fn->unwind_info.value(),
+            dispatcher_ctx->image_base));
+    terminate_if_not(
         exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
+
     return win::ExceptionDisposition::ContinueSearch;
   }
   return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
 }
 
-EXTERN_C ktl::crt::exc_engine::win::ExceptionDisposition __GSHandlerCheck_EH4(
+EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH4(
     ktl::crt::exc_engine::win::exception_record* exception_record,
     ktl::byte* frame_ptr,
-    win::x64_cpu_context* cpu_ctx,
+    [[maybe_unused]] win::x64_cpu_context* cpu_ctx,
     dispatcher_context* ctx) noexcept {
   /*No cookie check :( */
+  // We assume that the compiler will use only __GSHandlerCheck_SEH for SEH
+  // exceptions and therefore don't check exception_record
   return __CxxFrameHandler4(exception_record, frame_ptr, cpu_ctx, ctx);
 }
 
@@ -226,7 +235,7 @@ static win::ExceptionDisposition frame_handler(
   const uint8_t* p = image_base + eh_info.unwind_graph;
   uint32_t unwind_nodes = read_unsigned(&p);
 
-  crt_critical_failure_if_not(state >= 0 && (uint32_t)state < unwind_nodes);
+  terminate_if_not(state >= 0 && (uint32_t)state < unwind_nodes);
 
   const uint8_t* target_edge_last = p;
   for (int32_t i = 0; i != state; ++i) {
@@ -243,7 +252,7 @@ static win::ExceptionDisposition frame_handler(
 
     uint32_t target_offset_and_type = read_unsigned(&p);
     uint32_t target_offset = target_offset_and_type >> 2;
-    crt_critical_failure_if_not(target_offset != 0);
+    terminate_if_not(target_offset != 0);
 
     auto edge_type{
         static_cast<fh4::unwind_edge::Type>(target_offset_and_type & 3)};

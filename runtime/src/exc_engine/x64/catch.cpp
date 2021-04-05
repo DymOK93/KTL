@@ -1,4 +1,4 @@
-#include <bugcheck.h>
+﻿#include <bugcheck.h>
 #include <catch.h>
 #include <throw.h>
 #include <seh.hpp>
@@ -53,7 +53,7 @@ const throw_info* catch_info::get_throw_info() const noexcept {
 
 void probe_for_exception(const frame_walk_pdata& pdata,
                          throw_frame& frame) noexcept {
-  dispatcher_context ctx{&rethrow_probe_cookie, &frame, &pdata};
+  auto ctx{make_context(&rethrow_probe_cookie, frame, pdata)};
 
   auto& probe_ctx{frame.ctx};
   auto& probe_mach = frame.mach;
@@ -79,12 +79,12 @@ bool process_catch_block(const byte* image_base,
     return true;
   }
 
-  // ������ false, ���� ���� IsConst, IsVolatile ��� IsUnaligned ���� � ������
-  // throw, �� ����������� � catch
+  // Вернёт false, если флаг IsConst, IsVolatile или IsUnaligned есть в наборе
+  // throw, но отсутствует у catch
   if (throw_info.attributes
           .bit_intersection<ThrowFlag::IsConst, ThrowFlag::IsVolatile,
                             ThrowFlag::IsUnaligned>() &
-      adjectives.bit_negation()) {  // ��������� � ��������� ~ ����, ��� � &
+      adjectives.bit_negation()) {  // Приоритет у оператора ~ выше, чем у &
     return false;
   }
   return process_catch_block_unchecked(image_base, adjectives, match_type,
@@ -98,7 +98,7 @@ EXTERN_C win::ExceptionDisposition __cxx_seh_frame_handler(
     win::x64_cpu_context*,
     void*) {
   if (exception_record) {
-    crt_critical_failure_if_not(
+    terminate_if_not(
         exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
   }
   return win::ExceptionDisposition::ContinueSearch;
@@ -110,7 +110,7 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
     win::x64_cpu_context*,
     void* dispatcher_ctx) {
   if (exception_record) {
-    crt_critical_failure_if_not(
+    terminate_if_not(
         exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
     return win::ExceptionDisposition::ContinueSearch;
   }
@@ -121,7 +121,7 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
   auto& ci{ctx->throw_frame->catch_info};
 
   if (ctx->cookie == &rethrow_probe_cookie) {
-    crt_critical_failure_if_not(frame->catch_info.exception_object_or_link);
+    terminate_if_not(frame->catch_info.exception_object_or_link);
 
     if (frame->catch_info.throw_info_if_owner)
       ci.exception_object_or_link = &frame->catch_info;
@@ -149,8 +149,7 @@ EXTERN_C const ktl::byte* __cxx_dispatch_exception(
     throw_info const* throw_info,
     throw_frame& frame) noexcept {
   auto pdata{frame_walk_pdata::for_this_image()};
-
-  dispatcher_context ctx{&unwind_cookie, &frame, &pdata};
+  auto ctx{make_context(&unwind_cookie, frame, pdata)};
 
   auto& [_, cpu_ctx, mach, ci]{frame};
 
@@ -238,16 +237,21 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
             const relative_virtual_address<win::x64_frame_handler_t>*>(
             unwind_info->data + unwind_slots);
 
-    assert(frame_handler);
+    crt_assert(frame_handler);
 
     ctx.extra_data = &unwind_info->data[unwind_slots + 2];  // Why 2?
     byte* frame_ptr = reinterpret_cast<byte*>(
         unwind_info->frame_reg ? cpu_ctx.gp(unwind_info->frame_reg) : mach.rsp);
-    auto exc_action{frame_handler(nullptr, frame_ptr, nullptr, &ctx)};
+    [[maybe_unused]] auto exc_action{
+        frame_handler(nullptr, frame_ptr, nullptr, &ctx)};
 
-    assert(exc_action ==
-           win::ExceptionDisposition::CxxHandler);  // �������� ������������
-                                                    // ���� ����������
+    // MSVC добавляет __GSHandlerCheck() в начало таблицы исключений
+    // Поскольку он всегда возвращает win::ExceptionDisposition::ContinueSearch
+    // в случае успешной проверки, отслеживать exc_action ==
+    // win::ExceptionDisposition::CxxHandler мы не можем
+    // Однако SEH-исключение всё равно не пролетит мимо:
+    // т.к. win::exception_record* != nullptr,  в __CxxFrameHandler4 сработает
+    // проверка и система упадёт в BSOD
   }
   return unwind_info;
 }

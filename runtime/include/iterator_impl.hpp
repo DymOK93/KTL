@@ -15,7 +15,7 @@ using std::output_iterator_tag;
 using std::random_access_iterator_tag;
 #else
 #include <functional_impl.hpp>
-#include <memory_type_traits.hpp>
+#include <memory_type_traits_impl.hpp>
 
 namespace ktl {
 struct input_iterator_tag {};
@@ -103,9 +103,10 @@ struct iterator_traits<const Ty[N]> : it::details::pointer_traits<const Ty> {};
 
 namespace it::details {
 template <class It>
-constexpr void advance_impl(It& it,
-                            typename iterator_traits<It>::difference_type n,
-                            input_iterator_tag) {
+constexpr void advance_impl(
+    It& it,
+    typename iterator_traits<It>::difference_type offset,
+    input_iterator_tag) {
   for (; offset > 0; --offset) {
     prefix_increment{}(it);
   };
@@ -138,7 +139,7 @@ constexpr void advance(InputIt& it, Distance offset) {
   using category = typename iterator_traits<InputIt>::iterator_category;
   auto distance{
       static_cast<typename iterator_traits<InputIt>::difference_type>(offset)};
-  it::details::advance_impl(it, offset, category{});
+  it::details::advance_impl(it, distance, category{});
 }
 
 namespace it::details {
@@ -173,7 +174,7 @@ distance_impl(It first, It last, random_access_iterator_tag) {
 template <class It>
 [[nodiscard]] constexpr typename iterator_traits<It>::difference_type
 distance_impl(It first, It last, input_iterator_tag) {
-  using difference_type = typename iterator_traits<InputIt>::difference_type;
+  using difference_type = typename iterator_traits<It>::difference_type;
   auto offset{static_cast<difference_type>(0)};
   for (; first != last; first = next(first)) {
     ++offset;

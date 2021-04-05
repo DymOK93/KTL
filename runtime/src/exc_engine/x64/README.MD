@@ -131,7 +131,7 @@ for example. However, since a function can throw and then be resumed
 at any point, the whole CPU context must be captured and then restored.
 C++ exceptions can't resume and non-volatile context is sufficient.
 
-Note that t he `CONTEXT` structure is *huge*. On AMD64 with a hypervisor
+Note that the `CONTEXT` structure is *huge*. On AMD64 with a hypervisor
 running, it may even have variable-sized extension fields that require
 the use of `_alloca`. Several copies of `CONTEXT` are present on the stack
 during the unwind. When the catch handler is eventually executed, the stack

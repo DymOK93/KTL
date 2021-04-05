@@ -12,6 +12,7 @@ set(
 		"basic_runtime.cpp"
 		"bugcheck.cpp"
 		"exception_base.cpp"
+		"exception_impl.cpp"
 		"irql.cpp"
 		"heap.cpp"
 		"placement_new.cpp"
@@ -26,11 +27,13 @@ wdk_add_library(
 	${TARGET_LIB} STATIC 
 		${KTL_RUNTIME_HEADER_FILES}
 		${KTL_RUNTIME_SOURCE_FILES}
+		EXTENDED_CPP_FEATURES
 )
 target_compile_definitions(
 	${TARGET_LIB} PRIVATE
 		KTL_RUNTIME_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
+		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
 )
 
 target_link_libraries(

@@ -8,15 +8,18 @@ set(KTL_SOURCE_DIR "${KTL_DIR}/src")
 
 set(
 	KTL_SOURCE_FILES
-		"${KTL_SOURCE_DIR}/new_delete.cpp"
+		"exception.cpp"
+		"literals.cpp"
+		"new_delete.cpp"
 )
 
 set(TARGET_LIB cpp_runtime)
 
 wdk_add_library(
-	${TARGET_LIB} STATIC 
+	${TARGET_LIB} STATIC
 		${KTL_HEADER_FILES}
 		${KTL_SOURCE_FILES}
+		EXTENDED_CPP_FEATURES
 )
 target_include_directories(
 	${TARGET_LIB} PUBLIC
@@ -24,7 +27,7 @@ target_include_directories(
 )
 target_compile_definitions(
 	${TARGET_LIB} PRIVATE
-		KTL_RUNTIME_DBG
+		KTL_CPP_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
 )
 target_link_libraries(

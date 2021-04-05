@@ -11,9 +11,9 @@ using driver_unload_t = void(CRTCALL*)(PDRIVER_OBJECT);
 EXTERN_C int CRTCALL atexit(ktl::crt::handler_t destructor);
 
 EXTERN_C NTSTATUS DriverEntry(PDRIVER_OBJECT driver_object,
-                              PUNICODE_STRING registry_path);
+                              PUNICODE_STRING registry_path) noexcept;
 
 EXTERN_C NTSTATUS KtlDriverEntry(PDRIVER_OBJECT driver_object,
-                                 PUNICODE_STRING registry_path);
+                                 PUNICODE_STRING registry_path) noexcept;
 
-EXTERN_C void KtlDriverUnload(PDRIVER_OBJECT driver_object);
+EXTERN_C void KtlDriverUnload(PDRIVER_OBJECT driver_object) noexcept;

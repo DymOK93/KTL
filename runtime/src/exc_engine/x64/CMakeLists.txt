@@ -16,6 +16,7 @@ set(
 set(
 	KTL_EXC_X64_SOURCE_FILES
 		"catch.cpp"
+		"throw.cpp"
 		"frame_handler3.cpp"
 		"frame_handler4.cpp"
 		"unwind_handler"
@@ -32,6 +33,7 @@ wdk_add_library(
 		${KTL_EXC_X64_HEADER_FILES}
 		${KTL_EXC_X64_SOURCE_FILES}
 		${KTL_EXC_X64_ASM_FILES}
+		EXTENDED_CPP_FEATURES
 )
 target_include_directories(
 	${TARGET_LIB} 
@@ -47,4 +49,3 @@ target_compile_definitions(
 		KTL_RUNTIME_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
 )
-list(APPEND CMAKE_ASM_MASM_FLAGS "/safeseh")

@@ -9,6 +9,7 @@ set(KTL_EXC_ENGINE_SOURCE_DIR "${KTL_RUNTIME_SOURCE_DIR}/exc_engine")
 set(
 	KTL_EXC_ENGINE_SOURCE_FILES
 		"member_ptr.cpp"
+		"terminate.cpp"
 )
 
 set(TARGET_LIB exc_engine)
@@ -23,6 +24,7 @@ wdk_add_library(
 	${TARGET_LIB} OBJECT
 		${KTL_EXC_ENGINE_HEADER_FILES}
 		${KTL_EXC_ENGINE_SOURCE_FILES}
+		EXTENDED_CPP_FEATURES
 )
 target_include_directories(
 	${TARGET_LIB} 

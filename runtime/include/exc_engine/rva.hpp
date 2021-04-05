@@ -1,19 +1,19 @@
-#pragma once
+﻿#pragma once
 // RVA is Relative Virtual Address
 
-#include <../assert.h>
 #include <../basic_types.h>
+#include <../crt_assert.h>
 #include <../crt_attributes.h>
+#include <../algorithm_impl.hpp>
 #include <../limits_impl.hpp>
-#include <../type_traits_impl.hpp>
 
 #include <member_ptr.h>
 
 namespace ktl::crt::exc_engine {
 template <typename Ty, typename IntegralTy>
 Ty convert_narrow(IntegralTy value) noexcept {
-  assert((numeric_limits<Ty>::min)() <= value &&
-         value <= (numeric_limits<Ty>::max)());
+  crt_assert((numeric_limits<Ty>::min)() <= value &&
+             value <= (numeric_limits<Ty>::max)());
   return static_cast<Ty>(value);
 }
 
@@ -99,14 +99,13 @@ struct relative_virtual_address {
     return !(lhs < rhs);
   }
 
- private:
   static offset_t calculate_offset(Ty* ptr, const void* base) noexcept {
     return convert_narrow<offset_t>(reinterpret_cast<uintptr_t>(ptr) -
-                             reinterpret_cast<uintptr_t>(base));
+                                    reinterpret_cast<uintptr_t>(base));
   }
 
- private:
-  offset_t m_offset{0};
+  offset_t m_offset{0};  // Не private, т.к. __GSHandlerCheck() обращается к полю
+                         // напрямую, а для private-полей такой доступ - UB
 };
 
 template <typename Ty>

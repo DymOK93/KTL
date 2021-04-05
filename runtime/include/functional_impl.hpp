@@ -5,8 +5,10 @@
 namespace ktl {
 using std::greater;
 using std::less;
+using std::equal_to;
 }  // namespace ktl
 #else
+#include <type_traits_impl.hpp>
 namespace ktl {
 template <class Ty = void>
 struct less {
@@ -45,6 +47,26 @@ struct greater<void> {
 
   using is_transparent = int;
 };
+
+template <class Ty = void>
+struct equal_to {
+  constexpr bool operator()(const Ty& lhs, const Ty& rhs) const
+      noexcept(noexcept(lhs == rhs)) {
+    return lhs == rhs;
+  }
+};
+
+template <>
+struct equal_to<void> {
+  template <class Ty1, class Ty2>
+  constexpr bool operator()(const Ty1& lhs, const Ty2& rhs) const
+      noexcept(noexcept(lhs == rhs)) {
+    return lhs == rhs;
+  }
+
+  using is_transparent = int;
+};
+
 
 template <class Ty = void>
 struct prefix_increment {

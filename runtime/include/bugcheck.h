@@ -1,9 +1,26 @@
 #pragma once
 #include <basic_types.h>
+#include <crt_attributes.h>
 
-namespace ktl::crt {
+namespace ktl {
+using terminate_handler_t = void (*)();
+
+terminate_handler_t get_terminate() noexcept;
+terminate_handler_t set_terminate(terminate_handler_t terminate) noexcept;
+
+[[noreturn]] void terminate() noexcept;
+void terminate_if_not(bool cond) noexcept;
+
+[[noreturn]] void critical_failure() noexcept;
+[[noreturn]] void abort() noexcept;
+
+namespace crt {
 using bugcheck_code_t = uint32_t;
 using bugcheck_arg_t = int64_t;
+
+namespace details {
+inline terminate_handler_t shared_terminate_handler{nullptr};
+}  // namespace details
 
 inline constexpr auto KTL_FAILURE_BASE{
     static_cast<bugcheck_code_t>(0xEA9B0000)};  // 0xE, ('K' - 'A') % 10, ('T' -
@@ -41,8 +58,8 @@ struct Bsod {
   bugcheck_arg_t arg1{0}, arg2{0}, arg3{0}, arg4{0};
 };
 
-[[noreturn]] void bugcheck(BugCheckReason reason);
-[[noreturn]] void bugcheck(const Bsod& bsod);
-[[noreturn]] void crt_critical_failure();
-void crt_critical_failure_if_not(bool cond);
-}  // namespace ktl::crt
+[[noreturn]] void bugcheck(BugCheckReason reason) noexcept;
+[[noreturn]] void bugcheck(const Bsod& bsod) noexcept;
+[[noreturn]] void abort_impl() noexcept;
+}  // namespace crt
+}  // namespace ktl

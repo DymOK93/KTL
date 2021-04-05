@@ -23,7 +23,7 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler3(
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* dispatcher_ctx) noexcept {
   if (exception_record) {
-    crt_critical_failure_if_not(
+    terminate_if_not(
         exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
     return win::ExceptionDisposition::ContinueSearch;
   }
@@ -105,7 +105,7 @@ static win::ExceptionDisposition frame_handler(
             if (catch_handler.handler == dispatcher_context->fn->begin) {
               const auto* node{frame_ptr + catch_handler.node_offset};
               primary_frame_ptr = node->primary_frame_ptr;
-              crt_critical_failure_if_not(primary_frame_ptr >= frame_ptr);
+              terminate_if_not(primary_frame_ptr >= frame_ptr);
               break;
             }
           }
@@ -165,10 +165,10 @@ static win::ExceptionDisposition frame_handler(
   if (home_block_index == -1 && !target_catch_handler &&
       eh_info->eh_flags.has_any_of(x64::EhFlag::IsNoexcept)) {
     // call std::terminate
-    crt_critical_failure();
+    critical_failure();
   }
 
-  crt_critical_failure_if_not(target_state >= funclet_low_state);
+  terminate_if_not(target_state >= funclet_low_state);
 
    x64::unwind_graph_edge const* unwind_graph =
       image_base + eh_info->unwind_graph;

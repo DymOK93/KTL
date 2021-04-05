@@ -1,5 +1,6 @@
 #include <basic_runtime.h>
 #include <crt_runtime.h>
+#include <heap.h>
 
 namespace ktl::crt {
 static handler_t destructor_stack[128] = {
@@ -12,8 +13,7 @@ constexpr unsigned int MAX_DESTRUCTOR_COUNT{sizeof(destructor_stack) /
 constexpr int INIT_CODE = 0x4b544caU;
 constexpr int EXIT_CODE = 0x4b544ceU;
 
-void CRTCALL doexit(_In_ int) {
-  KdPrint(("Destructor count: %u\n", destructor_count));
+void CRTCALL doexit(_In_ int) noexcept {
   if (ktl::crt::destructor_count) {
     do {
       auto& destructor{
@@ -23,10 +23,9 @@ void CRTCALL doexit(_In_ int) {
       destructor();
     } while (ktl::crt::destructor_count);
   }
-  KdPrint(("Doexit() cleaning was successful\n"));
 }
 
-int CRTCALL cinit(_In_ int) {  //Вызов конструкторов
+int CRTCALL cinit(_In_ int) noexcept {  //Вызов конструкторов
   for (ktl::crt::handler_t* ctor_ptr = __cxx_ctors_begin__;
        ctor_ptr < __cxx_ctors_end__; ++ctor_ptr) {
     auto& constructor{*ctor_ptr};
@@ -48,7 +47,7 @@ int CRTCALL atexit(ktl::crt::handler_t destructor) {
 }
 
 NTSTATUS KtlDriverEntry(PDRIVER_OBJECT driver_object,
-                        PUNICODE_STRING registry_path) {
+                        PUNICODE_STRING registry_path) noexcept {
   ktl::crt::cinit(ktl::crt::INIT_CODE);
   NTSTATUS init_status{DriverEntry(driver_object, registry_path)};
   if (!NT_SUCCESS(init_status)) {
@@ -60,7 +59,7 @@ NTSTATUS KtlDriverEntry(PDRIVER_OBJECT driver_object,
   return init_status;
 }
 
-void KtlDriverUnload(PDRIVER_OBJECT driver_object) {
+void KtlDriverUnload(PDRIVER_OBJECT driver_object) noexcept {
   if (ktl::crt::custom_driver_unload) {
     ktl::crt::custom_driver_unload(driver_object);
   }
