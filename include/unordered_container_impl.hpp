@@ -47,6 +47,7 @@
 #include <intrinsic.hpp>
 #include <iterator.hpp>
 #include <limits.hpp>
+#include <tuple.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
@@ -94,8 +95,8 @@ class BulkPoolAllocator {
   BulkPoolAllocator(BulkPoolAllocator&& other) noexcept(
       is_nothrow_move_constructible_v<allocator_type>)
       : m_bytes_alc{move(other.m_bytes_alc)},
-        mHead{exchange(o.mHead, nullptr)},
-        mListForFree{(o.mListForFree, nullptr)} {}
+        mHead{exchange(other.mHead, nullptr)},
+        mListForFree{(other.mListForFree, nullptr)} {}
 
   BulkPoolAllocator& operator=(BulkPoolAllocator&& other) noexcept(
       is_nothrow_move_assignable_v<allocator_type>) {
@@ -176,7 +177,7 @@ class BulkPoolAllocator {
       BulkPoolAllocator<Ty, BasicBytesAllocator, MinNumAllocs, MaxNumAllocs>&
           other) noexcept(is_nothrow_swappable_v<allocator_type>) {
     using ktl::swap;
-    swap(m_bytes_alloc, other.m_bytes_alloc);
+    swap(m_bytes_alc, other.m_bytes_alc);
     swap(mHead, other.mHead);
     swap(mListForFree, other.mListForFree);
   }
@@ -416,10 +417,10 @@ class Table
 
   using key_type = Key;
   using mapped_type = Ty;
-  using value_type = typename conditional_t<
-      is_set,
-      Key,
-      pair<typename conditional_t<is_flat, Key, Key const>, Ty>>;
+  using value_type =
+      typename conditional_t<is_set,
+                             Key,
+                             pair<conditional_t<is_flat, Key, const Key>, Ty>>;
   using size_type = size_t;
   using hasher = Hash;
   using key_equal = KeyEqual;
@@ -958,7 +959,7 @@ class Table
   using const_iterator = Iter<true>;
 
   Table() noexcept(noexcept(Hash()) && noexcept(KeyEqual()))
-      : WHash(), WKeyEqual(), NodeAllocator() {}
+      : WHash(), WKeyEqual(), DataPool() {}
 
   // Creates an empty hash map. Nothing is allocated yet, this happens at the
   // first insert. This tremendously speeds up ctor & dtor of a map that never
@@ -971,7 +972,7 @@ class Table
       const Hash& h = Hash{},
       const KeyEqual& equal =
           KeyEqual{}) noexcept(noexcept(Hash(h)) && noexcept(KeyEqual(equal)))
-      : WHash(h), WKeyEqual(equal), NodeAllocator() {}
+      : WHash(h), WKeyEqual(equal), DataPool() {}
 
   template <class BytesAlloc>
   explicit Table(
@@ -980,7 +981,7 @@ class Table
       const KeyEqual& equal = KeyEqual{},
       BytesAlloc&& alloc =
           BytesAlloc{}) noexcept(noexcept(Hash(h)) && noexcept(KeyEqual(equal)))
-      : WHash(h), WKeyEqual(equal), NodeAllocator(forward<BytesAlloc>(alloc)) {}
+      : WHash(h), WKeyEqual(equal), DataPool(forward<BytesAlloc>(alloc)) {}
 
   template <typename Iter>
   Table(Iter first,
@@ -1166,7 +1167,7 @@ class Table
     // clear everything, then set the sentinel again
     uint8_t const z = 0;
     // TODO: ktl::fill
-    //fill(mInfo, mInfo + calcNumBytesInfo(numElementsWithBuffer), z);
+    // fill(mInfo, mInfo + calcNumBytesInfo(numElementsWithBuffer), z);
     memset(mInfo, z, calcNumBytesInfo(numElementsWithBuffer));
     mInfo[numElementsWithBuffer] = 1;
 
@@ -1193,18 +1194,16 @@ class Table
 
   bool operator!=(const Table& other) const { return !operator==(other); }
 
-  // Not ready because we hasn't tuple and piecewise_construct
-  // template <typename Q = mapped_type>
-  // typename enable_if<!is_void<Q>::value, Q&>::type operator[](
-  //    const key_type& key) {
-  //  return doCreateByKey(key);
-  //}
-  //
-  // template <typename Q = mapped_type>
-  // typename enable_if<!is_void<Q>::value, Q&>::type operator[](key_type&& key)
-  // {
-  //  return doCreateByKey(move(key));
-  //}
+  template <typename Q = mapped_type>
+  typename enable_if<!is_void<Q>::value, Q&>::type operator[](
+      const key_type& key) {
+    return doCreateByKey(key);
+  }
+
+  template <typename Q = mapped_type>
+  typename enable_if<!is_void<Q>::value, Q&>::type operator[](key_type&& key) {
+    return doCreateByKey(move(key));
+  }
 
   template <typename Iter>
   void insert(Iter first, Iter last) {
@@ -1226,32 +1225,31 @@ class Table
     return r;
   }
 
-  // Is unavaliable now
-  // template <typename... Args>
-  // pair<iterator, bool> try_emplace(const key_type& key, Args&&... args) {
-  //  return try_emplace_impl(key, forward<Args>(args)...);
-  //}
-  //
-  // template <typename... Args>
-  // pair<iterator, bool> try_emplace(key_type&& key, Args&&... args) {
-  //  return try_emplace_impl(move(key), forward<Args>(args)...);
-  //}
+  template <typename... Args>
+  pair<iterator, bool> try_emplace(const key_type& key, Args&&... args) {
+    return try_emplace_impl(key, forward<Args>(args)...);
+  }
 
-  // template <typename... Args>
-  // pair<iterator, bool> try_emplace(const_iterator hint,
-  //                                 const key_type& key,
-  //                                 Args&&... args) {
-  //  (void)hint;
-  //  return try_emplace_impl(key, forward<Args>(args)...);
-  //}
+  template <typename... Args>
+  pair<iterator, bool> try_emplace(key_type&& key, Args&&... args) {
+    return try_emplace_impl(move(key), forward<Args>(args)...);
+  }
 
-  // template <typename... Args>
-  // pair<iterator, bool> try_emplace([[maybe_unused]] const_iterator hint,
-  //                                 key_type&& key,
-  //                                 Args&&... args) {
-  //  (void)hint;
-  //  return try_emplace_impl(move(key), forward<Args>(args)...);
-  //}
+  template <typename... Args>
+  pair<iterator, bool> try_emplace(const_iterator hint,
+                                   const key_type& key,
+                                   Args&&... args) {
+    (void)hint;
+    return try_emplace_impl(key, forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  pair<iterator, bool> try_emplace([[maybe_unused]] const_iterator hint,
+                                   key_type&& key,
+                                   Args&&... args) {
+    (void)hint;
+    return try_emplace_impl(move(key), forward<Args>(args)...);
+  }
 
   template <typename Mapped>
   pair<iterator, bool> insert_or_assign(const key_type& key, Mapped&& obj) {
@@ -1605,16 +1603,16 @@ class Table
     throw_exception<overflow_error>(L"robin_hood::map overflow");
   }
 
-  // template <typename OtherKey, typename... Args>
-  // pair<iterator, bool> try_emplace_impl(OtherKey&& key, Args&&... args) {
-  //  auto it = find(key);
-  //  if (it == end()) {
-  //    return emplace(piecewise_construct,
-  //                   forward_as_tuple(forward<OtherKey>(key)),
-  //                   forward_as_tuple(forward<Args>(args)...));
-  //  }
-  //  return {it, false};
-  //}
+  template <typename OtherKey, typename... Args>
+  pair<iterator, bool> try_emplace_impl(OtherKey&& key, Args&&... args) {
+    auto it = find(key);
+    if (it == end()) {
+      return emplace(piecewise_construct,
+                     forward_as_tuple(forward<OtherKey>(key)),
+                     forward_as_tuple(forward<Args>(args)...));
+    }
+    return {it, false};
+  }
 
   template <typename OtherKey, typename Mapped>
   pair<iterator, bool> insert_or_assign_impl(OtherKey&& key, Mapped&& obj) {
@@ -1635,7 +1633,7 @@ class Table
 
     // calloc also zeroes everything
     auto const numBytesTotal = calcNumBytesTotal(numElementsWithBuffer);
-    mKeyVals = reinterpret_cast<Node*>(allocate_bytes(numBytesTotal));
+    mKeyVals = reinterpret_cast<Node*>(this->allocate_bytes(numBytesTotal));
     memset(mKeyVals, 0, numBytesTotal);
     mInfo = reinterpret_cast<uint8_t*>(mKeyVals + numElementsWithBuffer);
 
@@ -1646,63 +1644,61 @@ class Table
     mInfoHashShift = InitialInfoHashShift;
   }
 
-  // Not implemented
-  // template <typename Arg, typename Q = mapped_type>
-  // typename enable_if<!is_void<Q>::value, Q&>::type doCreateByKey(Arg&& key) {
-  //  while (true) {
-  //    size_t idx{};
-  //    InfoType info{};
-  //    keyToIdx(key, &idx, &info);
-  //    nextWhileLess(&info, &idx);
+  template <typename Arg, typename Q = mapped_type>
+  typename enable_if<!is_void<Q>::value, Q&>::type doCreateByKey(Arg&& key) {
+    while (true) {
+      size_t idx{};
+      InfoType info{};
+      keyToIdx(key, &idx, &info);
+      nextWhileLess(&info, &idx);
 
-  //    // while we potentially have a match. Can't do a do-while here because
-  //    // when mInfo is 0 we don't want to skip forward
-  //    while (info == mInfo[idx]) {
-  //      if (WKeyEqual::operator()(key, mKeyVals[idx].getFirst())) {
-  //        // key already exists, do not insert.
-  //        return mKeyVals[idx].getSecond();
-  //      }
-  //      next(&info, &idx);
-  //    }
+      // while we potentially have a match. Can't do a do-while here because
+      // when mInfo is 0 we don't want to skip forward
+      while (info == mInfo[idx]) {
+        if (WKeyEqual::operator()(key, mKeyVals[idx].getFirst())) {
+          // key already exists, do not insert.
+          return mKeyVals[idx].getSecond();
+        }
+        next(&info, &idx);
+      }
 
-  //    // unlikely that this evaluates to true
-  //    if (mNumElements >= mMaxNumElementsAllowed) {
-  //      increase_size();
-  //      continue;
-  //    }
+      // unlikely that this evaluates to true
+      if (mNumElements >= mMaxNumElementsAllowed) {
+        increase_size();
+        continue;
+      }
 
-  //    // key not found, so we are now exactly where we want to insert it.
-  //    auto const insertion_idx = idx;
-  //    auto const insertion_info = info;
-  //    if (insertion_info + mInfoInc > 0xFF) {
-  //      mMaxNumElementsAllowed = 0;
-  //    }
+      // key not found, so we are now exactly where we want to insert it.
+      auto const insertion_idx = idx;
+      auto const insertion_info = info;
+      if (insertion_info + mInfoInc > 0xFF) {
+        mMaxNumElementsAllowed = 0;
+      }
 
-  //    // find an empty spot
-  //    while (0 != mInfo[idx]) {
-  //      next(&info, &idx);
-  //    }
+      // find an empty spot
+      while (0 != mInfo[idx]) {
+        next(&info, &idx);
+      }
 
-  //    auto& l = mKeyVals[insertion_idx];
-  //    if (idx == insertion_idx) {
-  //      // put at empty spot. This forwards all arguments into the node where
-  //      // the object is constructed exactly where it is needed.
-  //      ::new (static_cast<void*>(&l))
-  //          Node(*this, piecewise_construct,
-  //               forward_as_tuple(forward<Arg>(key)), forward_as_tuple());
-  //    } else {
-  //      shiftUp(idx, insertion_idx);
-  //      l = Node(*this, piecewise_construct,
-  //               forward_as_tuple(forward<Arg>(key)), forward_as_tuple());
-  //    }
+      auto& l = mKeyVals[insertion_idx];
+      if (idx == insertion_idx) {
+        // put at empty spot. This forwards all arguments into the node where
+        // the object is constructed exactly where it is needed.
+        construct_at(&l, *this, piecewise_construct,
+                     forward_as_tuple(forward<Arg>(key)), forward_as_tuple());
+      } else {
+        shiftUp(idx, insertion_idx);
+        l = Node(*this, piecewise_construct,
+                 forward_as_tuple(forward<Arg>(key)), forward_as_tuple());
+      }
 
-  //    // mKeyVals[idx].getFirst() = move(key);
-  //    mInfo[insertion_idx] = static_cast<uint8_t>(insertion_info);
+      // mKeyVals[idx].getFirst() = move(key);
+      mInfo[insertion_idx] = static_cast<uint8_t>(insertion_info);
 
-  //    ++mNumElements;
-  //    return mKeyVals[insertion_idx].getSecond();
-  //  }
-  //}
+      ++mNumElements;
+      return mKeyVals[insertion_idx].getSecond();
+    }
+  }
 
   // This is exactly the same code as operator[], except for the return values
   template <typename Arg>
@@ -1820,7 +1816,7 @@ class Table
     // non-heap object 'fm'
     // [-Werror=free-nonheap-object]
     if (mKeyVals != reinterpret_cast_no_cast_align_warning<Node*>(&mMask)) {
-      deallocate_bytes(mKeyVals, mNumElements * sizeof(Node));
+      this->deallocate_bytes(mKeyVals, mNumElements * sizeof(Node));
     }
   }
 

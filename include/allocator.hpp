@@ -192,17 +192,16 @@ struct allocator_traits {
 
   static constexpr pointer
   allocate(allocator_type& alloc, size_type object_count) noexcept(
-      noexcept(alloc.allocate(object_count * sizeof(value_type)))) {
+      noexcept(alloc.allocate(object_count))) {
     static_assert(mm::details::has_allocate_v<allocator_type, size_type>,
                   "Allocator must provide allocate(size_type) function");
-    return alloc.allocate(object_count * sizeof(value_type));
+    return alloc.allocate(object_count);
   }
 
   static constexpr pointer allocate_single_object(
       allocator_type& alloc) noexcept(noexcept(alloc.allocate())) {
-    static_assert(
-        mm::details::has_allocate_single_object_v<allocator_type>,
-        "Allocator must provide allocate(void) function");
+    static_assert(mm::details::has_allocate_single_object_v<allocator_type>,
+                  "Allocator must provide allocate(void) function");
     return alloc.allocate();
   }
 
@@ -217,16 +216,13 @@ struct allocator_traits {
   static constexpr void deallocate(
       allocator_type& alloc,
       pointer ptr,
-      size_type object_count) noexcept(noexcept(alloc
-                                                    .deallocate(
-                                                        ptr,
-                                                        object_count *
-                                                            sizeof(
-                                                                value_type)))) {
+      size_type
+          object_count) noexcept(noexcept(alloc.deallocate(ptr,
+                                                           object_count))) {
     static_assert(
         mm::details::has_deallocate_v<allocator_type, pointer, size_type>,
         "Allocator must provide deallocate(pointer, size_type) function");
-    alloc.deallocate(ptr, object_count * sizeof(value_type));
+    alloc.deallocate(ptr, object_count);
   }
 
   static constexpr void deallocate_single_object(

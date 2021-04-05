@@ -1,6 +1,7 @@
 #pragma once
 #include <basic_types.h>
 #include <crt_attributes.h>
+#include <irql.h>
 #include <intrinsic.hpp>
 #include <limits.hpp>
 #include <type_traits.hpp>
@@ -9,42 +10,6 @@
 #include <ntddk.h>
 
 namespace ktl {
-namespace th {
-inline bool interlocked_exchange(bool& target, bool new_value) {
-  return InterlockedExchange8(
-      reinterpret_cast<volatile char*>(addressof(target)),
-      static_cast<char>(new_value));
-}
-
-inline void interlocked_swap(bool& lhs, bool& rhs) {
-  bool old_lhs = lhs;
-  interlocked_exchange(lhs, rhs);
-  interlocked_exchange(rhs, old_lhs);
-}
-
-template <class Ty>
-Ty* interlocked_exchange_pointer(Ty* const* ptr_place, Ty* new_ptr) noexcept {
-  return static_cast<Ty*>(InterlockedExchangePointer(
-      reinterpret_cast<volatile PVOID*>(const_cast<Ty**>(ptr_place)), new_ptr));
-}
-
-template <class Ty>
-Ty* interlocked_compare_exchange_pointer(Ty* const* ptr_place,
-                                         Ty* new_ptr,
-                                         Ty* expected) noexcept {
-  return static_cast<Ty*>(InterlockedCompareExchangePointer(
-      reinterpret_cast<volatile PVOID*>(const_cast<Ty**>(ptr_place)), new_ptr,
-      expected));
-}
-
-template <class Ty>
-void interlocked_swap_pointer(Ty* const lhs, Ty* const rhs) noexcept {
-  Ty* old_lhs = lhs;
-  interlocked_exchange(lhs, rhs);
-  interlocked_exchange(rhs, old_lhs);
-}
-}  // namespace th
-
 template <typename IntegralTy, typename Ty>
 static volatile IntegralTy* atomic_address_as(Ty& value) noexcept {
   static_assert(is_integral_v<IntegralTy>, "value must be integral");
@@ -62,23 +27,33 @@ inline void make_compiler_barrier() noexcept {
   _ReadWriteBarrier();
 }
 
-class spin_lock {
+class universal_lock : non_relocatable {
  public:
-  using lock_type = long;
-
- public:
-  spin_lock() noexcept = default;
-
-  void lock() noexcept {
-    while (InterlockedCompareExchange(atomic_address_as<long>(m_lock), 1, 0))
-      ;
+  universal_lock() noexcept {
+    KeInitializeSpinLock(addressof(m_spinlock));
+    KeInitializeMutex(addressof(m_mtx), 0);
   }
-  void unlock() noexcept {
-    InterlockedExchange(atomic_address_as<long>(m_lock), 0);
+
+  void lock() {
+    if (get_current_irql() < DISPATCH_LEVEL) {
+      KeWaitForSingleObject(addressof(m_mtx), Executive, KernelMode, false,
+                            nullptr);
+    } else {
+      KeAcquireSpinLockAtDpcLevel(addressof(m_spinlock));
+    }
+  }
+
+  void unlock() {
+    if (get_current_irql() < DISPATCH_LEVEL) {
+      KeReleaseMutex(addressof(m_mtx), false);
+    } else {
+      KeReleaseSpinLockFromDpcLevel(addressof(m_spinlock));
+    }
   }
 
  private:
-  lock_type m_lock{0};
+  KMUTEX m_mtx;
+  KSPIN_LOCK m_spinlock;
 };
 
 template <class Lock>
@@ -223,13 +198,13 @@ struct atomic_padded {
 template <class Ty>
 struct atomic_storage_selector {
   using storage_type = atomic_padded<Ty>;
-  using lock_type = spin_lock;
+  using lock_type = universal_lock;
 };
 
 template <class Ty>
 struct atomic_storage_selector<Ty&> {
   using storage_type = Ty&;
-  using lock_type = spin_lock;
+  using lock_type = universal_lock;
 };
 
 template <class Ty, size_t = sizeof(remove_reference_t<Ty>)>
@@ -316,6 +291,15 @@ class interlocked_storage {
       typename atomic_storage_selector<value_type>::storage_type;
 
  public:
+  interlocked_storage() noexcept(is_nothrow_default_constructible_v<Ty>) =
+      default;
+
+  constexpr interlocked_storage(
+      conditional_t<is_reference_v<Ty>, Ty, const value_type> value) noexcept
+      : m_value{value} {
+    // non-atomically initialize this atomic
+  }
+
   template <memory_order order = memory_order_seq_cst>
   value_type load() const noexcept {
     internal_value_type result{*get_storage()};
@@ -433,6 +417,8 @@ DEFINE_INTERLOCKED_POLICY(long long, 64)
         interlocked_storage<Ty, interlocked_policy<sizeoftype * CHAR_BIT>>;  \
                                                                              \
    public:                                                                   \
+    using MyBase::MyBase;                                                    \
+                                                                             \
     using MyBase::load;                                                      \
     using MyBase::store;                                                     \
     using MyBase::exchange;                                                  \
@@ -460,6 +446,8 @@ class interlocked_integral : public atomic_storage<Ty> {
   using internal_value_type = typename IntegralPolicy::value_type;
 
  public:
+  using MyBase::MyBase;
+
   template <memory_order order = memory_order_seq_cst>
   value_type fetch_add(const value_type operand) noexcept {
     return static_cast<value_type>(IntegralPolicy::add(
@@ -468,22 +456,20 @@ class interlocked_integral : public atomic_storage<Ty> {
 
   template <memory_order order = memory_order_seq_cst>
   value_type fetch_and(const value_type operand) noexcept {
-    return static_cast<value_type>(IntegralPolicy::and(
+    return static_cast<value_type>(IntegralPolicy::and_op(
         get_storage(), static_cast<internal_value_type>(operand)));
   }
 
   template <memory_order order = memory_order_seq_cst>
   value_type fetch_or(const value_type operand) noexcept {
-    return static_cast<value_type>(
-        IntegralPolicy:: or
-        (get_storage(), static_cast<internal_value_type>(operand)));
+    return static_cast<value_type>(IntegralPolicy::or_op(
+        get_storage(), static_cast<internal_value_type>(operand)));
   }
 
   template <memory_order order = memory_order_seq_cst>
   value_type fetch_xor(const value_type operand) noexcept {
-    return static_cast<value_type>(
-        IntegralPolicy:: xor
-        (get_storage(), static_cast<internal_value_type>(operand)));
+    return static_cast<value_type>(IntegralPolicy::xor_op(
+        get_storage(), static_cast<internal_value_type>(operand)));
   }
 
   value_type operator++() noexcept {
@@ -517,19 +503,19 @@ template <>
 struct integral_policy<32> {
   using value_type = long;
 
-  static long add(volatile long* addend, long value) noexcept {
+  static long add_op(volatile long* addend, long value) noexcept {
     return InterlockedAdd(addend, value) - value;
   }
 
-  static long and (volatile long* place, long value) noexcept {
+  static long and_op(volatile long* place, long value) noexcept {
     return InterlockedAnd(place, value);
   }
 
-  static long or (volatile long* place, long value) noexcept {
+  static long or_op(volatile long* place, long value) noexcept {
     return InterlockedOr(place, value);
   }
 
-  static long xor (volatile long* place, long value) noexcept {
+  static long xor_op(volatile long* place, long value) noexcept {
     return InterlockedXor(place, value);
   }
 
@@ -550,42 +536,42 @@ struct integral_policy<32> {
   }
 };
 
-#define DEFINE_INTEGRAL_POLICY(type, bitness)                      \
-  template <>                                                      \
-  struct integral_policy<bitness> {                                \
-    using value_type = type;                                       \
-                                                                   \
-    static type add(volatile type* addend, type value) noexcept {  \
-      return InterlockedAdd##bitness(addend, value) - value;       \
-    }                                                              \
-                                                                   \
-    static type and (volatile type * place, type value) noexcept { \
-      return InterlockedAnd##bitness(place, value);                \
-    }                                                              \
-                                                                   \
-    static type or (volatile type * place, type value) noexcept {  \
-      return InterlockedOr##bitness(place, value);                 \
-    }                                                              \
-                                                                   \
-    static type xor (volatile type * place, type value) noexcept { \
-      return InterlockedXor##bitness(place, value);                \
-    }                                                              \
-                                                                   \
-    static type pre_increment(volatile type* addend) noexcept {    \
-      return InterlockedIncrement##bitness(addend);                \
-    }                                                              \
-                                                                   \
-    static type post_increment(volatile type* addend) noexcept {   \
-      return InterlockedIncrement##bitness(addend) - 1;            \
-    }                                                              \
-                                                                   \
-    static type pre_decrement(volatile type* addend) noexcept {    \
-      return InterlockedDecrement##bitness(addend);                \
-    }                                                              \
-                                                                   \
-    static type post_decrement(volatile type* addend) noexcept {   \
-      return InterlockedDecrement##bitness(addend) + 1;            \
-    }                                                              \
+#define DEFINE_INTEGRAL_POLICY(type, bitness)                       \
+  template <>                                                       \
+  struct integral_policy<bitness> {                                 \
+    using value_type = type;                                        \
+                                                                    \
+    static type add(volatile type* addend, type value) noexcept {   \
+      return InterlockedAdd##bitness(addend, value) - value;        \
+    }                                                               \
+                                                                    \
+    static type and_op(volatile type* place, type value) noexcept { \
+      return InterlockedAnd##bitness(place, value);                 \
+    }                                                               \
+                                                                    \
+    static type or_op(volatile type* place, type value) noexcept {  \
+      return InterlockedOr##bitness(place, value);                  \
+    }                                                               \
+                                                                    \
+    static type xor_op(volatile type* place, type value) noexcept { \
+      return InterlockedXor##bitness(place, value);                 \
+    }                                                               \
+                                                                    \
+    static type pre_increment(volatile type* addend) noexcept {     \
+      return InterlockedIncrement##bitness(addend);                 \
+    }                                                               \
+                                                                    \
+    static type post_increment(volatile type* addend) noexcept {    \
+      return InterlockedIncrement##bitness(addend) - 1;             \
+    }                                                               \
+                                                                    \
+    static type pre_decrement(volatile type* addend) noexcept {     \
+      return InterlockedDecrement##bitness(addend);                 \
+    }                                                               \
+                                                                    \
+    static type post_decrement(volatile type* addend) noexcept {    \
+      return InterlockedDecrement##bitness(addend) + 1;             \
+    }                                                               \
   };
 
 DEFINE_INTEGRAL_POLICY(char, 8)
@@ -606,6 +592,8 @@ struct integral_storage;
         interlocked_integral<Ty, integral_policy<sizeoftype * CHAR_BIT>>;  \
                                                                            \
    public:                                                                 \
+    using MyBase::MyBase;                                                  \
+                                                                           \
     using MyBase::fetch_add;                                               \
     using MyBase::fetch_and;                                               \
     using MyBase::fetch_or;                                                \
@@ -637,6 +625,8 @@ template <class Ty>
 struct integral_facade : integral_storage<Ty, sizeof(Ty)> {
   using MyBase = integral_storage<Ty, sizeof(Ty)>;
   using difference_type = Ty;
+
+  using MyBase::MyBase;
 
   using MyBase::fetch_add;
   Ty fetch_add(const Ty operand) volatile noexcept {
@@ -775,8 +765,8 @@ template <class Ty>
 struct atomic_pointer;
 
 template <class Ty>
-struct atomic_pointer : integral_storage<uintptr_t, sizeof(uintptr_t)> {
-  using MyBase = integral_storage<uintptr_t, sizeof(uintptr_t)>;
+struct atomic_pointer : integral_storage<Ty, sizeof(uintptr_t)> {
+  using MyBase = integral_storage<Ty, sizeof(uintptr_t)>;
   using difference_type = ptrdiff_t;
 
   using MyBase::MyBase;
@@ -875,7 +865,8 @@ template <class Ty>
 using atomic_base_t = typename atomic_base_type_selector<Ty>::type;
 
 template <class Ty>
-class atomic : public atomic_base_t<Ty> {  // atomic value
+class atomic : public atomic_base_t<Ty>,
+               public non_relocatable {  // atomic value
  private:
   using MyBase = atomic_base_t<Ty>;
 
@@ -896,9 +887,7 @@ class atomic : public atomic_base_t<Ty> {  // atomic value
 
  public:
   constexpr atomic() noexcept(is_nothrow_default_constructible_v<Ty>) = default;
-
-  atomic(const atomic&) = delete;
-  atomic& operator=(const atomic&) = delete;
+  using MyBase::MyBase;
 
   [[nodiscard]] bool is_lock_free() const volatile noexcept {
     return is_always_lock_free_v<Ty>;

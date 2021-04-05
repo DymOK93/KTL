@@ -76,7 +76,7 @@ struct hash : public hash<T> {
     // call base hash
     auto result = hash<T>::operator()(obj);
     // return mixed of that, to be save against identity has
-    return hash_int(static_cast<un::details::size_t>(result));
+    return hash_int(static_cast<size_t>(result));
   }
 };
 

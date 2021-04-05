@@ -65,23 +65,15 @@ struct integer_sequence_impl<Ty, Begin, End, true> {
 
 template <class Ty, Ty N>
 using make_integer_sequence = typename tt::details::
-    integer_sequence_impl<Ty, 0, N, (N - 0) == 1>::TResult;
+    integer_sequence_impl<Ty, 0, N, (N - 0) == 1>::result_type;
 
 template <size_t N>
 using make_index_sequence = make_integer_sequence<size_t, N>;
 
-template <class... Ty>
+template <class... Types>
 using index_sequence_for = make_index_sequence<sizeof...(
-    Ty)>;  // sizeof...(arg_pack) вычисляет количество
-           // аргументов variadic-шаблона
-
-template <template <typename> class Trait, class... Types>
-struct is_all {
-  static constexpr bool value = (Trait<Types>::value && ...);
-};
-
-template <template <typename> class Trait, class... Types>
-inline constexpr bool is_all_v = is_all<Trait, Types...>::value;
+    Types)>;  // sizeof...(arg_pack) вычисляет количество
+              // аргументов variadic-шаблона
 
 template <bool Value>
 struct bool_tag {
@@ -109,7 +101,7 @@ struct make_unsigned;
 
 template <>
 struct make_unsigned<char> {
-    using type = unsigned char;
+  using type = unsigned char;
 };
 
 template <>
@@ -127,7 +119,6 @@ struct make_unsigned<long> {
   using type = unsigned long;
 };
 
-
 template <>
 struct make_unsigned<long long> {
   using type = unsigned long long;
@@ -135,7 +126,6 @@ struct make_unsigned<long long> {
 
 template <class IntegralTy>
 using make_unsigned_t = typename make_unsigned<IntegralTy>::type;
-
 
 struct non_copyable {
   non_copyable() = default;

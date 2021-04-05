@@ -32,7 +32,7 @@ class mpmc_queue
   using node_pointer = tagged_pointer<node>;
   using node_pointer_holder = atomic<typename node_pointer::placeholder_type>;
 
-  ALIGN(NODE_ALIGNMENT) struct node {
+  struct node {
     node() noexcept(is_nothrow_default_constructible_v<Ty>) = default;
 
     node(node_pointer next_) noexcept : next{next_.value()} {}
@@ -43,8 +43,8 @@ class mpmc_queue
           node_pointer(nullptr, node_pointer{next}.get_next_tag()).get_value());
     }
 
-    node_pointer_holder next{0};
     Ty value;  // No default construction
+    node_pointer_holder next{0};
   };
 
   ALIGN(NODE_ALIGNMENT) struct aligned_node_pointer_holder {
@@ -54,13 +54,14 @@ class mpmc_queue
     node_pointer_holder ptr{};
   };
 
-  using internal_allocator_type = node_allocator<node, BasicNodeAllocator>;
+  using internal_allocator_type =
+      node_allocator<node,
+                     static_cast<align_val_t>(NODE_ALIGNMENT),
+                     BasicNodeAllocator>;
   using allocator_traits_type = allocator_traits<internal_allocator_type>;
 
  public:
-  using allocator_type =
-      typename node_allocator<node, BasicNodeAllocator>::allocator_type;
-
+  using allocator_type = typename internal_allocator_type::allocator_type;
   using size_type = typename internal_allocator_type::size_type;
   using difference_type = typename internal_allocator_type::difference_type;
 

@@ -225,8 +225,7 @@ class basic_winnt_string {
                                                       native_string_type,
                                                       ChTraits,
                                                       ChAlloc>& other) {
-    return assign(*other.raw_str());  // Not a full equialent to *this =
-    other
+    return assign(*other.raw_str());  // Not a full equialent to *this = other
   }
 
   basic_winnt_string& assign(basic_winnt_string&& other) {
@@ -706,9 +705,7 @@ class basic_winnt_string {
       size_type other_pos,
       size_type
           other_count) noexcept(is_nothrow_convertible_v<Ty,
-                                                         string_view_type<
-                                                             native_string_type,
-                                                             Traits>>) {
+                                                         string_view_type>) {
     return compare(my_pos, my_count,
                    *static_cast<string_view_type>(value).raw_str(), other_pos,
                    other_count);
@@ -759,13 +756,14 @@ class basic_winnt_string {
           other,
       size_type other_pos,
       size_type other_count) {
-    const size_type other_size{other.size()};
+    const size_type current_size{size()}, other_size{other.size()};
     throw_out_of_range_if_not(index <= current_size);
     if (index == size()) {
-      return append(str, pos, count);
+      return append(other, other_pos, other_count);
     }
     throw_out_of_range_if_not(other_pos <= other_size);
-    insert_impl(index, make_copy_helper(), (min)(other_size - other_pos, count),
+    insert_impl(index, make_copy_helper(),
+                (min)(other_size - other_pos, other_count),
                 other.data() + other_pos);
     return *this;
   }
@@ -779,7 +777,8 @@ class basic_winnt_string {
     if (pos == end()) {
       append(pos, count, ch);
     }
-    insert_impl(index, make_fill_helper(), count, ch);
+    insert_impl(static_cast<size_type>(pos - begin()), make_fill_helper(),
+                count, ch);
   }
 
   template <class InputIt>
@@ -946,12 +945,12 @@ class basic_winnt_string {
                            size_type my_pos,
                            size_type str_count) const noexcept {
     return static_cast<string_view_type>(*this).find(null_terminated_str,
-                                                     my_pos, str_count)
+                                                     my_pos, str_count);
   }
 
   constexpr size_type find(
       const value_type* null_terminated_str) const noexcept {
-    return static_cast<string_view_type>(*this).find(null_terminated_str)
+    return static_cast<string_view_type>(*this).find(null_terminated_str);
   }
 
   constexpr size_type find(value_type ch, size_type pos = 0) const noexcept {
@@ -1813,7 +1812,7 @@ constexpr bool operator<(
         const_pointer null_terminated_str,
     const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&
         rhs) noexcept {
-  return lhs.compare(null_terminated_str) < 0;
+  return rhs.compare(null_terminated_str) > 0;
 }
 
 template <size_t BufferSize,
@@ -1840,7 +1839,7 @@ constexpr bool operator>(
         const_pointer null_terminated_str,
     const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&
         rhs) noexcept {
-  return lhs.compare(null_terminated_str) > 0;
+  return rhs.compare(null_terminated_str) < 0;
 }
 
 template <size_t BufferSize,

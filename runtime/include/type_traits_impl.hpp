@@ -107,6 +107,8 @@ using std::aligned_storage_t;
 using std::is_floating_point_v;
 using std::is_integral_v;
 
+using std::conjunction;
+using std::conjunction_v;
 }  // namespace ktl
 #else
 namespace ktl {
@@ -375,16 +377,23 @@ template <class From, class To>
 inline constexpr bool is_nothrow_convertible_v =
     is_nothrow_convertible<From, To>::value;
 
+namespace tt::details {
 template <class, class Ty, class... Types>
-struct is_constructible : false_type {};
+struct is_constructible_impl : false_type {};
 
 template <class Ty, class... Types>
-struct is_constructible<void_t<decltype(Ty(declval<Types>()...))>, Ty, Types...>
-    : true_type {};
+struct is_constructible_impl<void_t<decltype(Ty(declval<Types>()...))>,
+                             Ty,
+                             Types...> : true_type {};
+}  // namespace tt::details
+
+template <class Ty, class... Types>
+struct is_constructible
+    : tt::details::is_constructible_impl<void_t<>, Ty, Types...> {};
 
 template <class Ty, class... Types>
 inline constexpr bool is_constructible_v =
-    is_constructible<void_t<>, Ty, Types...>::value;
+    is_constructible<Ty, Types...>::value;
 
 template <class Ty, class... Types>
 struct is_trivially_constructible {
@@ -479,9 +488,10 @@ template <class To, class From, class = void>
 struct is_assignable : false_type {};
 
 template <class To, class From>
-struct is_assignable<To,
-                     From,
-                     void_t<decltype(declval<To&>() = declval<From>())> >
+struct is_assignable<
+    To,
+    From,
+    void_t<decltype(declval<add_lvalue_reference_t<To> >() = declval<From>())> >
     : true_type {};
 
 template <class To, class From>
@@ -507,8 +517,8 @@ inline constexpr bool is_move_assignable_v = is_move_assignable<Ty>::value;
 
 template <class To, class From>
 struct is_nothrow_assignable {
-  static constexpr bool value =
-      is_assignable_v<To, From>&& noexcept(declval<To>() = declval<From>());
+  static constexpr bool value = is_assignable_v<To, From>&& noexcept(
+      declval<add_lvalue_reference_t<To> >() = declval<From>());
 };
 
 template <class To, class From>
@@ -518,7 +528,8 @@ inline constexpr bool is_nothrow_assignable_v =
 template <class Ty>
 struct is_nothrow_copy_assignable {
   static constexpr bool value = is_copy_assignable_v<Ty>&& noexcept(
-      declval<Ty>() = declval<add_const_t<add_lvalue_reference_t<Ty> > >());
+      declval<add_lvalue_reference_t<Ty> >() =
+          declval<add_const_t<add_lvalue_reference_t<Ty> > >());
 };
 
 template <class Ty>
@@ -528,7 +539,8 @@ inline constexpr bool is_nothrow_copy_assignable_v =
 template <class Ty>
 struct is_nothrow_move_assignable {
   static constexpr bool value = is_move_assignable_v<Ty>&& noexcept(
-      declval<Ty>() = declval<add_rvalue_reference_t<Ty> >());
+      declval<add_lvalue_reference_t<Ty> >() =
+          declval<add_rvalue_reference_t<Ty> >());
 };
 
 template <class Ty>
@@ -561,40 +573,6 @@ struct is_nothrow_swappable {
 
 template <class Ty>
 inline constexpr bool is_nothrow_swappable_v = is_nothrow_swappable<Ty>::value;
-
-template <class>
-inline constexpr bool is_array_v = false;
-
-template <class Ty, size_t N>
-inline constexpr bool is_array_v<Ty[N]> = true;
-
-template <class Ty>
-inline constexpr bool is_array_v<Ty[]> = true;
-
-template <class Ty>
-struct is_array : bool_constant<is_array_v<Ty> > {};
-
-template <class Ty>
-struct is_function {
-  static constexpr bool value =
-      !is_const_v<const Ty> &&
-      !is_reference_v<Ty>;  // only function types and reference types can't be
-                            // const qualified
-};
-
-template <class Ty>
-inline constexpr bool is_function_v = is_function<Ty>::value;
-
-template <class Ty>
-struct is_object {
-  static constexpr bool value =
-      is_const_v<const Ty> &&
-      !is_void_v<Ty>;  // only function types and reference
-                       // types can't be const qualified
-};
-
-template <class Ty>
-inline constexpr bool is_object_v = is_object<Ty>::value;
 
 template <class Ty>
 struct is_pointer : false_type {};
@@ -647,6 +625,14 @@ template <class Ty1, class Ty2>
 inline constexpr bool is_same_v = is_same<Ty1, Ty2>::value;
 
 template <class Ty>
+struct is_void {
+  static constexpr bool value = is_same_v<remove_cv_t<Ty>, void>;
+};
+
+template <class Ty>
+inline constexpr bool is_void_v = is_void<Ty>::value;
+
+template <class Ty>
 struct is_const : false_type {};
 
 template <class Ty>
@@ -654,6 +640,40 @@ struct is_const<const Ty> : true_type {};
 
 template <class Ty>
 inline constexpr bool is_const_v = is_const<Ty>::value;
+
+template <class>
+inline constexpr bool is_array_v = false;
+
+template <class Ty, size_t N>
+inline constexpr bool is_array_v<Ty[N]> = true;
+
+template <class Ty>
+inline constexpr bool is_array_v<Ty[]> = true;
+
+template <class Ty>
+struct is_array : bool_constant<is_array_v<Ty> > {};
+
+template <class Ty>
+struct is_function {
+  static constexpr bool value =
+      !is_const_v<const Ty> &&
+      !is_reference_v<Ty>;  // only function types and reference types can't be
+                            // const qualified
+};
+
+template <class Ty>
+inline constexpr bool is_function_v = is_function<Ty>::value;
+
+template <class Ty>
+struct is_object {
+  static constexpr bool value =
+      is_const_v<const Ty> &&
+      !is_void_v<Ty>;  // only function types and reference
+                       // types can't be const qualified
+};
+
+template <class Ty>
+inline constexpr bool is_object_v = is_object<Ty>::value;
 
 template <class Ty>
 struct is_trivially_copyable {
@@ -779,14 +799,6 @@ struct is_enum {
 template <class Ty>
 inline constexpr bool is_enum_v = is_enum<Ty>::value;
 
-template <class Ty>
-struct is_void {
-  static constexpr bool value = is_same_v<remove_cv_t<Ty>, void>;
-};
-
-template <class Ty>
-inline constexpr bool is_void_v = is_void<Ty>::value;
-
 namespace tt::details {
 template <class Ty, bool = is_enum_v<Ty> >
 struct underlying_type_impl {
@@ -901,5 +913,25 @@ struct is_floating_point {
 
 template <class Ty>
 inline constexpr bool is_floating_point_v = is_floating_point<Ty>::value;
+
+template <bool IsFirst, class Head, class... Tail>
+struct conjunction_impl {
+  using type = Head;
+};
+
+template <class True, class Next, class... Tail>
+struct conjunction_impl<true, True, Next, Tail...> {
+  using type = typename conjunction_impl<Next::value, Next, Tail...>::type;
+};
+
+template <class... Traits>
+struct conjunction : true_type {};
+
+template <class Head, class... Tail>
+struct conjunction<Head, Tail...>
+    : conjunction_impl<Head::value, Head, Tail...>::type {};
+
+template <class... Traits>
+inline constexpr bool conjunction_v = conjunction<Traits...>::value;
 }  // namespace ktl
 #endif

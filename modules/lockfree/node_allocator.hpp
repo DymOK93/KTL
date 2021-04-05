@@ -16,7 +16,10 @@ template <class>
 struct Deductor;
 
 namespace ktl::lockfree {
-template <class Ty, template <typename, align_val_t> class BasicNodeAllocator>
+template <class Ty,
+          align_val_t Align,
+          template <typename, align_val_t>
+          class BasicNodeAllocator>
 class node_allocator {
  public:
   using value_type = Ty;
@@ -24,21 +27,26 @@ class node_allocator {
   using difference_type = ptrdiff_t;
 
  private:
-  static constexpr auto NODE_ALIGNMENT{
-      static_cast<align_val_t>((max)(crt::CACHE_LINE_SIZE, alignof(Ty)))};
+  static constexpr auto NODE_ALIGNMENT{static_cast<align_val_t>(
+      (max)(crt::CACHE_LINE_SIZE, static_cast<size_type>(Align)))};
 
  private:
   struct memory_block_header;
   using node_pointer = tagged_pointer<memory_block_header>;
   using node_pointer_holder = atomic<typename node_pointer::placeholder_type>;
 
-  ALIGN(NODE_ALIGNMENT) struct memory_block_header {
+  struct memory_block_header {
     node_pointer_holder next{};
   };
 
+ private:
+  /*
+  * Чтобы не увеличивать размер узла, зададим выравнивание непосредственно
+  * в аллокатора
+  * sizeof(aligned_storage_t<X, Y>) == Y при Y > X && Y > alignof(max_align_val_t)
+  */
   using memory_block =
-      aligned_storage_t<(max)(sizeof(memory_block_header), sizeof(Ty)),
-                        static_cast<size_t>(NODE_ALIGNMENT)>;
+      aligned_storage_t<(max)(sizeof(memory_block_header), sizeof(Ty)), 1>;
 
  public:
   using allocator_type = BasicNodeAllocator<memory_block, NODE_ALIGNMENT>;
@@ -153,7 +161,7 @@ class node_allocator {
     auto& head{get_head()};
     auto* new_top_ptr = reinterpret_cast<memory_block_header*>(ptr);
     node_pointer new_top{new_top_ptr, head.get_tag()};
-    new_top->next.set_pointer(old_pool.get_pointer());
+    new_top->next.set_pointer(head.get_pointer());
     head.store<memory_order_relaxed>(new_top);
   }
 
