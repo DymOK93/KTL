@@ -6,7 +6,7 @@ namespace crt::details {
 static terminate_handler_t terminate_handler{nullptr};
 static KSPIN_LOCK bugcheck_guard{};
 static Bsod bugcheck_context{
-    BugCheckReason::StdTerminate,
+    BugCheckReason::StdAbort,
 };
 }  // namespace crt::details
 
@@ -48,7 +48,7 @@ bugcheck_code_t to_bucgcheck_code(BugCheckReason reason) noexcept {
   return static_cast<bugcheck_code_t>(reason);
 }
 
-Bsod set_termination_contex(const Bsod& bsod) noexcept {
+Bsod set_termination_context(const Bsod& bsod) noexcept {
   auto& lock{details::bugcheck_guard};
   irql_t prev_irql{get_current_irql()};
 

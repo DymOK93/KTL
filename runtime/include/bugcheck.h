@@ -44,7 +44,7 @@ enum class BugCheckReason : bugcheck_code_t {
 
   AssertionFailure,
   ForbiddenCall,
-  StdTerminate
+  StdAbort
 };
 
 bugcheck_code_t to_bucgcheck_code(BugCheckReason reason) noexcept;
