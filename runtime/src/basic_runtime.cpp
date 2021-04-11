@@ -5,13 +5,13 @@
 namespace ktl::crt {
 static handler_t destructor_stack[128] = {
     nullptr};  // C++ Standard requires 32 or more
-unsigned int destructor_count{0};
-driver_unload_t custom_driver_unload{nullptr};
+static unsigned int destructor_count{0};
+static driver_unload_t custom_driver_unload{nullptr};
 
-constexpr unsigned int MAX_DESTRUCTOR_COUNT{sizeof(destructor_stack) /
+static constexpr unsigned int MAX_DESTRUCTOR_COUNT{sizeof(destructor_stack) /
                                             sizeof(handler_t)};
-constexpr int INIT_CODE = 0x4b544caU;
-constexpr int EXIT_CODE = 0x4b544ceU;
+static constexpr int INIT_CODE = 0x4b544caU;
+static constexpr int EXIT_CODE = 0x4b544ceU;
 
 void CRTCALL doexit(_In_ int) noexcept {
   if (ktl::crt::destructor_count) {
