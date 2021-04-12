@@ -26,6 +26,7 @@ set(
 		"limits_impl.hpp"
 		"memory_type_traits_impl.hpp"
 		"placement_new.h"
+		"preload_initializer.h"
 		"type_info.h"
 		"type_traits_impl.hpp"
 		"utility_impl.hpp"

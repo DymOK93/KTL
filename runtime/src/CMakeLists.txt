@@ -16,6 +16,7 @@ set(
 		"irql.cpp"
 		"heap.cpp"
 		"placement_new.cpp"
+		"preload_initializer.cpp"
 		"type_info.cpp"
 )
 

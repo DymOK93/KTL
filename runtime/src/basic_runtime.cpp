@@ -2,6 +2,7 @@
 #include <basic_types.h>
 #include <crt_runtime.h>
 #include <heap.h>
+#include <preload_initializer.h>
 
 namespace ktl::crt {
 namespace details {
@@ -9,43 +10,13 @@ static handler_t destructor_stack[128] = {
     nullptr};  // C++ Standard requires 32 or more
 static uint32_t destructor_count{0};
 static driver_unload_t custom_driver_unload{nullptr};
-
-static initializer initializers[32]{};
-static uint32_t initializer_count{0};
 }  // namespace details
 
 static constexpr unsigned int MAX_DESTRUCTOR_COUNT{
-    sizeof(details::destructor_stack) / sizeof(handler_t)},
-    MAX_INITIALIZER_COUNT{sizeof(details::initializers) / sizeof(initializer)};
+    sizeof(details::destructor_stack) / sizeof(handler_t)};
 
 static constexpr int INIT_CODE = 0x4b544caU;
 static constexpr int EXIT_CODE = 0x4b544ceU;
-
-bool inject_initializer(initializer init) noexcept {
-  auto& init_count{details::initializer_count};
-  if (!init.handler || init_count == MAX_INITIALIZER_COUNT) {
-    return false;
-  }
-  details::initializers[init_count++] = init;
-  return true;
-}
-
-static NTSTATUS call_initializers(DRIVER_OBJECT& driver_object,
-                                  UNICODE_STRING& registry_path) {
-  auto& init_count{details::initializer_count};
-  auto& initializers{details::initializers};
-  for (uint32_t idx = 0; idx < init_count; ++idx) {
-    auto& entry{initializers[idx]};
-    NTSTATUS result{entry.handler(entry.context, driver_object, registry_path)};
-    if (!NT_SUCCESS(result)) {
-      return result;
-    }
-  }
-  init_count = 0;
-  memset(initializers, 0,
-         sizeof(initializers));  // Защита от повторного вызова пользователем
-  return STATUS_SUCCESS;
-}
 
 void CRTCALL doexit(_In_ int) noexcept {
   auto& dtor_count{ktl::crt::details::destructor_count};
@@ -81,7 +52,8 @@ NTSTATUS KtlDriverEntry(DRIVER_OBJECT* driver_object,
                         UNICODE_STRING* registry_path) noexcept {
   ktl::crt::cinit(ktl::crt::INIT_CODE);
   NTSTATUS init_status{
-      ktl::crt::call_initializers(*driver_object, *registry_path)};
+      ktl::crt::preload_initializer_registry::get_instance().run_all(
+          *driver_object, *registry_path)};
   if (!NT_SUCCESS(init_status)) {
     KtlDriverUnload(driver_object);
   } else {

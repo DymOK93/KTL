@@ -6,14 +6,6 @@
 namespace ktl::crt {
 using handler_t = void(CRTCALL*)(void);
 using driver_unload_t = void(CRTCALL*)(DRIVER_OBJECT*);
-using init_routine_t = NTSTATUS (*)(void*, DRIVER_OBJECT&, UNICODE_STRING&);
-
-struct initializer {
-  init_routine_t handler{nullptr};
-  void* context{nullptr};
-};
-
-bool inject_initializer(initializer init) noexcept;
 }  // namespace ktl::crt
 
 EXTERN_C int CRTCALL atexit(ktl::crt::handler_t destructor);
