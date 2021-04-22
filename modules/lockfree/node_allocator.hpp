@@ -41,10 +41,11 @@ class node_allocator {
 
  private:
   /*
-  * Чтобы не увеличивать размер узла, зададим выравнивание непосредственно
-  * в аллокатора
-  * sizeof(aligned_storage_t<X, Y>) == Y при Y > X && Y > alignof(max_align_val_t)
-  */
+   * Чтобы не увеличивать размер узла, зададим выравнивание непосредственно
+   * в аллокатора
+   * sizeof(aligned_storage_t<X, Y>) == Y при Y > X && Y >
+   * alignof(max_align_val_t)
+   */
   using memory_block =
       aligned_storage_t<(max)(sizeof(memory_block_header), sizeof(Ty)), 1>;
 
@@ -160,9 +161,11 @@ class node_allocator {
   void push_unsafe(Ty* ptr) {
     auto& head{get_head()};
     auto* new_top_ptr = reinterpret_cast<memory_block_header*>(ptr);
-    node_pointer new_top{new_top_ptr, head.get_tag()};
-    new_top->next.set_pointer(head.get_pointer());
-    head.store<memory_order_relaxed>(new_top);
+    node_pointer current_head{head.load<memory_order_relaxed>()};
+    node_pointer new_top{new_top_ptr, current_head.get_tag()};
+    new_top->next.store<memory_order_relaxed>(
+        node_pointer{current_head.get_pointer()}.get_value());
+    head.store<memory_order_relaxed>(new_top.get_value());
   }
 
   allocator_type& get_alloc() noexcept { return m_freelist.get_first(); }

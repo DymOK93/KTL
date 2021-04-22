@@ -440,6 +440,8 @@ class semaphore
   }
 };
 
+enum class cv_status : uint8_t { no_timeout, timeout };
+
 namespace th::details {
 using event_type = _EVENT_TYPE;
 template <event_type type>
@@ -470,16 +472,19 @@ class event : public sync_primitive_base<KEVENT> {
     );
   }
 
-  void wait_for(duration_t us) {
+  cv_status wait_for(duration_t us) {
     LARGE_INTEGER wait_time;
     wait_time.QuadPart = us;
     wait_time.QuadPart *= -10;  // relative time in 100ns tics
-    KeWaitForSingleObject(native_handle(),
-                          Executive,   // Wait reason
-                          KernelMode,  // Processor mode
-                          false,
-                          addressof(wait_time)  // Indefinite waiting
-    );
+    NTSTATUS result{KeWaitForSingleObject(
+        native_handle(),
+        Executive,   // Wait reason
+        KernelMode,  // Processor mode
+        false,
+        addressof(wait_time)  // Indefinite waiting
+        )};
+    return result == STATUS_TIMEOUT ? cv_status::timeout
+                                    : cv_status::no_timeout;
   }
 
   void set() noexcept { update_state(State::Active); }
@@ -517,18 +522,19 @@ using notify_event =
     th::details::event<th::details::event_type::NotificationEvent>;
 
 namespace th::details {
-template <class Locable, class Duration, class = void>
+template <class Lockable, class Duration, class = void>
 struct has_try_lock_for : false_type {};
 
-template <class Locable, class Duration>
+template <class Lockable, class Duration>
 struct has_try_lock_for<
-    Locable,
+    Lockable,
     Duration,
-    void_t<decltype(declval<Locable>().try_lock_for(declval<Duration>()))>>
+    void_t<decltype(declval<Lockable>().try_lock_for(declval<Duration>()))>>
     : true_type {};
 
-template <class Locable, class Duration>
-inline constexpr bool has_try_lock_for_v = false;
+template <class Lockable, class Duration>
+inline constexpr bool has_try_lock_for_v =
+    has_try_lock_for<Lockable, Duration>::value;
 // has_try_lock_for<Locable, Duration>::value;
 
 }  // namespace th::details
@@ -666,12 +672,15 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
 
   ~unique_lock() { reset(); }
 
-  mutex_t* release() noexcept { return MyBase::release(); }
   operator bool() const noexcept { return MyBase::owns(); }
+
+  using MyBase::lock;
+  using MyBase::release;
+  using MyBase::unlock;
 
  private:
   void reset() {
-    if (MyBase::owns()) {
+    if (MyBase::owns_lock()) {
       MyBase::unlock();
     }
   }
@@ -728,8 +737,12 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
 
   ~shared_lock() { reset(); }
 
-  mutex_t* release() noexcept { return MyBase::release(); }
   operator bool() const noexcept { return MyBase::owns_lock(); }
+
+  using MyBase::release;
+
+  void lock() { MyBase::lock_shared; }
+  void unlock() { MyBase::unlock_shared; }
 
  private:
   void reset() {
