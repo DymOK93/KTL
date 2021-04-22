@@ -1,7 +1,23 @@
 #pragma once
 #include <basic_types.h>
 
+#if defined(_M_IX86)
 #define CRTCALL __cdecl
+#define STDCALL __stdcall
+#define FASTCALL __fastcall
+#else
+#define CRTCALL
+#define STDCALL
+#define FASTCALL
+#endif
+
+#ifndef VECTORCALL
+#define VECTORCALL __vectorcall
+#endif
+
+#ifndef THISCALL
+#define THISCALL __thiscall
+#endif
 
 #define EXTERN_C extern "C"
 #define ALIGN(align_val) __declspec(align(align_val))
