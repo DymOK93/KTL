@@ -7,12 +7,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(KTL_INCLUDE_DIR "${KTL_DIR}/include")
 
 set(
-	KTL_RUNTIME_HEADER_FILES
+	KTL_HEADER_FILES
 		"algorithm.hpp"
 		"allocator.hpp"
 		"assert.hpp"
 		"atomic.hpp"
 		"chrono.hpp"
+		"condition_variable.h"
 		"driver_base.h"
 		"exception.h"
 		"functional.hpp"
