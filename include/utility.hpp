@@ -33,7 +33,7 @@ constexpr auto size(const Container& cont) -> decltype(cont.size()) {
 }
 
 template <class Ty, size_t N>
-constexpr size_t size(const Ty (&arr)[N]) {
+constexpr size_t size([[maybe_unused]] const Ty (&arr)[N]) {
   return N;
 }
 
