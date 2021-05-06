@@ -349,12 +349,12 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
     return MyBase::get_ref();
   }
 
-  template <typename U, enable_if_t<is_convertible_v<U, Ty>, int> = 0>
+  template <typename U, enable_if_t<is_constructible_v<Ty, U>, int> = 0>
   constexpr Ty value_or(U&& default_value) const& {
     return has_value() ? MyBase::get_ref() : forward<U>(default_value);
   }
 
-  template <typename U, enable_if_t<is_convertible_v<U, Ty>, int> = 0>
+  template <typename U, enable_if_t<is_constructible_v<Ty, U>, int> = 0>
   constexpr Ty value_or(U&& default_value) && {
     return has_value() ? move(MyBase::get_ref()) : forward<U>(default_value);
   }
@@ -401,8 +401,17 @@ using optional_base_selector_t = typename optional_base_selector<Ty>::type;
 }  // namespace opt::details
 
 template <class Ty>
-struct optional : public opt::details::optional_base_selector_t<Ty> {
+class optional;
+
+template <class Ty>
+void swap(optional<Ty>& lhs, optional<Ty>& rhs);
+
+template <class Ty>
+class optional : public opt::details::optional_base_selector_t<Ty> {
+ private:
   using MyBase = opt::details::optional_base_selector_t<Ty>;
+
+ public:
   using value_type = typename MyBase::value_type;
 
   using MyBase::MyBase;
@@ -417,10 +426,29 @@ struct optional : public opt::details::optional_base_selector_t<Ty> {
   using MyBase::reset;
   using MyBase::value;
   using MyBase::value_or;
+
+  void swap(optional& other) noexcept(is_nothrow_swappable_v<Ty>) {
+    swap(*this, other);
+  }
 };
 
 template <class Ty>
 optional(Ty) -> optional<Ty>;
+
+template <class Ty>
+void swap(optional<Ty>& lhs, optional<Ty>& rhs) {
+  if (bool lhs_not_empty = lhs.has_value();
+      (lhs_not_empty ^ rhs.has_value()) == 0) {
+    if (lhs_not_empty) {
+      swap(*lhs, *rhs);
+    }
+  } else {
+    auto& not_empty{lhs_not_empty ? lhs : rhs};
+    auto& empty{lhs_not_empty ? rhs : lhs};
+    empty.emplace(move(*not_empty));
+    not_empty.reset();
+  }
+}
 
 template <class Ty>
 constexpr optional<decay_t<Ty>> make_optional(Ty&& value) noexcept(
@@ -440,4 +468,132 @@ struct hash<optional<Ty>> {
     return hash<remove_const_t<Ty>>{}(*opt);
   }
 };
+
+template <class Ty1, class Ty2>
+constexpr bool operator==(
+    const optional<Ty1>& lhs,
+    const optional<Ty2>& rhs) noexcept(noexcept(declval<Ty1>() ==
+                                                declval<Ty2>())) {
+  bool lhs_not_empty{lhs.has_value()};
+  if ((lhs_not_empty ^ rhs.has_value()) != 0) {
+    return false;
+  }
+  return !lhs_not_empty ? true : *lhs == *rhs;
+}
+
+template <class Ty1, class Ty2>
+constexpr bool operator!=(const optional<Ty1>& lhs,
+                          const optional<Ty2>& rhs) noexcept(noexcept(lhs ==
+                                                                      rhs)) {
+  return !(lhs == rhs);
+}
+
+template <class Ty1, class Ty2>
+constexpr bool operator<(
+    const optional<Ty1>& lhs,
+    const optional<Ty2>& rhs) noexcept(noexcept(declval<Ty1>() <
+                                                declval<Ty2>())) {
+  if (!rhs) {
+    return false;
+  }
+  return !lhs ? true : *lhs < *rhs;
+}
+
+template <class Ty1, class Ty2>
+constexpr bool operator<=(const optional<Ty1>& lhs,
+                          const optional<Ty2>& rhs) noexcept(noexcept(lhs >
+                                                                      rhs)) {
+  return !(lhs > rhs);
+}
+
+template <class Ty1, class Ty2>
+constexpr bool operator>(const optional<Ty1>& lhs,
+                         const optional<Ty2>& rhs) noexcept(noexcept(rhs <
+                                                                     lhs)) {
+  return rhs < lhs;
+}
+
+template <class Ty1, class Ty2>
+constexpr bool operator>=(const optional<Ty1>& lhs,
+                          const optional<Ty2>& rhs) noexcept(noexcept(rhs <
+                                                                      lhs)) {
+  return !(lhs < rhs);
+}
+
+template <class Ty, class U>
+constexpr bool operator==(const optional<Ty>& opt,
+                          const U& value) noexcept(noexcept(declval<Ty>() ==
+                                                            declval<U>())) {
+  return !opt ? false : *opt == value;
+}
+
+template <class Ty, class U>
+constexpr bool operator==(const Ty& value, const optional<U>& opt) noexcept(
+    noexcept(declval<Ty>() == declval<U>())) {
+  return !opt ? false : value == *opt;
+}
+
+template <class Ty, class U>
+constexpr bool operator!=(const optional<Ty>& opt,
+                          const U& value) noexcept(noexcept(declval<Ty>() !=
+                                                            declval<U>())) {
+  return !opt ? false : *opt != value;
+}
+
+template <class Ty, class U>
+constexpr bool operator!=(const Ty& value, const optional<U>& opt) noexcept(
+    noexcept(declval<Ty>() != declval<U>())) {
+  return !opt ? false : value != *opt;
+}
+
+template <class Ty, class U>
+constexpr bool operator<(const optional<Ty>& opt,
+                         const U& value) noexcept(noexcept(declval<Ty>() <
+                                                           declval<U>())) {
+  return !opt ? false : *opt < value;
+}
+
+template <class Ty, class U>
+constexpr bool operator<(const Ty& value, const optional<U>& opt) noexcept(
+    noexcept(declval<Ty>() < declval<U>())) {
+  return !opt ? false : value < *opt;
+}
+
+template <class Ty, class U>
+constexpr bool operator<=(const optional<Ty>& opt,
+                          const U& value) noexcept(noexcept(declval<Ty>() <=
+                                                            declval<U>())) {
+  return !opt ? false : *opt <= value;
+}
+
+template <class Ty, class U>
+constexpr bool operator<=(const Ty& value, const optional<U>& opt) noexcept(
+    noexcept(declval<Ty>() <= declval<U>())) {
+  return !opt ? false : value <= *opt;
+}
+
+template <class Ty, class U>
+constexpr bool operator>(const optional<Ty>& opt,
+                         const U& value) noexcept(noexcept(declval<Ty>() >
+                                                           declval<U>())) {
+  return !opt ? false : *opt > value;
+}
+
+template <class Ty, class U>
+constexpr bool operator>(const Ty& value, const optional<U>& opt) noexcept(
+    noexcept(declval<Ty>() > declval<U>())) {
+  return !opt ? false : value > *opt;
+}
+
+template <class Ty, class U>
+constexpr bool operator>=(const optional<Ty>& opt,
+                          const U& value) noexcept(noexcept(declval<Ty>() >=
+                                                            declval<U>())) {
+  return !opt ? false : *opt >= value;
+}
+template <class Ty, class U>
+constexpr bool operator>=(const Ty& value, const optional<U>& opt) noexcept(
+    noexcept(declval<Ty>() >= declval<U>())) {
+  return !opt ? false : value >= *opt;
+}
 }  // namespace ktl
