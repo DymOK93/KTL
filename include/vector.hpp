@@ -20,7 +20,7 @@ namespace ktl {
 namespace mm::details {
 template <class Allocator>
 class raw_buffer {
- private:
+ public:
   using allocator_type = Allocator;
   using allocator_traits_type = allocator_traits<allocator_type>;
 
@@ -132,14 +132,21 @@ class vector {
   using allocator_type = Allocator;
   using allocator_traits_type = allocator_traits<allocator_type>;
 
-  using pointer = typename allocator_traits_type::pointer;
-  using const_pointer = typename allocator_traits_type::const_pointer;
-  using reference = typename allocator_traits_type::reference;
-  using const_reference = typename allocator_traits_type::const_reference;
+  using pointer = Ty*;
+  using const_pointer = const Ty*;
+  using reference = Ty&;
+  using const_reference = const Ty&;
   using size_type = typename allocator_traits_type::size_type;
 
   using iterator = pointer;
   using const_iterator = const_pointer;
+
+ private:
+  using memory_buffer_type = mm::details::raw_buffer<allocator_type>;
+
+ public:
+  static_assert(is_same_v<Ty, typename memory_buffer_type::value_type>,
+                "Uncompatible allocator");
 
  private:
   static constexpr size_type MIN_CAPACITY{1}, GROWTH_MULTIPLIER{2};
