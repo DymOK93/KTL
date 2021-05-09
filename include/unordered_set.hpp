@@ -1,43 +1,45 @@
 ﻿#pragma once
+#include <basic_types.h>
+#include <hash.hpp>
 #include <unordered_container_impl.hpp>
 
 namespace ktl {
 template <class Key,
           class Hash = hash<Key>,
           class KeyEqual = equal_to<Key>,
-          template<typename...> class BasicBytesAlloc = basic_paged_allocator,
+          class BytesAllocator = basic_paged_allocator<byte>,
           size_t MaxLoadFactor100 = 80>
 using unordered_flat_set = un::details::
-    Table<true, Key, void, Hash, KeyEqual, BasicBytesAlloc, MaxLoadFactor100>;
+    Table<true, Key, void, Hash, KeyEqual, BytesAllocator, MaxLoadFactor100>;
 
 template <class Key,
           class Hash = hash<Key>,
           class KeyEqual = equal_to<Key>,
-          template<typename...> class BasicBytesAlloc = basic_non_paged_allocator,
+          class BytesAllocator = basic_non_paged_allocator<byte>,
           size_t MaxLoadFactor100 = 80>
 using unordered_flat_set_non_paged = un::details::
-    Table<true, Key, void, Hash, KeyEqual, BasicBytesAlloc, MaxLoadFactor100>;
+    Table<true, Key, void, Hash, KeyEqual, BytesAllocator, MaxLoadFactor100>;
 
 template <class Key,
           class Hash = hash<Key>,
           class KeyEqual = equal_to<Key>,
-          template<typename...> class BasicBytesAlloc = basic_paged_allocator,
+          class BytesAllocator = basic_paged_allocator<byte>,
           size_t MaxLoadFactor100 = 80>
 using unordered_node_set = un::details::
-    Table<false, Key, void, Hash, KeyEqual, BasicBytesAlloc, MaxLoadFactor100>;
+    Table<false, Key, void, Hash, KeyEqual, BytesAllocator, MaxLoadFactor100>;
 
 template <class Key,
           class Hash = hash<Key>,
           class KeyEqual = equal_to<Key>,
-          template<typename...> class BasicBytesAlloc = basic_non_paged_allocator,
+          class BytesAllocator = basic_non_paged_allocator<byte>,
           size_t MaxLoadFactor100 = 80>
 using unordered_node_set_non_paged = un::details::
-    Table<false, Key, void, Hash, KeyEqual, BasicBytesAlloc, MaxLoadFactor100>;
+    Table<false, Key, void, Hash, KeyEqual, BytesAllocator, MaxLoadFactor100>;
 
 template <class Key,
           class Hash = hash<Key>,
           class KeyEqual = equal_to<Key>,
-          template<typename...> class BasicBytesAlloc = basic_paged_allocator,
+          class BytesAllocator = basic_paged_allocator<byte>,
           size_t MaxLoadFactor100 = 80>
 using unordered_set =
     un::details::Table<sizeof(Key) <= sizeof(size_t) * 6 &&
@@ -47,13 +49,13 @@ using unordered_set =
                        void,
                        Hash,
                        KeyEqual,
-                       BasicBytesAlloc,
+                       BytesAllocator,
                        MaxLoadFactor100>;
 
 template <class Key,
           class Hash = hash<Key>,
           class KeyEqual = equal_to<Key>,
-          template<typename...> class BasicBytesAlloc = basic_non_paged_allocator,
+          class BytesAllocator = basic_non_paged_allocator<byte>,
           size_t MaxLoadFactor100 = 80>
 using unordered_set_non_paged =
     un::details::Table<sizeof(Key) <= sizeof(size_t) * 6 &&
@@ -63,7 +65,7 @@ using unordered_set_non_paged =
                        void,
                        Hash,
                        KeyEqual,
-                       BasicBytesAlloc,
+                       BytesAllocator,
                        MaxLoadFactor100>;
 
 }  // namespace ktl
