@@ -139,7 +139,8 @@ class BulkPoolAllocator {
   }
 
   Ty* allocate_bytes(size_t bytes_count) {
-    return AlBytesTraits::allocate_bytes(m_bytes_alc, bytes_count);
+    return reinterpret_cast<Ty*>(
+        AlBytesTraits::allocate_bytes(m_bytes_alc, bytes_count));
   }
 
   // does not actually deallocate but puts it in store.
@@ -172,9 +173,8 @@ class BulkPoolAllocator {
     }
   }
 
-  void swap(
-      BulkPoolAllocator<Ty, BytesAllocator, MinNumAllocs, MaxNumAllocs>&
-          other) noexcept(is_nothrow_swappable_v<allocator_type>) {
+  void swap(BulkPoolAllocator<Ty, BytesAllocator, MinNumAllocs, MaxNumAllocs>&
+                other) noexcept(is_nothrow_swappable_v<allocator_type>) {
     using ktl::swap;
     swap(m_bytes_alc, other.m_bytes_alc);
     swap(mHead, other.mHead);
@@ -265,10 +265,7 @@ template <class Ty,
           bool IsFlat>
 struct NodeAllocator;
 
-template <class Ty,
-          class BytesAllocator,
-          size_t MinSize,
-          size_t MaxSize>
+template <class Ty, class BytesAllocator, size_t MinSize, size_t MaxSize>
 class NodeAllocator<Ty, BytesAllocator, MinSize, MaxSize, true> {
  public:
   using allocator_type = BytesAllocator;
@@ -288,7 +285,8 @@ class NodeAllocator<Ty, BytesAllocator, MinSize, MaxSize, true> {
   }
 
   Ty* allocate_bytes(size_t bytes_count) {
-    return AlBytesTraits::allocate_bytes(m_bytes_alc, bytes_count);
+    return reinterpret_cast<Ty*>(
+        AlBytesTraits::allocate_bytes(m_bytes_alc, bytes_count));
   }
 
   void deallocate_bytes(void* ptr, size_t bytes_count) {
@@ -304,10 +302,7 @@ class NodeAllocator<Ty, BytesAllocator, MinSize, MaxSize, true> {
   allocator_type m_bytes_alc;
 };
 
-template <class Ty,
-          class BytesAllocator,
-          size_t MinSize,
-          size_t MaxSize>
+template <class Ty, class BytesAllocator, size_t MinSize, size_t MaxSize>
 struct NodeAllocator<Ty, BytesAllocator, MinSize, MaxSize, false>
     : public BulkPoolAllocator<Ty, BytesAllocator, MinSize, MaxSize> {};
 
