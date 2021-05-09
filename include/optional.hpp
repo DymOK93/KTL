@@ -39,8 +39,7 @@ struct non_trivial_dummy_type {
 template <class Ty>
 struct supported_by_trivial_optional_base {
   static constexpr bool value =
-      (is_trivially_default_constructible_v<Ty> &&
-       is_trivially_copyable_v<Ty> && is_trivially_destructible_v<Ty> &&
+      (is_trivially_copyable_v<Ty> && is_trivially_destructible_v<Ty> &&
        !is_const_v<Ty> && !is_volatile_v<Ty>);
 };
 
@@ -48,75 +47,105 @@ template <class Ty>
 inline constexpr bool supported_by_trivial_optional_base_v =
     supported_by_trivial_optional_base<Ty>::value;
 
-template <class Ty>
-class common_optional_base {
+#define INTERNAL_STORAGE            \
+  bool m_initialized{false};        \
+  union {                           \
+    non_trivial_dummy_type m_dummy; \
+    Ty m_value;                     \
+  };
+
+#define OPTIONAL_STORAGE_CONSTRUCTOR_SET                                     \
+  constexpr optional_storage() noexcept : m_dummy{} {}                       \
+                                                                             \
+  constexpr optional_storage(nullopt_t) noexcept : optional_storage() {}     \
+                                                                             \
+  constexpr optional_storage(const Ty& value) noexcept                       \
+      : m_initialized{true}, m_value{value} {}                               \
+                                                                             \
+  constexpr optional_storage(Ty&& value) noexcept                            \
+      : m_initialized{true}, m_value{move(value)} {}                         \
+                                                                             \
+  template <class U = Ty, enable_if_t<is_constructible_v<Ty, U>, int> = 0>   \
+  constexpr optional_storage(U&& value) noexcept(                            \
+      is_nothrow_constructible_v<Ty, U>)                                     \
+      : m_initialized{true}, m_value{forward<U>(value)} {}                   \
+                                                                             \
+  template <class... Types>                                                  \
+  constexpr explicit optional_storage(in_place_t, Types&&... args) noexcept( \
+      is_nothrow_constructible_v<Ty, Types...>)                              \
+      : m_initialized{true}, m_value(forward<Types>(args)...) {}
+
+template <class Ty, bool = supported_by_trivial_optional_base_v<Ty>>
+class optional_storage {
  public:
   using value_type = Ty;
 
  public:
-  constexpr common_optional_base() noexcept : m_dummy{} {}
+  OPTIONAL_STORAGE_CONSTRUCTOR_SET
+  ~optional_storage() noexcept {}
 
-  constexpr common_optional_base(nullopt_t) noexcept : common_optional_base() {}
+ protected:
+  INTERNAL_STORAGE
+};
 
-  constexpr common_optional_base(const Ty& value) noexcept
-      : m_initialized{true}, m_value{value} {}
+template <class Ty>
+class optional_storage<Ty, true> {
+ public:
+  using value_type = Ty;
 
-  constexpr common_optional_base(Ty&& value) noexcept
-      : m_initialized{true}, m_value{move(value)} {}
+ public:
+  OPTIONAL_STORAGE_CONSTRUCTOR_SET
+  ~optional_storage() noexcept = default;
 
-  template <class U = Ty,
-            enable_if_t<supported_by_trivial_optional_base_v<Ty> &&
-                                is_convertible_v<U, Ty> ||
-                            is_constructible_v<Ty, U>,
-                        int> = 0>
-  constexpr common_optional_base(U&& value) noexcept(
-      supported_by_trivial_optional_base_v<Ty>&&
-          is_nothrow_convertible_v<U, Ty> ||
-      is_nothrow_constructible_v<Ty, U>)
-      : m_initialized{true}, m_value{forward<U>(value)} {}
+ protected:
+  INTERNAL_STORAGE
+};
 
-  template <class... Types>
-  constexpr explicit common_optional_base(in_place_t, Types&&... args) noexcept(
-      is_nothrow_constructible_v<Ty, Types...>)
-      : m_initialized{true}, m_value(forward<Types>(args)...) {}
+#undef OPTIONAL_STORAGE_CONSTRUCTOR_SET
+#undef INTERNAL_STORAGE
 
-  constexpr ~common_optional_base() noexcept {}
+template <class Ty>
+class common_optional_base : optional_storage<Ty> {
+ private:
+  using MyBase = optional_storage<Ty>;
 
+ public:
+  using value_type = typename MyBase::value_type;
+
+ public:
   constexpr explicit operator bool() const noexcept { return has_value(); }
-  constexpr bool has_value() const noexcept { return m_initialized; }
+  constexpr bool has_value() const noexcept { return this->m_initialized; }
 
   constexpr const Ty* operator->() const noexcept { return get_ptr(); }
   constexpr Ty* operator->() noexcept { return get_ptr(); }
 
  protected:
-  constexpr Ty& get_ref() noexcept { return m_value; }
-  constexpr const Ty& get_ref() const noexcept { return m_value; }
-  constexpr Ty* get_ptr() noexcept { return addressof(m_value); }
-  constexpr const Ty* get_ptr() const noexcept { return addressof(m_value); }
+  constexpr Ty& get_ref() noexcept { return this->m_value; }
+
+  constexpr const Ty& get_ref() const noexcept { return this->m_value; }
+
+  constexpr Ty* get_ptr() noexcept { return addressof(this->m_value); }
+
+  constexpr const Ty* get_ptr() const noexcept {
+    return addressof(this->m_value);
+  }
 
   constexpr void construct_from_value(const Ty& value) noexcept {
-    m_initialized = true;
-    m_value = value;
+    this->m_initialized = true;
+    this->m_value = value;
   }
 
   template <class U>
   constexpr void construct_from_value(const U& value) noexcept {
-    m_initialized = true;
-    m_value = static_cast<value_type>(value);
+    this->m_initialized = true;
+    this->m_value = static_cast<value_type>(value);
   }
 
   template <class... Types>
   constexpr void construct_from_args(Types&&... args) noexcept {
-    m_initialized = true;
+    this->m_initialized = true;
     construct_at(get_ptr(), forward<Types>(args)...);
   }
-
- protected:
-  bool m_initialized{false};
-  union {
-    non_trivial_dummy_type m_dummy;
-    Ty m_value;
-  };
 };
 
 template <class Ty>

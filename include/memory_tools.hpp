@@ -107,12 +107,12 @@ class uninitialized_backout_base {
       : m_dst_first{dst}, m_dst_cur{dst} {}
   ~uninitialized_backout_base() { destroy(m_dst_first, m_dst_cur); }
 
- protected:
   ForwardIt release() {
-    m_dst_cur = m_dst_first;
+    m_dst_first = m_dst_cur;
     return m_dst_cur;
   }
 
+ protected:
   template <class... Types>
   decltype(auto) emplace(Types&&... args) {
     auto& place{addressof(*m_dst_cur++)};
@@ -367,7 +367,7 @@ namespace mm::details {
 template <class ForwardIt>
 class uninitialized_construct_base
     : public uninitialized_backout_base<ForwardIt> {
- public:
+ private:
   using MyBase = uninitialized_backout_base<ForwardIt>;
 
  public:
@@ -385,7 +385,7 @@ class uninitialized_construct_base
 template <class ForwardIt>
 class uninitialized_construct_helper
     : public uninitialized_construct_base<ForwardIt> {
- public:
+ private:
   using MyBase = uninitialized_construct_base<ForwardIt>;
 
  public:
@@ -431,6 +431,10 @@ class uninitialized_construct_helper
     }
   }
 };
+
+template <class ForwardIt>
+uninitialized_construct_helper(ForwardIt)
+    -> uninitialized_construct_helper<ForwardIt>;
 }  // namespace mm::details
 
 template <class ForwardIt, class Ty>
@@ -439,7 +443,6 @@ ForwardIt uninitialized_fill(ForwardIt first, ForwardIt last, const Ty& val) {
     return static_cast<ForwardIt>(
         memset(first, static_cast<int>(val), distance(first, last)));
   } else {
-    ForwardIt current{first};
     mm::details::uninitialized_construct_helper uconh(first);
     uconh.fill_range(last, val);
     return uconh.release();
@@ -451,7 +454,6 @@ ForwardIt uninitialized_fill_n(ForwardIt first, size_t count, const Ty& val) {
   if constexpr (mm::details::memset_is_safe_v<Ty> && is_pointer_v<ForwardIt>) {
     return static_cast<ForwardIt>(memset(first, static_cast<int>(val), count));
   } else {
-    ForwardIt current{first};
     mm::details::uninitialized_construct_helper uconh(first);
     uconh.fill_n(count, val);
     return uconh.release();
@@ -466,7 +468,6 @@ ForwardIt uninitialized_value_construct(ForwardIt first, ForwardIt last) {
     size_t bytes_count{distance(first, last) * sizeof(value_type)};
     return static_cast<ForwardIt>(memset(first, 0, bytes_count));
   } else {
-    ForwardIt current{first};
     mm::details::uninitialized_construct_helper uconh(first);
     uconh.value_construct_range(last);
     return uconh.release();
@@ -480,7 +481,6 @@ ForwardIt uninitialized_value_construct_n(ForwardIt first, size_t count) {
                 is_pointer_v<ForwardIt>) {
     return static_cast<ForwardIt>(memset(first, 0, count * sizeof(value_type)));
   } else {
-    ForwardIt current{first};
     mm::details::uninitialized_construct_helper uconh(first);
     uconh.value_construct_n(count);
     return uconh.release();
@@ -495,7 +495,6 @@ ForwardIt uninitialized_default_construct(ForwardIt first, ForwardIt last) {
     size_t bytes_count{distance(first, last) * sizeof(value_type)};
     return static_cast<ForwardIt>(memset(first, 0, bytes_count));
   } else {
-    ForwardIt current{first};
     mm::details::uninitialized_construct_helper uconh(first);
     uconh.default_construct_range(last);
     return uconh.release();
@@ -509,7 +508,6 @@ ForwardIt uninitialized_default_construct_n(ForwardIt first, size_t count) {
                 is_pointer_v<ForwardIt>) {
     return static_cast<ForwardIt>(memset(first, 0, count * sizeof(value_type)));
   } else {
-    ForwardIt current{first};
     mm::details::uninitialized_construct_helper uconh(first);
     uconh.default_construct_n(count);
     return uconh.release();

@@ -68,16 +68,13 @@ class auto_lock {
 
 }  // namespace th::details
 
-// Copyright (c) Microsoft Corporation
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
 enum class memory_order : uint8_t {
   relaxed = 0,
   consume = 1,
   acquire = 2,
   release = 4,
-  acq_rel = 6,  // acquire | release
-  seq_cst = 14  // acq_rel | 8
+  acq_rel = acquire | release,  // 6
+  seq_cst = acq_rel | 8         // 14
 };
 
 inline constexpr memory_order memory_order_relaxed = memory_order::relaxed;
@@ -135,7 +132,7 @@ template <memory_order on_success, memory_order on_failure>
   //        |
   //     acq_rel
   //     /     \
-    // acquire  release
+  // acquire  release
   //    |       |
   // consume    |
   //     \     /
@@ -882,7 +879,7 @@ class atomic : public atomic_base_t<Ty>,
       is_trivially_copyable_v<Ty> && is_copy_constructible_v<Ty> &&
           is_move_constructible_v<Ty> && is_copy_assignable_v<Ty> &&
           is_move_assignable_v<Ty>,
-      "atomic<Ty> requires T to be trivially copyable, copy constructible, "
+      "atomic<Ty> requires Ty to be trivially copyable, copy constructible, "
       "move constructible, copy assignable, and move assignable");
 
  public:

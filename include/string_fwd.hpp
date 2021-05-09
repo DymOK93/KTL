@@ -88,7 +88,6 @@ template <size_t SsoBufferChCount,
           typename NativeStrTy,
           template <typename... CharT>
           class Traits,
-          template <typename... CharT>
           class Alloc>
 class basic_winnt_string;
 
@@ -114,29 +113,35 @@ using unicode_string_view = basic_unicode_string_view<char_traits>;
 
 template <size_t SsoBufferChCount,
           template <typename... CharT> class Traits = char_traits,
-          template <typename... CharT> class Alloc = basic_paged_allocator>
+          class Alloc =
+              basic_paged_allocator<typename str::details::native_string_traits<
+                  native_ansi_str_t>::value_type>>
 using basic_ansi_string = str::details::
     basic_winnt_string<SsoBufferChCount, native_ansi_str_t, Traits, Alloc>;
 
 using ansi_string =
     basic_ansi_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT>;
-using ansi_string_non_paged =
-    basic_ansi_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
-                      char_traits,
-                      basic_non_paged_allocator>;
+using ansi_string_non_paged = basic_ansi_string<
+    str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
+    char_traits,
+    basic_non_paged_allocator<typename str::details::native_string_traits<
+        native_ansi_str_t>::value_type>>;
 
 template <size_t SsoBufferChCount,
           template <typename... CharT> class Traits = char_traits,
-          template <typename... CharT> class Alloc = basic_paged_allocator>
+          class Alloc =
+              basic_paged_allocator<typename str::details::native_string_traits<
+                  native_unicode_str_t>::value_type>>
 using basic_unicode_string = str::details::
     basic_winnt_string<SsoBufferChCount, native_unicode_str_t, Traits, Alloc>;
 
 using unicode_string =
     basic_unicode_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT>;
-using unicode_string_non_paged =
-    basic_unicode_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
-                         char_traits,
-                         basic_non_paged_allocator>;
+using unicode_string_non_paged = basic_unicode_string<
+    str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
+    char_traits,
+    basic_non_paged_allocator<typename str::details::native_string_traits<
+        native_unicode_str_t>::value_type>>;
 
 inline namespace literals {
 inline namespace string_literals {

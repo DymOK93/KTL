@@ -65,13 +65,12 @@ namespace un::details {
 // in the destructor, and keeps a linked list of the allocated memory around.
 // Overhead per allocation is the size of a pointer.
 template <class Ty,
-          template <typename...>
-          class BasicBytesAllocator,
+          class BytesAllocator,
           size_t MinNumAllocs = 4,
           size_t MaxNumAllocs = 256>
 class BulkPoolAllocator {
  public:
-  using allocator_type = BasicBytesAllocator<Ty>;
+  using allocator_type = BytesAllocator;
 
  private:
   using AlBytesTraits = allocator_traits<allocator_type>;
@@ -174,7 +173,7 @@ class BulkPoolAllocator {
   }
 
   void swap(
-      BulkPoolAllocator<Ty, BasicBytesAllocator, MinNumAllocs, MaxNumAllocs>&
+      BulkPoolAllocator<Ty, BytesAllocator, MinNumAllocs, MaxNumAllocs>&
           other) noexcept(is_nothrow_swappable_v<allocator_type>) {
     using ktl::swap;
     swap(m_bytes_alc, other.m_bytes_alc);
@@ -260,21 +259,19 @@ class BulkPoolAllocator {
 };
 
 template <class Ty,
-          template <typename...>
-          class BasicBytesAllocator,
+          class BytesAllocator,
           size_t MinSize,
           size_t MaxSize,
           bool IsFlat>
 struct NodeAllocator;
 
 template <class Ty,
-          template <typename...>
-          class BasicBytesAllocator,
+          class BytesAllocator,
           size_t MinSize,
           size_t MaxSize>
-class NodeAllocator<Ty, BasicBytesAllocator, MinSize, MaxSize, true> {
+class NodeAllocator<Ty, BytesAllocator, MinSize, MaxSize, true> {
  public:
-  using allocator_type = BasicBytesAllocator<Ty>;
+  using allocator_type = BytesAllocator;
 
  private:
   using AlBytesTraits = allocator_traits<allocator_type>;
@@ -308,12 +305,11 @@ class NodeAllocator<Ty, BasicBytesAllocator, MinSize, MaxSize, true> {
 };
 
 template <class Ty,
-          template <typename...>
-          class BasicBytesAllocator,
+          class BytesAllocator,
           size_t MinSize,
           size_t MaxSize>
-struct NodeAllocator<Ty, BasicBytesAllocator, MinSize, MaxSize, false>
-    : public BulkPoolAllocator<Ty, BasicBytesAllocator, MinSize, MaxSize> {};
+struct NodeAllocator<Ty, BytesAllocator, MinSize, MaxSize, false>
+    : public BulkPoolAllocator<Ty, BytesAllocator, MinSize, MaxSize> {};
 
 // dummy hash, unsed as mixer when robin_hood::hash is already used
 template <typename Ty>
@@ -393,8 +389,7 @@ template <bool IsFlat,
           typename Ty,
           typename Hash,
           typename KeyEqual,
-          template <typename...>
-          class BasicBytesAlloc,
+          class BytesAllocator,
           size_t MaxLoadFactor100>
 class Table
     : public WrapHash<Hash>,
@@ -404,7 +399,7 @@ class Table
                         Key,
                         pair<typename conditional<IsFlat, Key, Key const>::type,
                              Ty>>::type,
-                    BasicBytesAlloc,
+                    BytesAllocator,
                     4,
                     16384,
                     IsFlat> {
@@ -429,7 +424,7 @@ class Table
                      mapped_type,
                      hasher,
                      key_equal,
-                     BasicBytesAlloc,
+                     BytesAllocator,
                      MaxLoadFactor100>;
 
  private:
@@ -447,7 +442,7 @@ class Table
   static constexpr uint8_t InitialInfoInc = 1U << InitialInfoNumBits;
   static constexpr size_t InfoMask = InitialInfoInc - 1U;
   static constexpr uint8_t InitialInfoHashShift = 0;
-  using DataPool = NodeAllocator<value_type, BasicBytesAlloc, 4, 16384, IsFlat>;
+  using DataPool = NodeAllocator<value_type, BytesAllocator, 4, 16384, IsFlat>;
 
   // type needs to be wider than uint8_t.
   using InfoType = uint32_t;
@@ -796,7 +791,7 @@ class Table
                        mapped_type,
                        hasher,
                        key_equal,
-                       BasicBytesAlloc,
+                       BytesAllocator,
                        MaxLoadFactor100>;
     NodePtr mKeyVals{nullptr};
     uint8_t const* mInfo{nullptr};
