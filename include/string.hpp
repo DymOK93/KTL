@@ -782,8 +782,9 @@ class basic_winnt_string {
     if (pos == end()) {
       append(pos, count, ch);
     }
-    insert_impl(static_cast<size_type>(pos - begin()), make_fill_helper(),
-                count, ch);
+    const auto index{static_cast<size_type>(pos - begin())};
+    insert_impl(index, make_fill_helper(), count, ch);
+    return begin() + index + count;
   }
 
   template <class InputIt>
@@ -791,10 +792,12 @@ class basic_winnt_string {
     if (pos == end()) {
       append(first, last);
     }
-    insert_range_impl(
-        pos - begin(), first, last,
+    const auto index{static_cast<size_type>(pos - begin())};
+    const auto count{insert_range_impl(
+        index, first, last,
         is_same<typename iterator_traits<InputIt>::iterator_category,
-                random_access_iterator_tag>{});
+                random_access_iterator_tag>{})};
+    return begin() + index + count;
   }
 
   template <class Ty,
@@ -1075,21 +1078,23 @@ class basic_winnt_string {
   }
 
   template <class InputIt>
-  void insert_range_impl(size_type index,
-                         InputIt first,
-                         InputIt last,
-                         false_type) {
+  size_type insert_range_impl(size_type index,
+                              InputIt first,
+                              InputIt last,
+                              false_type) {
     const basic_winnt_string proxy{first, last};
     insert(index, proxy);
+    return proxy.size();
   }
 
   template <class RandomAcceccIt>
-  void insert_range_impl(size_type index,
-                         RandomAcceccIt first,
-                         RandomAcceccIt last,
-                         true_type) {
+  size_type insert_range_impl(size_type index,
+                              RandomAcceccIt first,
+                              RandomAcceccIt last,
+                              true_type) {
     const auto range_length{static_cast<size_type>(distance(first, last))};
-    insert_range_by_random_access_iterators(first, last, range_length);
+    insert_range_by_random_access_iterators(index, first, last, range_length);
+    return range_length;
   }
 
   template <class RandomAcceccIt>
@@ -1097,8 +1102,7 @@ class basic_winnt_string {
       size_type index,
       RandomAcceccIt first,
       [[maybe_unused]] RandomAcceccIt last,
-      size_type range_length,
-      false_type) {
+      size_type range_length) {
     if constexpr (is_pointer_v<RandomAcceccIt>) {
       insert_impl(index, make_copy_helper(), range_length, first);
     } else {
