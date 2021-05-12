@@ -4,9 +4,9 @@
 #include <wchar.h>
 #include <type_traits_impl.hpp>
 
-#define EOF -1
-
 namespace ktl {
+inline constexpr int EOF{-1};
+
 template <typename CharT, typename IntT>
 struct char_traits_base {
   using char_type = CharT;
