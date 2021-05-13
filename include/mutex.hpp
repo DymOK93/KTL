@@ -456,14 +456,17 @@ class event : public sync_primitive_base<KEVENT> {
   enum class State { Active, Inactive };
 
  public:
-  event(State state = State::Inactive) {
+  event(State state = State::Inactive) noexcept {
     bool activated{state == State::Active};
     KeInitializeEvent(native_handle(), type, activated);
     update_state(state);
   }
-  event& operator=(State state) { update_state(state); }
+  event& operator=(State state) noexcept {
+    update_state(state);
+    return *this;
+  }
 
-  void wait() {
+  void wait() noexcept {
     KeWaitForSingleObject(native_handle(),
                           Executive,   // Wait reason
                           KernelMode,  // Processor mode
@@ -472,7 +475,7 @@ class event : public sync_primitive_base<KEVENT> {
     );
   }
 
-  cv_status wait_for(duration_t us) {
+  cv_status wait_for(duration_t us) noexcept {
     LARGE_INTEGER wait_time;
     wait_time.QuadPart = us;
     wait_time.QuadPart *= -10;  // relative time in 100ns tics
@@ -580,6 +583,7 @@ class mutex_guard_base : non_copyable {
   mutex_guard_base& move_construct_from(mutex_guard_base&& other) noexcept {
     m_mtx = exchange(other.m_mtx, nullptr);
     m_owned = exchange(other.m_owned, false);
+    return *this;
   }
 
   void lock() {
@@ -596,6 +600,7 @@ class mutex_guard_base : non_copyable {
     static_assert(has_try_lock_for_v<mutex_t, duration_t>,
                   "Mutex doesn't support locking with timeout");
     m_owned = m_mtx->try_lock_for(timeout_duration);
+    return m_owned;
   }
 
   void unlock() {
@@ -663,14 +668,16 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
   unique_lock(const unique_lock& other) = delete;
   unique_lock operator=(const unique_lock& other) = delete;
 
-  unique_lock(unique_lock&& other) { MyBase::move_construct_from(move(other)); }
-
-  unique_lock operator=(unique_lock&& other) {
-    reset();
-    MyBase::move_construct_from(move(other));
+  unique_lock(unique_lock&& other) noexcept {
+    return MyBase::move_construct_from(move(other));
   }
 
-  ~unique_lock() { reset(); }
+  unique_lock& operator=(unique_lock&& other) noexcept {
+    reset_if_needed();
+    return MyBase::move_construct_from(move(other));
+  }
+
+  ~unique_lock() { reset_if_needed(); }
 
   operator bool() const noexcept { return MyBase::owns(); }
 
@@ -679,7 +686,7 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
   using MyBase::unlock;
 
  private:
-  void reset() {
+  void reset_if_needed() noexcept {
     if (MyBase::owns_lock()) {
       MyBase::unlock();
     }
@@ -728,14 +735,16 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
   shared_lock(const shared_lock& other) = delete;
   shared_lock operator=(const shared_lock& other) = delete;
 
-  shared_lock(shared_lock&& other) { MyBase::move_construct_from(move(other)); }
-
-  shared_lock operator=(shared_lock&& other) {
-    reset();
+  shared_lock(shared_lock&& other) noexcept {
     MyBase::move_construct_from(move(other));
   }
 
-  ~shared_lock() { reset(); }
+  shared_lock& operator=(shared_lock&& other) noexcept {
+    reset_if_needed();
+    return MyBase::move_construct_from(move(other));
+  }
+
+  ~shared_lock() { reset_if_needed(); }
 
   operator bool() const noexcept { return MyBase::owns_lock(); }
 
@@ -745,7 +754,7 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
   void unlock() { MyBase::unlock_shared; }
 
  private:
-  void reset() {
+  void reset_if_needed() noexcept {
     if (MyBase::owns_lock()) {
       MyBase::unlock_shared();
     }
