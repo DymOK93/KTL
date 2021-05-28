@@ -90,7 +90,7 @@ void atomic_thread_fence() noexcept {
 }
 
 template <>
-void atomic_thread_fence<memory_order_relaxed>() noexcept {}
+inline void atomic_thread_fence<memory_order_relaxed>() noexcept {}
 
 namespace th::details {
 inline void increment_dummy_variable() noexcept {
@@ -101,7 +101,7 @@ inline void increment_dummy_variable() noexcept {
 }  // namespace th::details
 
 template <>
-void atomic_thread_fence<memory_order_seq_cst>() noexcept {
+inline void atomic_thread_fence<memory_order_seq_cst>() noexcept {
   th::details::make_compiler_barrier();
   th::details::increment_dummy_variable();
   th::details::make_compiler_barrier();
@@ -124,7 +124,7 @@ void atomic_signal_fence() noexcept {
 }
 
 template <>
-void atomic_signal_fence<memory_order_relaxed>() noexcept {}
+inline void atomic_signal_fence<memory_order_relaxed>() noexcept {}
 
 EXTERN_C inline void atomic_signal_fence(const memory_order order) noexcept {
   if (order != memory_order_relaxed) {
