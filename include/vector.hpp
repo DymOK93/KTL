@@ -43,12 +43,14 @@ class raw_buffer {
       is_nothrow_move_constructible_v<allocator_type>)
       : m_buffer{one_then_variadic_args{}, move(alloc)} {}
 
-  template <class Alloc = allocator_type>
+  template <class Alloc = allocator_type,
+            enable_if_t<is_constructible_v<allocator_type, Alloc>, int> = 0>
   raw_buffer(Alloc&& alloc = Alloc{}) noexcept(
       is_nothrow_constructible_v<allocator_type, Alloc>)
       : m_buffer{one_then_variadic_args{}, forward<Alloc>(alloc)} {}
 
-  template <class Alloc = allocator_type>
+  template <class Alloc = allocator_type,
+            enable_if_t<is_constructible_v<allocator_type, Alloc>, int> = 0>
   raw_buffer(size_type object_count, Alloc&& alloc = Alloc{})
       : m_buffer{one_then_variadic_args{}, forward<Alloc>(alloc)} {
     auto& alc{m_buffer.get_first()};
@@ -57,26 +59,33 @@ class raw_buffer {
 
   raw_buffer(const raw_buffer&) = delete;
 
-  raw_buffer(raw_buffer&& other) noexcept
-      : m_buffer{move(other.m_buffer)},
+  raw_buffer(raw_buffer&& other) noexcept(
+      is_nothrow_move_constructible_v<allocator_type>)
+      : m_buffer{one_then_variadic_args{}, move(get_allocator()),
+                 exchange(other.m_buffer.get_second(), nullptr)},
         m_capacity{exchange(other.m_capacity, 0)} {}
 
   raw_buffer& operator=(const raw_buffer&) = delete;
 
-  /*raw_buffer& operator=(raw_buffer&& other) noexcept {
+  raw_buffer& operator=(raw_buffer&& other) noexcept(
+      is_nothrow_move_assignable_v<allocator_type>) {
     if (addressof(other) != this) {
-      deallocate_helper(*m_alc, m_buffer, m_capacity);
-      m_buf = exchange(other.m_buf, nullptr);
+      deallocate_helper(m_buffer.get_first(), m_buffer.get_second(),
+                        m_capacity);
+      get_allocator() = move(get_allocator());
+      other.m_buffer.get_second() =
+          exchange(other.m_buffer.get_second(), nullptr);
       m_capacity = exchange(other.m_capacity, 0);
     }
     return *this;
-  }*/
-
-  ~raw_buffer() {
-    deallocate_helper(m_buffer.get_first(), m_buffer.get_second(), m_capacity);
   }
 
-  void swap(raw_buffer& other) noexcept {
+  ~raw_buffer() {
+    deallocate_helper(get_allocator(), m_buffer.get_second(), m_capacity);
+  }
+
+  void swap(raw_buffer& other) noexcept(
+      is_nothrow_swappable_v<allocator_type>) {
     swap(m_buffer, other.m_buffer);
     swap(m_capacity, other.m_capacity);
   }
@@ -102,11 +111,13 @@ class raw_buffer {
   explicit operator bool() const noexcept { return static_cast<bool>(data()); }
 
  private:
-  static pointer allocate_helper(Allocator& alc, size_type object_count) {
+  allocator_type& get_allocator() noexcept { return m_buffer.get_first(); }
+
+  static pointer allocate_helper(allocator_type& alc, size_type object_count) {
     return allocator_traits_type::allocate(alc, object_count);
   }
 
-  static void deallocate_helper(Allocator& alc,
+  static void deallocate_helper(allocator_type& alc,
                                 pointer buf,
                                 size_type object_count) {
     if constexpr (allocator_traits_type::enable_delete_null::value) {
@@ -152,27 +163,57 @@ class vector {
   static constexpr size_type MIN_CAPACITY{1}, GROWTH_MULTIPLIER{2};
 
  public:
-  vector() noexcept(is_nothrow_default_constructible_v<Allocator>) = default;
+  vector() noexcept(is_nothrow_default_constructible_v<memory_buffer_type>) =
+      default;
 
-  vector(size_type object_count) noexcept(
-      is_nothrow_default_constructible_v<Allocator>&&
+  explicit vector(const allocator_type& alloc) noexcept(
+      is_nothrow_constructible_v<memory_buffer_type, const allocator_type&>)
+      : m_buffer{alloc} {}
+
+  explicit vector(allocator_type&& alloc) noexcept(
+      is_nothrow_constructible_v<memory_buffer_type, allocator_type&&>)
+      : m_buffer{alloc} {}
+
+  template <class Alloc = allocator_type,
+            enable_if_t<is_constructible_v<memory_buffer_type, Alloc>, int> = 1>
+  vector(Alloc&& alloc = Alloc{}) noexcept(
+      is_nothrow_constructible_v<memory_buffer_type, Alloc>)
+      : m_buffer{forward<Alloc>(alloc)} {}
+
+  template <class Alloc = allocator_type>
+  vector(size_type object_count, Alloc&& alloc = Alloc{}) noexcept(
+      is_nothrow_constructible_v<memory_buffer_type, Alloc>&&
           is_nothrow_default_constructible_v<Ty>)
-      : m_buffer(object_count), m_size{object_count} {
+      : m_buffer{object_count, forward<Alloc>(alloc)}, m_size{object_count} {
     uninitialized_default_construct_n(m_buffer.begin(), object_count);
   }
 
+  template <class Alloc = allocator_type>
+  vector(size_type object_count,
+         const Ty& value,
+         Alloc&& alloc =
+             Alloc{}) noexcept(is_nothrow_constructible_v<memory_buffer_type,
+                                                          Alloc>&&
+                                   is_nothrow_default_constructible_v<Ty>)
+      : m_buffer{object_count, forward<Alloc>(alloc)}, m_size{object_count} {
+    uninitialized_fill_n(m_buffer.begin(), object_count, value);
+  }
+
   // vector(const vector& other);
-  // vector(vector&& other);
+  vector(vector&& other) noexcept(
+      is_nothrow_move_constructible_v<memory_buffer_type>)
+      : m_buffer{move(other.m_buffer)}, m_size{exchange(other.m_size, 0)} {}
 
   ~vector() { destroy_n(m_buffer.begin(), m_size); }
 
   /*vector& operator=(const vector& other);
   vector& operator=(vector&& other);*/
 
-  // void swap(vector& other) noexcept {
-  //   m_data.swap(other.m_data);
-  //   m_size_info.swap(other.m_size_info);
-  // }
+  void swap(vector& other) noexcept(
+      is_nothrow_swappable_v<memory_buffer_type>) {
+    m_buffer.swap(other.m_buffer);
+    ::swap(m_size, other.m_size);
+  }
 
   // bool reserve(size_type object_count) {
   //   if (object_count > capacity()) {
@@ -186,10 +227,10 @@ class vector {
   // bool push_back(const Ty& elem) { return emplace_back(elem); }
   // bool push_back(Ty&& elem) { return emplace_back(move(elem)); }
 
-  // void pop_back() {  // UB if empty
-  //   destroy_at(addressof(back()));
-  //   --m_size_info.size;
-  // }
+  void pop_back() {  // UB if empty
+    destroy_at(addressof(back()));
+    --m_size;
+  }
 
   // template <typename... Types>
   // bool emplace_back(Types&&... args);
@@ -310,11 +351,6 @@ class vector {
 //}
 //
 // template <class Ty>
-// vector<Ty>::~vector() {
-//  destroy_helper(m_data, m_size);
-//}
-//
-// template <class Ty>
 // vector<Ty>& vector<Ty>::operator=(const vector& other) {
 //  if (this != std::addressof(other)) {
 //    if (other.m_size >
@@ -339,15 +375,7 @@ class vector {
 //  }
 //  return *this;
 //}
-//
-// template <class Ty>
-// vector<Ty>& vector<Ty>::operator=(vector&& other) noexcept {
-//  if (this != std::addressof(other)) {
-//    vector tmp(std::move(other));
-//    Swap(tmp);
-//  }
-//  return *this;
-//}
+
 //
 // template <class Ty>
 // void vector<Ty>::Reserve(size_type n) {
@@ -498,29 +526,5 @@ class vector {
 //  old_buf.Swap(new_buf);
 //}
 //
-// template <class Ty>
-// vector<Ty>::raw_buffer::raw_buffer(size_type n)
-//    : m_buf{allocate(n)}, m_capacity{n} {}
-//
-// template <class Ty>
-// vector<Ty>::raw_buffer::raw_buffer(raw_buffer&& other) noexcept
-//    : m_buf{std::exchange(other.m_buf, nullptr)},
-//      m_capacity{std::exchange(other.m_capacity, 0)} {}
-//
-// template <class Ty>
-// typename vector<Ty>::raw_buffer& vector<Ty>::raw_buffer::operator=(
-//    raw_buffer&& other) noexcept {
-//  if (this != std::addressof(other)) {
-//    raw_buffer tmp(std::move(other));
-//    Swap(tmp);  // Move-and-Swap
-//  }
-//  return *this;
-//}
-//
-// template <class Ty>
-// vector<Ty>::raw_buffer::~raw_buffer() {
-//  deallocate(m_buf);
-//}
-
 }  // namespace ktl
 #endif
