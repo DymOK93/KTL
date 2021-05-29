@@ -114,15 +114,21 @@ struct hash<basic_ansi_string<BufferSize>>
   }
 };
 
-//#if ROBIN_HOOD(CXX) >= ROBIN_HOOD(CXX17)
-// template <typename CharT>
-// struct hash<basic_string_view<CharT>> {
-//    size_t operator()(basic_string_view<CharT> const& sv) const noexcept
-//    {
-//        return hash_bytes(sv.data(), sizeof(CharT) * sv.size());
-//    }
-//};
-//#endif
+template <>
+struct hash<ansi_string_view> {
+  size_t operator()(ansi_string_view sv) const noexcept {
+    return hash_bytes(sv.data(),
+                      sizeof(ansi_string_view::value_type) * sv.size());
+  }
+};
+
+template <>
+struct hash<unicode_string_view> {
+  size_t operator()(unicode_string_view sv) const noexcept {
+    return hash_bytes(sv.data(),
+                      sizeof(unicode_string_view::value_type) * sv.size());
+  }
+};
 
 template <class Ty>
 struct hash<Ty*> {
