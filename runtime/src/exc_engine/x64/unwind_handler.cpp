@@ -86,13 +86,11 @@ frame_walk_pdata::frame_walk_pdata(const byte* image_base) noexcept
   terminate_if_not(pe_hdr->machine == 0x8664);
   terminate_if_not(pe_hdr->opt_magic == 0x20b);
   terminate_if_not(pe_hdr->headers_size >=
-                              dos_hdr->image_header.value() +
-                                  sizeof(pe::header_x64));
+                   dos_hdr->image_header.value() + sizeof(pe::header_x64));
   terminate_if_not(pe_hdr->image_size >= pe_hdr->headers_size);
 
   terminate_if_not(pe_hdr->directory_count >= 4);
-  terminate_if_not(
-      (pe_hdr->exception_table.size % sizeof(function)) == 0);
+  terminate_if_not((pe_hdr->exception_table.size % sizeof(function)) == 0);
 
   m_functions = image_base + pe_hdr->exception_table.relative_virtual_address;
   m_function_count = pe_hdr->exception_table.size / sizeof(function);
@@ -100,10 +98,11 @@ frame_walk_pdata::frame_walk_pdata(const byte* image_base) noexcept
 }
 
 uint64_t& frame_walk_context::gp(uint8_t idx) noexcept {
-  int8_t conv[16] = {
+  // Make array static to avoid insertion a __security_check by compiler
+  static constexpr int8_t conv[16]{
       -1, -1, -1, 0, -1, 1, 2, 3, -1, -1, -1, -1, 4, 5, 6, 7,
   };
-  int8_t offs = conv[idx];
+  const int8_t offs = conv[idx];
   if (offs < 0) {
     bugcheck(BugCheckReason::CorruptedEhUnwindData);
   }

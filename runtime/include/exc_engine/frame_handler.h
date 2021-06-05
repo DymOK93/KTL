@@ -1,7 +1,7 @@
 #pragma once
 #include <../basic_types.h>
 
-namespace ktLLcrt::exc_engine {
+namespace ktl::crt::exc_engine {
 struct dispatcher_context;
 
 win::ExceptionDisposition frame_handler3(

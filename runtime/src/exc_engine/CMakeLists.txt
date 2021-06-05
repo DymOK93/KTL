@@ -8,6 +8,7 @@ set(KTL_EXC_ENGINE_SOURCE_DIR "${KTL_RUNTIME_SOURCE_DIR}/exc_engine")
 
 set(
 	KTL_EXC_ENGINE_SOURCE_FILES
+		"cookie.cpp"
 		"member_ptr.cpp"
 		"terminate.cpp"
 )

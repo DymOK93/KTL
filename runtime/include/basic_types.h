@@ -23,16 +23,19 @@ using int64_t = long long;
 using uint64_t = unsigned long long;
 using intmax_t = int64_t;
 using uintmax_t = uint64_t;
+using uintptr_t = uint64_t;
 #define BITNESS 64
 #elif defined(_M_IX86)
 using intmax_t = int32_t;
 using uintmax_t = uint32_t;
+using uintptr_t = uint32_t;
 #define BITNESS 32
 #else
 #error Unsupported platform
 #endif
 
 using size_t = decltype(sizeof(int));
+
 
 using nullptr_t = decltype(nullptr);
 using ptrdiff_t = decltype(static_cast<unsigned char*>(nullptr) -

@@ -42,6 +42,8 @@ enum class BugCheckReason : bugcheck_code_t {
   ExceptionSpecificationNotSupported,
   NoMatchingExceptionHandler,
 
+  BufferSecurityCheckFailure,
+
   AssertionFailure,
   ForbiddenCall,
   StdAbort
