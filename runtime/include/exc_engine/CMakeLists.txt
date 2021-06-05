@@ -8,6 +8,7 @@ set(KTL_EXC_ENGINE_INCLUDE_DIR "${KTL_RUNTIME_INCLUDE_DIR}/exc_engine")
 
 set(
 	KTL_EXC_ENGINE_HEADER_FILES
+		"cookie.h"
 		"frame_handler.h"
 		"member_ptr.h"
 		"rva.hpp"

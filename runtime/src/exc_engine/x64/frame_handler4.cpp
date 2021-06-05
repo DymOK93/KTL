@@ -93,7 +93,6 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
             dispatcher_ctx->image_base));
     terminate_if_not(
         exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
-
     return win::ExceptionDisposition::ContinueSearch;
   }
   return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
