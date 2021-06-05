@@ -1230,16 +1230,15 @@ class basic_winnt_string {
     const auto old_size{size()},
         required{static_cast<size_type>(old_size + count)},
         need_to_shift{static_cast<size_type>(old_size - index)};
-    value_type* base{data() + index};
-    if (required > capacity()) {
+    if (value_type* base = data() + index; required > capacity()) {
       grow(calc_optimal_growth(required),
            make_shifter(make_copy_helper(), {index, count}));
     } else {
       constexpr auto shifter{make_move_helper()};
       shifter(base + count, need_to_shift, base);
+      native_string_traits_type::increase_size(get_native_str(), count);
     }
-    handler(base, count, args...);
-    native_string_traits_type::increase_size(get_native_str(), count);
+    handler(data(), count, args...);  // data() may changed
   }
 
   void erase_unchecked(size_type index, size_type count) {
