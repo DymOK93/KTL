@@ -1589,8 +1589,8 @@ class Table
     }
   }
 
-  void throwOverflowError() const {
-    throw_exception<overflow_error>(L"robin_hood::map overflow");
+  [[noreturn]] static void throwOverflowError() {
+    throw_exception<overflow_error>(L"robin_hood map overflow");
   }
 
   template <typename OtherKey, typename... Args>
