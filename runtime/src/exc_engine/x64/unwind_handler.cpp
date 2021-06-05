@@ -98,8 +98,7 @@ frame_walk_pdata::frame_walk_pdata(const byte* image_base) noexcept
 }
 
 uint64_t& frame_walk_context::gp(uint8_t idx) noexcept {
-  // Make array static to avoid insertion a __security_check by compiler
-  static constexpr int8_t conv[16]{
+  constexpr int8_t conv[16]{
       -1, -1, -1, 0, -1, 1, 2, 3, -1, -1, -1, -1, 4, 5, 6, 7,
   };
   const int8_t offs = conv[idx];
