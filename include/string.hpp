@@ -1238,7 +1238,7 @@ class basic_winnt_string {
       shifter(base + count, need_to_shift, base);
       native_string_traits_type::increase_size(get_native_str(), count);
     }
-    handler(data(), count, args...);  // data() may changed
+    handler(data() + index, count, args...);  // data() may changed
   }
 
   void erase_unchecked(size_type index, size_type count) {
