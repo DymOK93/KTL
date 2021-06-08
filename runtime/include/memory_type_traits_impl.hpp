@@ -272,7 +272,7 @@ struct get_enable_delete_null : false_type {};
 
 template <class Deleter>
 struct get_enable_delete_null<Deleter,
-                              void_t<typename Deleter::enable_delete_null>> {
+                              void_t<decltype(Deleter::enable_delete_null::value)>> {
   static constexpr bool value = Deleter::enable_delete_null::value;
 };
 

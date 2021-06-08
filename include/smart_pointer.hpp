@@ -918,8 +918,8 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
   }
 
   template <template <class, class> class RefCounter, class U, class Destroyer>
-  static ref_counter_t*
-  make_special_ref_counter(U* ptr, Destroyer&& destroyer) {
+  static ref_counter_t* make_special_ref_counter(U* ptr,
+                                                 Destroyer&& destroyer) {
     return new RefCounter<U, remove_reference_t<Destroyer> >(
         ptr,
         forward<Destroyer>(
@@ -1133,6 +1133,37 @@ void swap(weak_ptr<Ty>& lhs,
           weak_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
   lhs.swap(rhs);
 }
-}  // namespace ktl
 
+namespace mm::details {
+template <class Alloc, typename SizeTy>
+struct alloc_temporary_guard_delete {
+  using allocator_type = Alloc;
+  using allocator_traits_type = allocator_traits<allocator_type>;
+  using value_type = typename allocator_traits<allocator_type>::value_type;
+  using pointer = typename allocator_traits_type::pointer;
+
+  using enable_delete_null = true_type;  // Always not empty
+
+  alloc_temporary_guard_delete(Alloc& alc, SizeTy cnt)
+      : alloc{addressof(alc)}, count{cnt} {}
+
+  void operator()(pointer ptr) {
+    allocator_traits_type::deallocate(*alloc, ptr, count);
+  }
+
+  Alloc* const alloc;
+  SizeTy count;
+};
+}  // namespace mm::details
+
+template <class Ty, class Alloc, typename SizeTy>
+static constexpr auto make_alloc_temporary_guard(Ty* ptr,
+                                                 Alloc& alc,
+                                                 SizeTy count) {
+  using deleter_type = mm::details::alloc_temporary_guard_delete<Alloc, SizeTy>;
+  return unique_ptr<typename deleter_type::value_type, deleter_type>{
+      static_cast<typename deleter_type::pointer>(ptr),
+      deleter_type{alc, count}};
+}
+}  // namespace ktl
 #endif

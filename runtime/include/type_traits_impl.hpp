@@ -130,14 +130,6 @@ struct always_false {
 template <class... Dummy>
 inline constexpr bool always_false_v = always_false<Dummy...>::value;
 
-struct false_type {
-  static constexpr bool value = false;
-};
-
-struct true_type {
-  static constexpr bool value = true;
-};
-
 template <class...>
 using void_t = void;
 
@@ -156,7 +148,10 @@ struct integral_constant {
 };
 
 template <bool Value>
-struct bool_constant : integral_constant<bool, Value> {};
+using bool_constant = integral_constant<bool, Value>;
+
+using false_type = bool_constant<false>;
+using true_type = bool_constant<true>;
 
 template <bool enable, class Ty = void>
 struct enable_if {};

@@ -115,7 +115,7 @@ class uninitialized_backout_base {
  protected:
   template <class... Types>
   decltype(auto) emplace(Types&&... args) {
-    auto& place{addressof(*m_dst_cur++)};
+    auto& place{*m_dst_cur++};
     construct_at(addressof(place), forward<Types>(args)...);
     m_dst_cur = next(m_dst_cur);
     return place;
@@ -136,16 +136,16 @@ class uninitialized_emplace_helper
   using MyBase::MyBase;
 
   template <class InputIt>
-  void copy_range(InputIt first, InputIt last) {
+  void emplace_range(InputIt first, InputIt last) {
     for (; first != last; first = next(first)) {
-      MyBase::emplace(as_const(*first));  // InputIt may be move iterator
+      MyBase::emplace(*first);
     }
   }
 
   template <class InputIt>
-  void copy_n(InputIt first, size_t count) {
+  void emplace_n(InputIt first, size_t count) {
     for (size_t step = 0; step != count; first = next(first), ++step) {
-      MyBase::emplace(as_const(*first));  // InputIt may be move iterator
+      MyBase::emplace(*first);
     }
   }
 
@@ -169,17 +169,7 @@ NoThrowForwardIt uninitialized_copy_non_trivial_impl(InputIt first,
                                                      InputIt last,
                                                      NoThrowForwardIt dest) {
   uninitialized_emplace_helper uemph(dest);
-  uemph.copy_range(first, last);
-  return uemph.release();
-}
-
-template <class InputIt, class NoThrowForwardIt>
-NoThrowForwardIt uninitialized_copy_unchecked_non_trivial_impl(
-    InputIt first,
-    InputIt last,
-    NoThrowForwardIt dest) {
-  uninitialized_emplace_helper uemph(dest);
-  uemph.copy_range(first, last);
+  uemph.emplace_range(first, last);
   return uemph.release();
 }
 
@@ -188,17 +178,7 @@ NoThrowForwardIt uninitialized_copy_n_non_trivial_impl(InputIt first,
                                                        size_t count,
                                                        NoThrowForwardIt dest) {
   uninitialized_emplace_helper uemph(dest);
-  uemph.copy_n(first, count);
-  return uemph.release();
-}
-
-template <class InputIt, class NoThrowForwardIt>
-NoThrowForwardIt uninitialized_copy_n_unchecked_non_trivial_impl(
-    InputIt first,
-    size_t count,
-    NoThrowForwardIt dest) {
-  uninitialized_emplace_helper uemph(dest);
-  uemph.copy_n(first, count);
+  uemph.emplace_n(first, count);
   return uemph.release();
 }
 
@@ -212,29 +192,9 @@ NoThrowForwardIt uninitialized_move_impl(InputIt first,
 }
 
 template <class InputIt, class NoThrowForwardIt>
-NoThrowForwardIt uninitialized_move_unchecked_non_trivial_impl(
-    InputIt first,
-    size_t count,
-    NoThrowForwardIt dest) {
-  uninitialized_emplace_helper uemph(dest);
-  uemph.move_n(first, count);
-  return uemph.release();
-}
-
-template <class InputIt, class NoThrowForwardIt>
-NoThrowForwardIt uninitialized_move_n_non_trivial_impl(InputIt first,
-                                                       size_t count,
-                                                       NoThrowForwardIt dest) {
-  uninitialized_emplace_helper uemph(dest);
-  uemph.move_n(first, count);
-  return uemph.release();
-}
-
-template <class InputIt, class NoThrowForwardIt>
-NoThrowForwardIt uninitialized_move_n_unchecked_non_trivial_impl(
-    InputIt first,
-    size_t count,
-    NoThrowForwardIt dest) {
+NoThrowForwardIt uninitialized_move_n_impl(InputIt first,
+                                           size_t count,
+                                           NoThrowForwardIt dest) {
   uninitialized_emplace_helper uemph(dest);
   uemph.move_n(first, count);
   return uemph.release();
@@ -267,8 +227,7 @@ NoThrowForwardIt uninitialized_copy_unchecked(InputIt first,
         first, last,  // always true
         dest);
   } else {
-    return mm::details::uninitialized_copy_unchecked_non_trivial_impl(
-        first, last, dest);
+    return mm::details::uninitialized_copy_non_trivial_impl(first, last, dest);
   }
 }
 
@@ -282,7 +241,8 @@ NoThrowForwardIt uninitialized_copy_n(InputIt first,
                                                    // trivially copyable types
     return mm::details::uninitialized_copy_trivial_impl(first, count, dest);
   } else {
-    return mm::details::uninitialized_copy_non_trivial_impl(first, count, dest);
+    return mm::details::uninitialized_copy_n_non_trivial_impl(first, count,
+                                                              dest);
   }
 }
 
@@ -297,8 +257,8 @@ NoThrowForwardIt uninitialized_copy_n_unchecked(InputIt first,
     return mm::details::uninitialized_copy_unchecked_trivial_impl(first, count,
                                                                   dest);
   } else {
-    return mm::details::uninitialized_copy_n_unchecked_non_trivial_impl(
-        first, count, dest);
+    return mm::details::uninitialized_copy_n_non_trivial_impl(first, count,
+                                                              dest);
   }
 }
 
@@ -328,8 +288,7 @@ NoThrowForwardIt uninitialized_move_unckecked(InputIt first,
     return mm::details::uninitialized_copy_unchecked_trivial_impl(first, last,
                                                                   dest);
   } else {
-    return mm::details::uninitialized_move_unchecked_non_trivial_impl(
-        first, last, dest);
+    return mm::details::uninitialized_move_impl(first, last, dest);
   }
 }
 
@@ -343,7 +302,7 @@ NoThrowForwardIt uninitialized_move_n(InputIt first,
                                                    // trivially copyable types
     return mm::details::uninitialized_copy_trivial_impl(first, count, dest);
   } else {
-    return mm::details::uninitialized_move_impl(first, count, dest);
+    return mm::details::uninitialized_move_n_impl(first, count, dest);
   }
 }
 
@@ -358,8 +317,7 @@ NoThrowForwardIt uninitialized_move_n_unchecked(InputIt first,
     return mm::details::uninitialized_copy_unchecked_trivial_impl(first, count,
                                                                   dest);
   } else {
-    return mm::details::uninitialized_move_n_unchecked_non_trivial_impl(
-        first, count, dest);
+    return mm::details::uninitialized_move_n_impl(first, count, dest);
   }
 }
 

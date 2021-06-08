@@ -1258,7 +1258,7 @@ class basic_winnt_string {
   template <class TransferPolicy>
   void grow(size_type new_capacity, TransferPolicy transfer_handler) {
     throw_exception_if_not<length_error>(new_capacity <= max_size(),
-                                         L"string too long");
+                                         L"string is too long");
     grow_unchecked(new_capacity, transfer_handler);
   }
 
