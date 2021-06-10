@@ -260,23 +260,23 @@ class basic_winnt_string_view {
 
   constexpr size_type find_first_of(basic_winnt_string_view other,
                                     size_type pos = 0) const noexcept {
-    return find(other, pos) != npos;
+    return find(other, pos);
   }
 
   constexpr size_type find_first_of(value_type ch,
                                     size_type pos = 0) const noexcept {
-    return find(ch, pos) != npos;
+    return find(ch, pos);
   }
 
   constexpr size_type find_first_of(const value_type* null_terminated_str,
                                     size_type my_pos,
                                     size_type other_count) const noexcept {
-    return find(null_terminated_str, my_pos, other_count) != npos;
+    return find(null_terminated_str, my_pos, other_count);
   }
 
   constexpr size_type find_first_of(const value_type* null_terminated_str,
                                     size_type my_pos = 0) const {
-    return find(null_terminated_str, my_pos) != npos;
+    return find(null_terminated_str, my_pos);
   }
 
   size_type copy(value_type* dst, size_type count, size_type pos = 0) {
