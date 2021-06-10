@@ -115,7 +115,7 @@ class uninitialized_backout_base {
  protected:
   template <class... Types>
   decltype(auto) emplace(Types&&... args) {
-    auto& place{*m_dst_cur++};
+    auto& place{*m_dst_cur};
     construct_at(addressof(place), forward<Types>(args)...);
     m_dst_cur = next(m_dst_cur);
     return place;

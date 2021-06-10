@@ -152,7 +152,7 @@ class vector {
   template <class InputIt, class Alloc = allocator_type>
   vector(vector&& other, Alloc&& alloc);
 
-  ~vector() noexcept { reset(); }
+  ~vector() noexcept { destroy_and_deallocate(); }
 
   bool empty() const noexcept { return size() == 0; }
   size_type size() const noexcept { return get_size(); }
@@ -239,7 +239,7 @@ class vector {
   }
 
  private:
-  void reset() {
+  void destroy_and_deallocate() {
     destroy_n(begin(), size());
     allocator_traits_type::deallocate(get_alloc(), data(), capacity());
   }
@@ -320,13 +320,12 @@ class vector {
     size_t size_adjustment{
         construction_handler(new_buffer, forward<Types>(args)...)};
     transfer_handler(new_buffer, old_size, old_buffer);
-
+    destroy_and_deallocate();
     alc_guard.release();
-    deallocate_buffer(alc, old_buffer, capacity());
 
+    get_buffer() = new_buffer;
     get_size() += size_adjustment;
     get_capacity() = new_capacity;
-    get_buffer() = new_buffer;
   }
 
   constexpr size_type select_strategy_and_calc_growth(size_type required,

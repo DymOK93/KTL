@@ -5,6 +5,7 @@
 #include <assert.hpp>
 #include <iterator.hpp>
 #include <limits.hpp>
+#include <string_algorithm_impl.hpp>
 #include <string_view.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
@@ -494,7 +495,7 @@ class basic_winnt_string {
   }
 
   constexpr void pop_back() noexcept {
-    native_string_traits_type::decrease_size(get_native_str(), m_str, 1);
+    native_string_traits_type::decrease_size(get_native_str(), 1);
   }
 
   basic_winnt_string& append(size_type count, value_type ch) {
@@ -938,15 +939,8 @@ class basic_winnt_string {
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
           other,
       size_type my_pos) const noexcept {
-    const size_type current_size{size()};
-    if (my_pos > current_size) {
-      return npos;
-    }
-    const auto first{begin()}, last{end()};
-    const auto found_pos{find_subrange(first + my_pos, last, other.begin(),
-                                       other.end(), make_ch_comparator()) -
-                         first};
-    return found_pos == current_size ? npos : static_cast<size_type>(found_pos);
+    return str::details::find_substr<traits_type>(
+        data(), my_pos, size(), other.data(), other.size(), npos);
   }
 
   constexpr size_type find(const value_type* null_terminated_str,
@@ -961,15 +955,8 @@ class basic_winnt_string {
     return static_cast<string_view_type>(*this).find(null_terminated_str);
   }
 
-  constexpr size_type find(value_type ch, size_type pos = 0) const noexcept {
-    const size_type current_size{size()};
-    if (pos >= current_size) {
-      return npos;
-    }
-    const auto first{data() + pos};
-    const auto found_pos{traits_type::find(first, current_size - pos, ch) -
-                         first};
-    return found_pos == size() ? npos : static_cast<size_type>(found_pos);
+  constexpr size_type find(value_type ch, size_type my_pos = 0) const noexcept {
+    return str::details::find_ch<traits_type>(data(), ch, size(), my_pos, npos);
   }
 
   template <size_t BufferSize, class ChAlloc>
