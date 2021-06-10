@@ -143,14 +143,39 @@ class vector {
     append_range_impl<false_type>(first, last, forward_or_greater_t<InputIt>{});
   }
 
-  // vector(const vector& other);
+  vector(const vector& other)
+      : m_impl{one_then_variadic_args{},
+               allocator_traits_type::select_on_container_copy_construction(
+                   other.get_alloc())} {
+    grow_unchecked(
+        other.size(),
+        [](value_type* dst, const vector& source) {
+          const size_type count{source.size()};
+          make_copy_helper()(dst, count, source.begin());
+          return count;
+        },
+        make_dummy_transfer(), other);
+  }
 
   vector(vector&& other) noexcept(
       is_nothrow_move_constructible_v<allocator_type>)
       : m_impl{move(other.m_impl)} {}
 
-  template <class InputIt, class Alloc = allocator_type>
-  vector(vector&& other, Alloc&& alloc);
+  template <class Alloc = allocator_type>
+  vector(vector&& other, Alloc&& alloc)
+      : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
+    if constexpr (is_same_v<allocator_type, remove_cv_t<Alloc> > &&
+                  allocator_traits_type::is_always_equal::value) {
+      m_impl.get_second() = move(other.m_impl.get_second());
+    } else {
+      if (other.get_alloc() == alloc) {
+        m_impl.get_second() = move(other.m_impl.get_second());
+      } else {
+        assign(other);
+        other.clear();
+      }
+    }
+  }
 
   ~vector() noexcept { destroy_and_deallocate(); }
 
@@ -164,7 +189,7 @@ class vector {
   size_type capacity() const noexcept { return get_capacity(); }
 
   pointer data() noexcept { return get_buffer(); }
-  const_pointer data() const noexcept { get_buffer(); }
+  const_pointer data() const noexcept { return get_buffer(); }
 
   reference operator[](size_type idx) noexcept {
     assert_with_msg(idx < size(), L"index is out of range");

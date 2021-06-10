@@ -68,6 +68,20 @@ struct aligned_allocator_base {
 };
 
 template <class Ty, align_val_t Alignment>
+constexpr bool operator==(
+    const aligned_allocator_base<Ty, Alignment>&,
+    const aligned_allocator_base<Ty, Alignment>&) noexcept {
+  return true;
+}
+
+template <class Ty, align_val_t Alignment>
+constexpr bool operator!=(
+    const aligned_allocator_base<Ty, Alignment>&,
+    const aligned_allocator_base<Ty, Alignment>&) noexcept {
+  return false;
+}
+
+template <class Ty, align_val_t Alignment>
 struct aligned_paged_allocator : aligned_allocator_base<Ty, Alignment> {
  public:
   using MyBase = aligned_allocator_base<Ty, Alignment>;
@@ -190,9 +204,9 @@ struct allocator_traits {
     }
   }
 
-  static constexpr pointer
-  allocate(allocator_type& alloc, size_type object_count) noexcept(
-      noexcept(alloc.allocate(object_count))) {
+  static constexpr pointer allocate(
+      allocator_type& alloc,
+      size_type object_count) noexcept(noexcept(alloc.allocate(object_count))) {
     static_assert(mm::details::has_allocate_v<allocator_type, size_type>,
                   "Allocator must provide allocate(size_type) function");
     return alloc.allocate(object_count);
