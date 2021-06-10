@@ -219,7 +219,7 @@ class vector {
     const size_type current_size{size()};
     if (current_size == capacity()) {
       grow(calc_growth(), make_emplace_helper(current_size),
-           transfer_without_shift(), forward<Types>(args)...);
+           make_transfer_without_shift(), forward<Types>(args)...);
     } else {
       make_emplace_helper(current_size)(data(), forward<Types>(args)...);
       ++get_size();
@@ -269,7 +269,7 @@ class vector {
       const size_type new_capacity{
           select_strategy_and_calc_growth(required_capacity, GrowthTypeTag{})};
       grow(new_capacity, make_range_construct_helper(current_size),
-           transfer_without_shift(), first, range_length);
+           make_transfer_without_shift(), first, range_length);
     }
   }
 
@@ -382,7 +382,7 @@ class vector {
     };
   }
 
-  static constexpr auto transfer_without_shift() noexcept {
+  static constexpr auto make_transfer_without_shift() noexcept {
     if constexpr (is_nothrow_move_constructible_v<value_type> ||
                   !is_copy_constructible_v<value_type>) {
       return [](value_type* dst, size_type count, const value_type* src) {

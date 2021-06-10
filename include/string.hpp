@@ -453,7 +453,7 @@ class basic_winnt_string {
   }
 
   void reserve(size_type new_capacity = 0) {
-    grow_if_needed(new_capacity, &transfer_without_shift);
+    grow_if_needed(new_capacity, make_transfer_without_shift());
   }
 
   constexpr size_type capacity() const noexcept {
@@ -488,7 +488,7 @@ class basic_winnt_string {
   void push_back(value_type ch) {
     const size_type old_size{size()}, old_capacity{capacity()};
     if (old_capacity == old_size) {
-      grow(calc_growth(), &transfer_without_shift);
+      grow(calc_growth(), make_transfer_without_shift());
     }
     traits_type::assign(data()[old_size], ch);
     native_string_traits_type::increase_size(get_native_str(), 1);
@@ -499,7 +499,7 @@ class basic_winnt_string {
   }
 
   basic_winnt_string& append(size_type count, value_type ch) {
-    concat_with_optimal_growth(make_fill_helper(), count, ch);
+    resize(size() + count, ch);
     return *this;
   }
 
@@ -926,8 +926,9 @@ class basic_winnt_string {
 
   void resize(size_type new_size, value_type ch) {
     reserve(new_size);
-    if (size() < new_size) {
-      traits_type::assign(data(), new_size - size(), ch);
+    const size_type current_size{size()};
+    if (current_size < new_size) {
+      traits_type::assign(data(), current_size, ch);
     }
     native_string_traits_type::set_size(get_native_str(), new_size);
   }
@@ -1175,7 +1176,11 @@ class basic_winnt_string {
                                   const Types&... args) {
     concat_impl(
         handler,
-        [this](size_type required) { reserve(calc_optimal_growth(required)); },
+        [this](size_type required) {
+          if (required > capacity()) {
+            grow(calc_optimal_growth(required), make_transfer_without_shift());
+          }
+        },
         count, args...);
   }
 
@@ -1319,11 +1324,11 @@ class basic_winnt_string {
         };
   }
 
-  static size_type transfer_without_shift(value_type* dst,
-                                          size_type count,
-                                          const value_type* src) noexcept {
-    make_copy_helper()(dst, count, src);
-    return count;
+  static constexpr auto make_transfer_without_shift() noexcept {
+    return [](value_type* dst, size_type count, const value_type* src) {
+      make_copy_helper()(dst, count, src);
+      return count;
+    };
   }
 
   static constexpr auto make_dummy_transfer() noexcept {
@@ -1358,12 +1363,6 @@ class basic_winnt_string {
   static constexpr auto make_fill_helper() noexcept {
     return [](value_type* dst, size_type count, value_type character) noexcept {
       traits_type::assign(dst, count, character);
-    };
-  }
-
-  static constexpr auto make_ch_comparator() noexcept {
-    return [](value_type lhs, value_type rhs) noexcept {
-      return traits_type::eq(lhs, rhs);
     };
   }
 
