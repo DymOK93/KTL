@@ -3,6 +3,7 @@
 #include <new_delete.h>
 #include <algorithm.hpp>
 #include <assert.hpp>
+#include <compressed_pair.hpp>
 #include <iterator.hpp>
 #include <limits.hpp>
 #include <string_algorithm_impl.hpp>

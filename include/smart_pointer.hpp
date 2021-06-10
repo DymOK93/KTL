@@ -1142,8 +1142,6 @@ struct alloc_temporary_guard_delete {
   using value_type = typename allocator_traits<allocator_type>::value_type;
   using pointer = typename allocator_traits_type::pointer;
 
-  using enable_delete_null = true_type;  // Always not empty
-
   alloc_temporary_guard_delete(Alloc& alc, SizeTy cnt)
       : alloc{addressof(alc)}, count{cnt} {}
 

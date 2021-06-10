@@ -11,6 +11,7 @@ using std::vector;
 #include <algorithm.hpp>
 #include <allocator.hpp>
 #include <assert.hpp>
+#include <compressed_pair.hpp>
 #include <iterator.hpp>
 #include <memory_tools.hpp>
 #include <smart_pointer.hpp>
@@ -36,12 +37,7 @@ class vector {
 
  private:
   struct Impl {
-    constexpr Impl() noexcept = default;
-
-    constexpr Impl(size_t count) noexcept : size{count}, capacity{count} {}
-
-    constexpr Impl(pointer ptr, size_t count) noexcept
-        : buffer{ptr}, size{count}, capacity{count} {}
+    constexpr explicit Impl() noexcept = default;
 
     constexpr Impl(const Impl&) noexcept = default;
 
@@ -112,8 +108,8 @@ class vector {
       is_nothrow_constructible_v<allocator_type, Alloc>&&
           is_nothrow_default_constructible_v<value_type>)
       : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
-    grow(object_count, make_default_construct_helper(object_count),
-         make_dummy_transfer());
+    grow(object_count, make_default_construct_helper(0), make_dummy_transfer(),
+         object_count);
   }
 
   template <class Alloc = allocator_type,
@@ -127,8 +123,8 @@ class vector {
           Alloc{}) noexcept(is_nothrow_constructible_v<allocator_type, Alloc>&&
                                 is_nothrow_default_constructible_v<Ty>)
       : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
-    grow(object_count, make_fill_helper(object_count), make_dummy_transfer(),
-         value);
+    grow(object_count, make_construct_fill_helper(0), make_dummy_transfer(),
+         value, object_count);
   }
 
   template <class InputIt,
@@ -147,21 +143,22 @@ class vector {
       : m_impl{one_then_variadic_args{},
                allocator_traits_type::select_on_container_copy_construction(
                    other.get_alloc())} {
-    grow_unchecked(
-        other.size(),
-        [](value_type* dst, const vector& source) {
-          const size_type count{source.size()};
-          make_copy_helper()(dst, count, source.begin());
-          return count;
-        },
-        make_dummy_transfer(), other);
+    grow_unchecked(other.size(), make_cloner(), make_dummy_transfer(), other);
+  }
+
+  template <class Alloc = allocator_type,
+            enable_if_t<is_constructible_v<allocator_type, Alloc>, int> = 0>
+  vector(const vector& other, Alloc&& alloc)
+      : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
+    grow_unchecked(other.size(), make_cloner(), make_dummy_transfer(), other);
   }
 
   vector(vector&& other) noexcept(
       is_nothrow_move_constructible_v<allocator_type>)
       : m_impl{move(other.m_impl)} {}
 
-  template <class Alloc = allocator_type>
+  template <class Alloc = allocator_type,
+            enable_if_t<is_constructible_v<allocator_type, Alloc>, int> = 0>
   vector(vector&& other, Alloc&& alloc)
       : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
     if constexpr (is_same_v<allocator_type, remove_cv_t<Alloc> > &&
@@ -177,7 +174,39 @@ class vector {
     }
   }
 
+  vector& operator=(const vector& other) {
+    using propagate_on_copy_assignment_t =
+        typename allocator_traits_type::propagate_on_container_copy_assignment;
+    if (addressof(other) != this) {
+      copy_assignment_impl(other, propagate_on_copy_assignment_t{});
+    }
+    return *this;
+  }
+
+  vector& operator=(vector&& other) {
+    using propagate_on_move_assignment_t =
+        typename allocator_traits_type::propagate_on_container_move_assignment;
+    if (addressof(other) != this) {
+      move_assignment_impl(move(other), propagate_on_move_assignment_t{});
+    }
+    return *this;
+  }
+
   ~vector() noexcept { destroy_and_deallocate(); }
+
+  void assign(size_type count, const Ty& value) {
+    if (count > capacity()) {
+      grow(count, make_construct_fill_helper(0), make_dummy_transfer(), value,
+           count);
+    } else {
+      auto last{fill(data(), data() + count, value)};
+      destroy(last, data() + size());
+      get_size() = count;
+    }
+  }
+
+  /*template <class InputIt>
+  void assign(InputIt first, InputIt last) {}*/
 
   bool empty() const noexcept { return size() == 0; }
   size_type size() const noexcept { return get_size(); }
@@ -243,10 +272,10 @@ class vector {
   reference emplace_back(Types&&... args) {
     const size_type current_size{size()};
     if (current_size == capacity()) {
-      grow(calc_growth(), make_emplace_helper(current_size),
+      grow(calc_growth(), make_construct_at_helper(current_size),
            make_transfer_without_shift(), forward<Types>(args)...);
     } else {
-      make_emplace_helper(current_size)(data(), forward<Types>(args)...);
+      make_construct_at_helper(current_size)(data(), forward<Types>(args)...);
       ++get_size();
     }
     return back();
@@ -263,10 +292,12 @@ class vector {
     get_size() = 0;
   }
 
+  const allocator_type& get_allocator() const noexcept { return get_alloc(); }
+
  private:
   void destroy_and_deallocate() {
     destroy_n(begin(), size());
-    allocator_traits_type::deallocate(get_alloc(), data(), capacity());
+    deallocate_buffer(get_alloc(), data(), capacity());
   }
 
   template <typename GrowthTypeTag, class InputIt>
@@ -295,6 +326,65 @@ class vector {
           select_strategy_and_calc_growth(required_capacity, GrowthTypeTag{})};
       grow(new_capacity, make_range_construct_helper(current_size),
            make_transfer_without_shift(), first, range_length);
+    }
+  }
+
+  void copy_assignment_impl(const vector& other, true_type) {
+    if constexpr (allocator_traits_type::is_always_equal::value) {
+      copy_assignment_impl_equal_allocators(other);
+    } else {
+      if (get_alloc() == other.get_alloc()) {
+        copy_assignment_impl_equal_allocators(other);
+      } else {
+        destroy_and_deallocate();
+        m_impl.get_second() = Impl{};  // Explicitly fill by zeros pointer to
+                                       // old buffer, size and capacity fields
+        get_alloc() = other.get_alloc();
+        grow_unchecked(other.size(), make_cloner(), make_dummy_transfer(),
+                       other);
+      }
+    }
+  }
+
+  void copy_assignment_impl_equal_allocators(const vector& other) {
+    get_alloc() = other.get_alloc();
+    copy_assignment_impl(other, false_type{});
+  }
+
+  void copy_assignment_impl(const vector& other, false_type) {
+    assign(other.begin(), other.end());
+  }
+
+  void move_assignment_impl(vector&& other, true_type) {
+    destroy_and_deallocate();
+    get_alloc() = move(other.get_alloc());
+    m_impl.get_second() = move(other.m_impl.get_second());
+  }
+
+  void move_assignment_impl_equal_allocators(vector&& other) {
+    destroy_and_deallocate();
+    m_impl.get_second() = move(other.m_impl.get_second());
+  }
+
+  void move_assignment_impl(vector&& other, false_type) {
+    if constexpr (allocator_traits_type::is_always_equal::value) {
+      move_assignment_impl_equal_allocators(other);
+    } else {
+      if (get_alloc() == other.get_alloc()) {
+        move_assignment_impl_equal_allocators(other);
+      } else {  // With move_iterator it's possible to lose optimization for the
+                // trivially copyable types
+        const size_type other_size{other.size()};
+        if (other_size > capacity()) {
+          grow_unchecked(other_size, make_taker(),
+                         make_transfer_without_shift(), move(other));
+        } else {
+          auto last{move(other.begin(), other.end(), begin())};
+          destroy(last, end());
+          get_size() = other_size;
+        }
+        other.clear();
+      }
     }
   }
 
@@ -380,7 +470,7 @@ class vector {
     return old_capacity == 0 ? MIN_CAPACITY : old_capacity * GROWTH_MULTIPLIER;
   }
 
-  static constexpr auto make_emplace_helper(size_type pos) {
+  static constexpr auto make_construct_at_helper(size_type pos) {
     return [pos](value_type* buffer, auto&&... args) {
       construct_at(buffer + pos, forward<decltype(args)>(args)...);
       return 1u;
@@ -394,16 +484,44 @@ class vector {
     };
   }
 
-  static constexpr auto make_default_construct_helper(size_type count) {
-    return [count](value_type* buffer) {
-      uninitialized_default_construct_n(buffer, count);
+  static constexpr auto make_default_construct_helper(size_type pos) {
+    return [pos](value_type* buffer, size_type count) {
+      uninitialized_default_construct_n(buffer + pos, count);
       return count;
     };
   }
 
-  static constexpr auto make_fill_helper(size_type count) {
-    return [count](value_type* buffer, const Ty& value) {
-      uninitialized_fill_n(buffer, count, value);
+  static constexpr auto make_construct_fill_helper(size_type pos) {
+    return [pos](value_type* buffer, const Ty& value, size_t count) {
+      uninitialized_fill_n(buffer + pos, count, value);
+    };
+  }
+
+  static constexpr auto make_copy_helper() noexcept {
+    return [](value_type* dst, size_type count, auto src_it) noexcept {
+      uninitialized_copy_n(src_it, count, dst);
+    };
+  }
+
+  static constexpr auto make_move_helper() noexcept {
+    return [](value_type* dst, size_type count, auto src_it) noexcept {
+      uninitialized_move_n(src_it, count, dst);
+    };
+  }
+
+  static constexpr auto make_cloner() noexcept {
+    return [](value_type* dst, const vector& other) noexcept {
+      const size_type object_count{other.size()};
+      make_copy_helper()(dst, object_count, other.data());
+      return object_count;
+    };
+  }
+
+  static constexpr auto make_taker() noexcept {
+    return [](value_type* dst, vector&& other) noexcept {
+      const size_type object_count{other.size()};
+      make_move_helper()(dst, object_count, other.data());
+      return object_count;
     };
   }
 
@@ -420,18 +538,6 @@ class vector {
     }
   }
 
-  static constexpr auto make_copy_helper() noexcept {
-    return [](value_type* dst, size_type count, auto src_it) noexcept {
-      uninitialized_copy_n(src_it, count, dst);
-    };
-  }
-
-  static constexpr auto make_move_helper() noexcept {
-    return [](value_type* dst, size_type count, auto src_it) noexcept {
-      uninitialized_move_n(src_it, count, dst);
-    };
-  }
-
   static constexpr auto make_dummy_transfer() noexcept {
     return
         []([[maybe_unused]] value_type* dst, [[maybe_unused]] size_type count,
@@ -445,7 +551,13 @@ class vector {
   static void deallocate_buffer(allocator_type& alc,
                                 value_type* buffer,
                                 size_type obj_count) noexcept {
-    return allocator_traits_type::deallocate(alc, buffer, obj_count);
+    if constexpr (allocator_traits_type::enable_delete_null::value) {
+      allocator_traits_type::deallocate(alc, buffer, obj_count);
+    } else {
+      if (buffer) {
+        allocator_traits_type::deallocate(alc, buffer, obj_count);
+      }
+    }
   }
 
   template <class ValueTy>

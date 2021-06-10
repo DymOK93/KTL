@@ -8,7 +8,9 @@ using std::min;
 }  // namespace ktl
 #else
 #include <algorithm_impl.hpp>
+#include <type_traits.hpp>
 #include <utility.hpp>
+
 namespace ktl {
 template <class InputIt, class Ty>
 constexpr InputIt find(InputIt first, InputIt last, const Ty& value) {
@@ -108,14 +110,58 @@ OutputIt copy_impl(InputIt first, InputIt last, OutputIt d_first, false_type) {
 template <class InputIt, class OutputIt>
 OutputIt copy(InputIt first, InputIt last, OutputIt d_first) {
   using input_value_type = typename iterator_traits<InputIt>::value_type;
+  using output_value_type = typename iterator_traits<OutputIt>::value_type;
 
-  return algo::details::copy_impl(
-      first, last, d_first,
-      bool_tag_t < is_pointer_v<InputIt> && is_pointer_v<OutputIt> &&
-          is_trivially_copyable_v<input_value_type> &&
-          is_trivially_constructible_v<
-              typename iterator_traits<OutputIt>::value_type,
-              input_value_type> > {});
+  return algo::details::copy_impl(first, last, d_first,
+                                  is_memcpyable_range<InputIt, OutputIt>{});
+}
+
+template <class InputIt, class OutputIt>
+OutputIt move(InputIt first, InputIt last, OutputIt d_first) {
+  if constexpr (is_memcpyable_range_v<InputIt, OutputIt>) {
+    return algo::details::copy_impl(first, last, d_first, true_type{});
+  } else {
+    for (; first != last; first = next(first), d_first = next(d_first)) {
+      *d_first = move(*first);
+    }
+    return d_first;
+  }
+}
+
+namespace algo::details {
+template <class ForwardIt, class Ty>
+struct Filler {
+  ForwardIt
+  operator()(ForwardIt first, ForwardIt last, const Ty& value) const noexcept(
+      is_nothrow_assignable_v<typename iterator_traits<ForwardIt>::value_type,
+                              Ty>) {
+    for (; first != last; first = next(first)) {
+      *first = value;
+    }
+  }
+};
+
+template <>
+struct Filler<char*, char> {
+  char* operator()(char* first, char* last, char value) const noexcept {
+    return static_cast<char*>(
+        memset(first, value, static_cast<size_t>(last - first)));
+  }
+};
+
+template <>
+struct Filler<wchar_t*, wchar_t> {
+  wchar_t* operator()(wchar_t* first,
+                      wchar_t* last,
+                      wchar_t value) const noexcept {
+    return wmemset(first, value, static_cast<size_t>(last - first));
+  }
+};
+}  // namespace algo::details
+
+template <class ForwardIt, class Ty>
+void fill(ForwardIt first, ForwardIt last, const Ty& value) {
+  return algo::details::Filler<ForwardIt, Ty>{}(first, last, value);
 }
 }  // namespace ktl
 #endif
