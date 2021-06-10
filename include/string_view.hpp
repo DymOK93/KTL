@@ -8,6 +8,7 @@
 #include <algorithm.hpp>
 #include <assert.hpp>
 #include <iterator.hpp>
+#include <string_algorithm_impl.hpp>
 #include <string_fwd.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
@@ -219,24 +220,12 @@ class basic_winnt_string_view {
 
   constexpr size_type find(basic_winnt_string_view other,
                            size_type my_pos = 0) const noexcept {
-    if (my_pos > size()) {
-      return npos;
-    }
-    const auto first{begin()}, last{end()};
-    const auto found_ptr{find_subrange(begin() + my_pos, last, other.begin(),
-                                       other.end(), make_ch_comparator())};
-    return found_ptr == last ? npos : static_cast<size_type>(found_ptr - first);
+    return str::details::find_substr<traits_type>(
+        data(), my_pos, size(), other.data(), other.size(), npos);
   }
 
   constexpr size_type find(value_type ch, size_type my_pos = 0) const noexcept {
-    const size_type current_size{size()};
-    if (my_pos >= current_size) {
-      return npos;
-    }
-    const auto first{data() + my_pos};
-    const auto found_pos{traits_type::find(first, current_size - my_pos, ch) -
-                         first};
-    return found_pos == size() ? npos : static_cast<size_type>(found_pos);
+    return str::details::find_ch<traits_type>(data(), ch, size(), my_pos, npos);
   }
 
   constexpr size_type find(const value_type* null_terminated_str,
@@ -251,7 +240,7 @@ class basic_winnt_string_view {
   constexpr size_type find(const value_type* str,
                            size_t my_pos,
                            size_type other_count) const noexcept {
-    return substr(my_pos).find(basic_winnt_string_view{str, other_count});
+    return find(basic_winnt_string_view{str, other_count}, my_pos);
   }
 
   const native_string_type* raw_str() const noexcept {
