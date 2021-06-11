@@ -638,7 +638,9 @@ class basic_winnt_string {
 
   [[nodiscard]] constexpr int compare(
       const value_type* null_terminated_str) const {
-    return compare(0, size(), null_terminated_str);
+    return compare_unchecked(
+        data(), size(), null_terminated_str,
+        static_cast<size_type>(traits_type::length(null_terminated_str)));
   }
 
   [[nodiscard]] constexpr int compare(
@@ -655,11 +657,11 @@ class basic_winnt_string {
                                       const value_type* str,
                                       size_type other_count) const {
     const size_type current_size{size()};
-    throw_exception_if_not(my_pos < current_size);
+    throw_out_of_range_if_not(my_pos < current_size);
     const value_type* substr{data() + my_pos};
-    const size_type substr_length{(min)(current_size - my_pos, my_count)};
-    return native_string_traits_type::compare_unchecked(
-        substr, str, substr_length, other_count);
+    const auto substr_length{
+        (min)(static_cast<size_type>(current_size - my_pos), my_count)};
+    return compare_unchecked(substr, substr_length, str, other_count);
   }
 
   [[nodiscard]] constexpr int compare(

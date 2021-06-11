@@ -108,8 +108,8 @@ class vector {
       is_nothrow_constructible_v<allocator_type, Alloc>&&
           is_nothrow_default_constructible_v<value_type>)
       : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
-    grow(object_count, make_default_construct_helper(0), make_dummy_transfer(),
-         object_count);
+    grow<true>(object_count, make_default_construct_helper(0),
+               make_dummy_transfer(), object_count);
   }
 
   template <class Alloc = allocator_type,
@@ -136,21 +136,23 @@ class vector {
                         int> = 0>
   vector(InputIt first, InputIt last, Alloc&& alloc = Alloc{})
       : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
-    append_range_impl<false_type>(first, last, forward_or_greater_t<InputIt>{});
+    assign_range_impl<true>(first, last, forward_or_greater_t<InputIt>{});
   }
 
   vector(const vector& other)
       : m_impl{one_then_variadic_args{},
                allocator_traits_type::select_on_container_copy_construction(
                    other.get_alloc())} {
-    grow_unchecked(other.size(), make_cloner(), make_dummy_transfer(), other);
+    grow_unchecked<true>(other.size(), make_cloner(), make_dummy_transfer(),
+                         other);
   }
 
   template <class Alloc = allocator_type,
             enable_if_t<is_constructible_v<allocator_type, Alloc>, int> = 0>
   vector(const vector& other, Alloc&& alloc)
       : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
-    grow_unchecked(other.size(), make_cloner(), make_dummy_transfer(), other);
+    grow_unchecked<true>(other.size(), make_cloner(), make_dummy_transfer(),
+                         other);
   }
 
   vector(vector&& other) noexcept(
@@ -205,20 +207,18 @@ class vector {
     }
   }
 
-  /*template <class InputIt>
-  void assign(InputIt first, InputIt last) {}*/
-
-  bool empty() const noexcept { return size() == 0; }
-  size_type size() const noexcept { return get_size(); }
-
-  constexpr size_type max_size() const noexcept {
-    return (numeric_limits<size_type>::max)() - 1;
+  template <class InputIt>
+  void assign(InputIt first, InputIt last) {
+    assign_range_impl<true>(first, last, forward_or_greater_t<InputIt>{});
   }
 
-  size_type capacity() const noexcept { return get_capacity(); }
+  const allocator_type& get_allocator() const noexcept { return get_alloc(); }
 
-  pointer data() noexcept { return get_buffer(); }
-  const_pointer data() const noexcept { return get_buffer(); }
+  reference at(size_type idx) { return at_index_verified(data(), size(), idx); }
+
+  const_reference at(size_type idx) const {
+    return at_index_verified(data(), size(), idx);
+  }
 
   reference operator[](size_type idx) noexcept {
     assert_with_msg(idx < size(), L"index is out of range");
@@ -229,20 +229,6 @@ class vector {
     assert_with_msg(idx < size(), L"index is out of range");
     return data()[idx];
   }
-
-  reference at(size_type idx) { return at_index_verified(data(), size(), idx); }
-
-  const_reference at(size_type idx) const {
-    return at_index_verified(data(), size(), idx);
-  }
-
-  iterator begin() noexcept { return data(); }
-  iterator end() noexcept { return data() + size(); }
-
-  const_iterator begin() const noexcept { return cbegin(); }
-  const_iterator end() const noexcept { return cend(); }
-  const_iterator cbegin() const noexcept { return data(); }
-  const_iterator cend() const noexcept { return data() + size(); }
 
   reference front() noexcept {
     assert_with_msg(!empty(), L"front() called at empty vector");
@@ -264,6 +250,46 @@ class vector {
     return data()[size() - 1];
   }
 
+  pointer data() noexcept { return get_buffer(); }
+  const_pointer data() const noexcept { return get_buffer(); }
+
+  iterator begin() noexcept { return data(); }
+  iterator end() noexcept { return data() + size(); }
+
+  const_iterator begin() const noexcept { return cbegin(); }
+  const_iterator end() const noexcept { return cend(); }
+  const_iterator cbegin() const noexcept { return data(); }
+  const_iterator cend() const noexcept { return data() + size(); }
+
+  bool empty() const noexcept { return size() == 0; }
+  size_type size() const noexcept { return get_size(); }
+
+  constexpr size_type max_size() const noexcept {
+    return (numeric_limits<size_type>::max)() - 1;
+  }
+
+  void reserve(size_type new_capacity) {
+    if (new_capacity > capacity()) {
+      grow<false>(new_capacity, make_dummy_construct_helper(),
+                  make_transfer_without_shift(), size());
+    }
+  }
+
+  size_type capacity() const noexcept { return get_capacity(); }
+
+  void shrink_to_fit() {
+    const size_type current_size{size()};
+    if (capacity() > current_size) {
+      grow<false>(current_size, make_dummy_construct_helper(),
+                  make_transfer_without_shift(), current_size);
+    }
+  }
+
+  void clear() noexcept {
+    destroy_n(begin(), size());
+    get_size() = 0;
+  }
+
   void push_back(const Ty& value) { emplace_back(value); }
 
   void push_back(Ty&& value) { emplace_back(move(value)); }
@@ -272,8 +298,8 @@ class vector {
   reference emplace_back(Types&&... args) {
     const size_type current_size{size()};
     if (current_size == capacity()) {
-      grow(calc_growth(), make_construct_at_helper(current_size),
-           make_transfer_without_shift(), forward<Types>(args)...);
+      grow<true>(calc_growth(), make_construct_at_helper(current_size),
+                 make_transfer_without_shift(), forward<Types>(args)...);
     } else {
       make_construct_at_helper(current_size)(data(), forward<Types>(args)...);
       ++get_size();
@@ -287,12 +313,18 @@ class vector {
     --get_size();
   }
 
-  void clear() noexcept {
-    destroy_n(begin(), size());
-    get_size() = 0;
+  void resize(size_type count) {
+    resize_impl(
+        count, make_default_construct_helper(size()),
+        count - size());  // Беззнаковое переполнение разрешено Стандартом. Если
+                          // count < size(), uninitialized_default_construct_n()
+                          // не будет вызвана
   }
 
-  const allocator_type& get_allocator() const noexcept { return get_alloc(); }
+  void resize(size_type count, const Ty& value) {
+    resize_impl(count, make_construct_fill_helper(size()), value,
+                count - size());
+  }
 
  private:
   void destroy_and_deallocate() {
@@ -300,32 +332,34 @@ class vector {
     deallocate_buffer(get_alloc(), data(), capacity());
   }
 
-  template <typename GrowthTypeTag, class InputIt>
-  void append_range_impl(InputIt first, InputIt last, false_type) {
+  template <bool VerifyRangeLength, class InputIt>
+  void assign_range_impl(InputIt first, InputIt last, false_type) {
     for (; first != last; first = next(first)) {
       push_back(*first);
     }
   }
 
-  template <typename GrowthTypeTag, class ForwardIt>
-  void append_range_impl(ForwardIt first, ForwardIt last, true_type) {
-    const auto range_length{static_cast<size_type>(distance(first, last))};
-    append_range_by_forward_iterators<GrowthTypeTag>(first, range_length);
-  }
-
-  template <typename GrowthTypeTag, class ForwardIt>
-  void append_range_by_forward_iterators(ForwardIt first,
-                                         size_type range_length) {
+  template <bool VerifyRangeLength, class ForwardIt>
+  void assign_range_impl(ForwardIt first, ForwardIt last, true_type) {
     const size_type current_size{size()},
-        required_capacity{current_size + range_length};
-    if (required_capacity < capacity()) {
-      make_copy_helper()(data() + current_size, range_length, first);
-      get_size() += range_length;
+        range_length{static_cast<size_type>(distance(first, last))};
+    if (range_length > capacity()) {
+      clear();
+      grow_with_optional_check_and_adjust_resize<VerifyRangeLength>(
+          range_length, make_range_construct_helper(0), make_dummy_transfer(),
+          first, range_length);
+    } else if (range_length <= current_size) {
+      auto my_first{begin()};
+      copy(first, last, my_first);
+      destroy(my_first + range_length, end());
+      get_size() = range_length;
     } else {
-      const size_type new_capacity{
-          select_strategy_and_calc_growth(required_capacity, GrowthTypeTag{})};
-      grow(new_capacity, make_range_construct_helper(current_size),
-           make_transfer_without_shift(), first, range_length);
+      auto subrange_end{first};
+      advance(first, current_size);
+      copy(first, subrange_end, begin());
+      make_copy_helper()(data() + current_size, range_length - current_size,
+                         subrange_end);
+      get_size() = range_length;
     }
   }
 
@@ -340,8 +374,8 @@ class vector {
         m_impl.get_second() = Impl{};  // Explicitly fill by zeros pointer to
                                        // old buffer, size and capacity fields
         get_alloc() = other.get_alloc();
-        grow_unchecked(other.size(), make_cloner(), make_dummy_transfer(),
-                       other);
+        grow_unchecked<true>(other.size(), make_cloner(), make_dummy_transfer(),
+                             other);
       }
     }
   }
@@ -352,7 +386,7 @@ class vector {
   }
 
   void copy_assignment_impl(const vector& other, false_type) {
-    assign(other.begin(), other.end());
+    assign_range_impl<false>(other.begin(), other.end(), true_type{});
   }
 
   void move_assignment_impl(vector&& other, true_type) {
@@ -388,6 +422,24 @@ class vector {
     }
   }
 
+  template <class ConstructionPolicy, class... Types>
+  void resize_impl(size_type count,
+                   ConstructionPolicy construction_handler,
+                   Types&&... args) {
+    const size_type current_size{size()};
+    if (count < current_size) {
+      destroy_n(begin() + count, current_size - count);
+    } else if (count > current_size) {
+      if (count <= capacity()) {
+        construction_handler(data(), forward<Types>(args)...);
+      } else {
+        grow<false>(count, construction_handler, make_transfer_without_shift(),
+                    forward<Types>(args)...);
+      }
+    }
+    get_size() = count;
+  }
+
   allocator_type& get_alloc() noexcept { return m_impl.get_first(); }
 
   const allocator_type& get_alloc() const noexcept {
@@ -410,18 +462,42 @@ class vector {
 
   size_type& get_capacity() noexcept { return m_impl.get_second().capacity; }
 
-  template <class TransferPolicy, class ConstructPolicy, class... Types>
+  template <bool VerifyNewCapacity,
+            class TransferPolicy,
+            class ConstructPolicy,
+            class... Types>
+  void grow_with_optional_check_and_adjust_resize(
+      size_type new_capacity,
+      ConstructPolicy construction_handler,
+      TransferPolicy transfer_handler,
+      Types&&... args) {
+    if constexpr (VerifyNewCapacity) {
+      grow<true>(new_capacity, construction_handler, transfer_handler,
+                 forward<Types>(args)...);
+    } else {
+      grow_unchecked<true>(new_capacity, construction_handler, transfer_handler,
+                           forward<Types>(args)...);
+    }
+  }
+
+  template <bool AdjustSize,
+            class TransferPolicy,
+            class ConstructPolicy,
+            class... Types>
   void grow(size_type new_capacity,
             ConstructPolicy construction_handler,
             TransferPolicy transfer_handler,
             Types&&... args) {
     throw_exception_if_not<length_error>(new_capacity <= max_size(),
                                          L"vector is too large");
-    grow_unchecked(new_capacity, construction_handler, transfer_handler,
-                   forward<Types>(args)...);
+    grow_unchecked<AdjustSize>(new_capacity, construction_handler,
+                               transfer_handler, forward<Types>(args)...);
   }
 
-  template <class TransferPolicy, class ConstructPolicy, class... Types>
+  template <bool AdjustSize,
+            class TransferPolicy,
+            class ConstructPolicy,
+            class... Types>
   void grow_unchecked(size_type new_capacity,
                       ConstructPolicy construction_handler,
                       TransferPolicy transfer_handler,
@@ -432,25 +508,18 @@ class vector {
     value_type* new_buffer{allocate_buffer(alc, new_capacity)};
 
     auto alc_guard{make_alloc_temporary_guard(new_buffer, alc, new_capacity)};
-    size_t size_adjustment{
+    const size_type size_adjustment{
         construction_handler(new_buffer, forward<Types>(args)...)};
     transfer_handler(new_buffer, old_size, old_buffer);
     destroy_and_deallocate();
     alc_guard.release();
 
+    if constexpr (AdjustSize) {
+      get_size() += size_adjustment;
+    }
+
     get_buffer() = new_buffer;
-    get_size() += size_adjustment;
     get_capacity() = new_capacity;
-  }
-
-  constexpr size_type select_strategy_and_calc_growth(size_type required,
-                                                      false_type) noexcept {
-    return required;
-  }
-
-  constexpr size_type select_strategy_and_calc_growth(size_type required,
-                                                      true_type) noexcept {
-    return calc_optimal_growth(required);
   }
 
   constexpr size_type calc_optimal_growth(size_type required) noexcept {
@@ -468,6 +537,12 @@ class vector {
   static constexpr size_type calc_growth_unchecked(
       size_type old_capacity) noexcept {
     return old_capacity == 0 ? MIN_CAPACITY : old_capacity * GROWTH_MULTIPLIER;
+  }
+
+  static constexpr auto make_dummy_construct_helper() {
+    return []([[maybe_unused]] value_type* buffer, size_t old_size) {
+      return old_size;
+    };
   }
 
   static constexpr auto make_construct_at_helper(size_type pos) {
@@ -571,194 +646,6 @@ class vector {
 
  private:
   compressed_pair<allocator_type, Impl> m_impl;
-};  // namespace ktl
-
-// template <class Ty>
-// vector<Ty>::vector(const vector& other)
-//    : m_data(other.m_size), m_size{other.m_size} {
-//  std::uninitialized_copy_n(other.m_data.begin(), other.m_size,
-//  m_data.begin());
-//}
-//
-// template <class Ty>
-// vector<Ty>& vector<Ty>::operator=(const vector& other) {
-//  if (this != std::addressof(other)) {
-//    if (other.m_size >
-//        Capacity()) {  //Если размер копируемого вектора больше, чем емкость
-//                       //текущего - не реаллоцируем уже имеющиеся элементы
-//      vector tmp(other);  // Copy-and-Swap
-//      Swap(tmp);
-//    } else {
-//      const size_type min_size{std::min(m_size, other.m_size)};
-//      std::copy(  //Для примитивных типов std::copy использует memmove()
-//          other.m_data.begin(), other.m_data.begin() + min_size,
-//          m_data.begin());
-//      if (min_size == other.m_size) {  //Текущий вектор больше копируемого
-//        std::destroy(m_data.begin() + min_size, m_data.begin() + m_size);
-//      } else {
-//        std::uninitialized_copy_n(other.m_data.begin() + min_size,
-//                                  other.m_size - min_size,
-//                                  m_data.begin() + min_size);
-//      }
-//    }
-//    m_size = other.m_size;
-//  }
-//  return *this;
-//}
-
-//
-// template <class Ty>
-// void vector<Ty>::Reserve(size_type n) {
-//  if (n > Capacity()) {
-//    raw_buffer tmp(n);
-//    move_if_noexcept_or_copy_buf(tmp, m_data, m_size);
-//    destroy_and_swap(m_data, m_size, tmp);
-//  }
-//}
-//
-// template <class Ty>
-// void vector<Ty>::Resize(size_type n) {
-//  Reserve(n);
-//  if (n < m_size) {
-//    std::destroy(m_data.begin() + n, m_data.begin() + m_size);
-//  } else {
-//    std::uninitialized_default_construct(  //Конструирование объектов по
-//                                           //умолчанию
-//        m_data.begin() + m_size, m_data.begin() + n);
-//  }
-//  m_size = n;
-//}
-//
-// template <class Ty>
-// template <typename... Types>
-// Ty& vector<Ty>::EmplaceBack(Types&&... args) {
-//  Ty& elem_ref{emplace_back_helper(std::forward<Types>(args)...)};
-//  ++m_size;
-//  return elem_ref;
-//}
-//
-// template <class Ty>
-// typename vector<Ty>::iterator vector<Ty>::Insert(const_iterator pos,
-//                                                 const Ty& elem) {
-//  return Emplace(pos, elem);
-//}
-//
-// template <class Ty>
-// typename vector<Ty>::iterator vector<Ty>::Insert(const_iterator pos,
-//                                                 Ty&& elem) {
-//  return Emplace(pos, std::move(elem));
-//}
-//
-// template <class Ty>
-// template <typename... Types>
-// typename vector<Ty>::iterator vector<Ty>::Emplace(const_iterator it,
-//                                                  Types&&... args) {
-//  auto offset{it - m_data.begin()};
-//  if (offset == m_size) {  //Смещение от начала
-//    emplace_back_helper(std::forward<Types>(args)...);
-//  } else {
-//    if (m_size < Capacity()) {
-//      emplace_back_helper(std::move_if_noexcept(
-//          m_data[m_size - 1]));  //Конструируем собственный последний
-//          элемент на
-//                                 // 1 позицию правее
-//      shift_right(
-//          m_data.begin() + offset,
-//          m_data.begin() + m_size  //Значение m_size пока остается прежним
-//      );
-//      construct_in_place(std::addressof(m_data[offset]),
-//                         std::forward<Types>(args)...);
-//    } else {
-//      raw_buffer tmp(calculate_new_capacity(  //Вычисляем требуемую емкость
-//          Capacity(), m_size + 1));
-//      construct_in_place(std::addressof(tmp[offset]),
-//                         std::forward<Types>(args)...);  //Конструируем
-//                         элемент
-//      move_if_noexcept_or_copy(  //Элементы перед новым
-//          tmp.begin(), m_data.begin(), offset);
-//      move_if_noexcept_or_copy(  //Элементы после нового
-//          tmp.begin() + offset + 1, m_data.begin() + offset, m_size -
-//          offset);
-//      destroy_and_swap(m_data, m_size, tmp);
-//    }
-//  }
-//  ++m_size;
-//  return m_data.begin() + offset;  //Теперь по этому адресу - новый элемент
-//}
-//
-// template <class Ty>
-// typename vector<Ty>::iterator vector<Ty>::Erase(const_iterator it) {
-//  iterator target{m_data.begin() + (it - m_data.begin())};
-//  shift_left(  //Сдвигаем элементы влево
-//      target, m_data.begin() + m_size);
-//  PopBack();  //Допустимо, т.к. элементы сдвинуты, последний пожлежит
-//  очистке return target;  //Теперь по этому адресу расположен элемент,
-//  следующий за
-//                  //удалённым
-//}
-// template <class Ty>
-// void vector<Ty>::move_if_noexcept_or_copy_buf(raw_buffer& dst,
-//                                              raw_buffer& src,
-//                                              size_type count) {
-//  move_if_noexcept_or_copy(dst.begin(), src.begin(), count);
-//}
-//
-// template <class Ty>
-// void vector<Ty>::move_if_noexcept_or_copy(Ty* dst, Ty* src, size_type
-// count)
-// {
-//  if constexpr (std::is_nothrow_move_constructible_v<Ty>) {  // strong
-//  guarantee
-//    std::uninitialized_move_n(
-//        src, count, dst);  //Оптимизировано для trivially copyable-типов
-//  } else {
-//    std::uninitialized_copy_n(src, count, dst);
-//  }
-//}
-//
-// template <class Ty>
-// template <typename... Types>
-// Ty& vector<Ty>::emplace_back_helper(Types&&... args) {
-//  Ty* elem_ptr;
-//  if (m_size < Capacity()) {  //Не изменяем my_size, чтобы не оставить
-//  вектор в
-//                              //несогласованном состоянии
-//    elem_ptr = construct_in_place(
-//        std::addressof(m_data[m_size]),
-//        std::forward<Types>(args)...);  //при выбросе исключения
-//  } else {
-//    raw_buffer tmp(calculate_new_capacity(  //Вычисляем требуемую емкость
-//        Capacity(), m_size + 1));
-//    elem_ptr = new (std::addressof(tmp[m_size])) Ty(std::forward<Types>(
-//        args)...);  //Сначала конструируем новый объект, т.к. в
-//        EmplaceBack()
-//    move_if_noexcept_or_copy_buf(  //мог быть передан один из элементов
-//    текущего
-//                                   //вектора
-//        tmp, m_data, m_size);
-//    destroy_and_swap(m_data, m_size, tmp);
-//  }
-//  return *elem_ptr;
-//}
-//
-// template <class Ty>
-// template <typename... Types>
-// Ty* vector<Ty>::construct_in_place(void* place, Types&&... args) {
-//  return new (place) Ty(std::forward<Types>(args)...);
-//}
-//
-// template <class Ty>
-// void vector<Ty>::destroy_helper(raw_buffer& buf, size_type count) {
-//  std::destroy_n(buf.begin(), count);
-//}
-//
-// template <class Ty>
-// void vector<Ty>::destroy_and_swap(raw_buffer& old_buf,
-//                                  size_type count,
-//                                  raw_buffer& new_buf) {
-//  destroy_helper(old_buf, count);
-//  old_buf.Swap(new_buf);
-//}
-//
+};
 }  // namespace ktl
 #endif
