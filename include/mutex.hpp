@@ -3,6 +3,7 @@
 #include <irql.h>
 #include <atomic.hpp>
 #include <chrono.hpp>
+#include <compressed_pair.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
