@@ -67,6 +67,10 @@ inline size_t hash_int(uint64_t x) noexcept {
   return static_cast<size_t>(h);
 }
 
+template <class Ty, enable_if_t<is_trivial_v<Ty>, int> = 0>
+size_t hash_array(const Ty* data, size_t obj_count) noexcept {
+  return hash_bytes(data, sizeof(Ty) * obj_count);
+}
 // A thin wrapper around hash, performing an additional simple mixing step
 // of the result.
 template <typename T, typename Enable = void>
@@ -80,38 +84,16 @@ struct hash : public hash<T> {
   }
 };
 
-namespace hsh::details {
-template <class CharType>
-struct hash_string {
-  size_t operator()(const CharType* str, size_t length) const noexcept {
-    return hash_bytes(str, sizeof(CharType) * length);
-  }
-};
-
-}  // namespace hsh::details
-
-template <size_t BufferSize>
-struct hash<basic_unicode_string<BufferSize>>
-    : hsh::details::hash_string<
-          typename basic_unicode_string<BufferSize>::value_type> {
-  using MyBase = hsh::details::hash_string<
-      typename basic_unicode_string<BufferSize>::value_type>;
-
+template <size_t BufferSize,
+          class NativeStrTy,
+          template <typename... CharT>
+          class Traits,
+          class Alloc>
+struct hash<basic_winnt_string<BufferSize, NativeStrTy, Traits, Alloc>> {
   size_t operator()(
-      const basic_unicode_string<BufferSize>& str) const noexcept {
-    return MyBase::operator()(str.data(), str.size());
-  }
-};
-
-template <size_t BufferSize>
-struct hash<basic_ansi_string<BufferSize>>
-    : hsh::details::hash_string<
-          typename basic_ansi_string<BufferSize>::value_type> {
-  using MyBase = hsh::details::hash_string<
-      typename basic_ansi_string<BufferSize>::value_type>;
-
-  size_t operator()(const basic_ansi_string<BufferSize>& str) const noexcept {
-    return MyBase::operator()(str.data(), str.size());
+      const basic_winnt_string<BufferSize, NativeStrTy, Traits, Alloc>& str)
+      const noexcept {
+    return hash_array(str.data(), str.size());
   }
 };
 
@@ -119,8 +101,7 @@ template <typename NativeStrTy, template <typename... CharT> class Traits>
 struct hash<basic_winnt_string_view<NativeStrTy, Traits>> {
   size_t operator()(
       basic_winnt_string_view<NativeStrTy, Traits> sv) const noexcept {
-    return hash_bytes(sv.data(),
-                      sizeof(unicode_string_view::value_type) * sv.size());
+    return hash_array(sv.data(), sv.size());
   }
 };
 
