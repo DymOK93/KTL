@@ -13,7 +13,7 @@
 
 #include <ntddk.h>
 
-namespace ktl::str::details {
+namespace ktl {
 template <size_t SsoBufferChCount,
           typename NativeStrTy,
           template <typename... CharT>
@@ -22,7 +22,7 @@ template <size_t SsoBufferChCount,
 class basic_winnt_string {
  public:
   using native_string_type = NativeStrTy;
-  using native_string_traits_type = native_string_traits<NativeStrTy>;
+  using native_string_traits_type = str::details::native_string_traits<NativeStrTy>;
   using string_view_type = basic_winnt_string_view<native_string_type, Traits>;
 
   using value_type = typename native_string_traits_type::value_type;
@@ -1850,4 +1850,4 @@ constexpr bool operator>=(
         rhs) noexcept {
   return !(null_terminated_str < rhs);
 }
-}  // namespace ktl::str::details
+}  // namespace ktl

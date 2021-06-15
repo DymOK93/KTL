@@ -14,12 +14,11 @@
 #include <utility.hpp>
 
 namespace ktl {
-namespace str::details {
 template <typename NativeStrTy, template <typename... CharT> class Traits>
 class basic_winnt_string_view {
  public:
   using native_string_type = NativeStrTy;
-  using native_string_traits_type = native_string_traits<NativeStrTy>;
+  using native_string_traits_type = str::details::native_string_traits<NativeStrTy>;
 
   using value_type = typename native_string_traits_type::value_type;
   using size_type = typename native_string_traits_type::size_type;
@@ -539,7 +538,6 @@ constexpr bool operator>=(
     const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
   return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} >= rhs;
 }
-}  // namespace str::details
 
 inline namespace literals {
 inline namespace string_literals {
