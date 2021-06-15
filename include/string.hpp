@@ -1048,20 +1048,20 @@ class basic_winnt_string {
     }
   }
 
-  template <typename OptimalGrowthTag, class RandomAcceccIt>
-  void append_range_impl(RandomAcceccIt first, RandomAcceccIt last, true_type) {
+  template <typename OptimalGrowthTag, class RandomAccessIt>
+  void append_range_impl(RandomAccessIt first, RandomAccessIt last, true_type) {
     const auto range_length{static_cast<size_type>(distance(first, last))};
     append_range_by_random_access_iterators(first, last, range_length,
                                             OptimalGrowthTag{});
   }
 
-  template <class RandomAcceccIt>
+  template <class RandomAccessIt>
   void append_range_by_random_access_iterators(
-      RandomAcceccIt first,
-      [[maybe_unused]] RandomAcceccIt last,
+      RandomAccessIt first,
+      [[maybe_unused]] RandomAccessIt last,
       size_type range_length,
       false_type) {
-    if constexpr (is_pointer_v<RandomAcceccIt>) {
+    if constexpr (is_pointer_v<RandomAccessIt>) {
       concat(make_copy_helper(), range_length, first);
     } else {
       concat(make_copy_range_helper(), range_length, first, last);
@@ -1078,36 +1078,36 @@ class basic_winnt_string {
     return proxy.size();
   }
 
-  template <class RandomAcceccIt>
+  template <class RandomAccessIt>
   size_type insert_range_impl(size_type index,
-                              RandomAcceccIt first,
-                              RandomAcceccIt last,
+                              RandomAccessIt first,
+                              RandomAccessIt last,
                               true_type) {
     const auto range_length{static_cast<size_type>(distance(first, last))};
     insert_range_by_random_access_iterators(index, first, last, range_length);
     return range_length;
   }
 
-  template <class RandomAcceccIt>
+  template <class RandomAccessIt>
   void insert_range_by_random_access_iterators(
       size_type index,
-      RandomAcceccIt first,
-      [[maybe_unused]] RandomAcceccIt last,
+      RandomAccessIt first,
+      [[maybe_unused]] RandomAccessIt last,
       size_type range_length) {
-    if constexpr (is_pointer_v<RandomAcceccIt>) {
+    if constexpr (is_pointer_v<RandomAccessIt>) {
       insert_impl(index, make_copy_helper(), range_length, first);
     } else {
       insert_impl(index, make_copy_range_helper(), range_length, first, last);
     }
   }
 
-  template <class RandomAcceccIt>
+  template <class RandomAccessIt>
   void append_range_by_random_access_iterators(
-      RandomAcceccIt first,
-      [[maybe_unused]] RandomAcceccIt last,
+      RandomAccessIt first,
+      [[maybe_unused]] RandomAccessIt last,
       size_type range_length,
       true_type) {
-    if constexpr (is_pointer_v<RandomAcceccIt>) {
+    if constexpr (is_pointer_v<RandomAccessIt>) {
       concat_with_optimal_growth(make_copy_helper(), range_length, first);
     } else {
       concat_with_optimal_growth(make_copy_range_helper(), range_length, first,
