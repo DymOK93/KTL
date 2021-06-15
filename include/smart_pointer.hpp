@@ -867,15 +867,15 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
   void swap(shared_ptr& other) noexcept { MyBase::swap(other); }
 
   pointer get() const noexcept { return MyBase::get_value_ptr(); }
-  add_lvalue_reference<element_type> operator*() const& {
+  add_lvalue_reference_t<element_type> operator*() const& {
     return *MyBase::get_value_ptr();
   }
-  add_rvalue_reference<element_type> operator*() const&& {
+  add_rvalue_reference_t<element_type> operator*() const&& {
     return move(*MyBase::get_value_ptr());
   }
   pointer operator->() const noexcept { return MyBase::get_value_ptr(); }
 
-  add_lvalue_reference<element_type> operator[](ptrdiff_t idx)
+  add_lvalue_reference_t<element_type> operator[](ptrdiff_t idx)
       const {  // UB, если хранится не массив или idx больше его длины!
     return *(MyBase::get_value_ptr() + idx);
   }
