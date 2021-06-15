@@ -1,6 +1,7 @@
 #pragma once
 #include <heap.h>
-#include <memory_tools.hpp>
+#include <new_delete.h>
+#include <memory_tools.hpp>  // Included into <allocator.hpp>, which included into <smart_pointer.hpp>
 #include <smart_pointer.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
