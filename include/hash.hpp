@@ -97,7 +97,8 @@ struct hash<basic_unicode_string<BufferSize>>
   using MyBase = hsh::details::hash_string<
       typename basic_unicode_string<BufferSize>::value_type>;
 
-  size_t operator()(const basic_ansi_string<BufferSize>& str) const noexcept {
+  size_t operator()(
+      const basic_unicode_string<BufferSize>& str) const noexcept {
     return MyBase::operator()(str.data(), str.size());
   }
 };
@@ -114,17 +115,10 @@ struct hash<basic_ansi_string<BufferSize>>
   }
 };
 
-template <>
-struct hash<ansi_string_view> {
-  size_t operator()(ansi_string_view sv) const noexcept {
-    return hash_bytes(sv.data(),
-                      sizeof(ansi_string_view::value_type) * sv.size());
-  }
-};
-
-template <>
-struct hash<unicode_string_view> {
-  size_t operator()(unicode_string_view sv) const noexcept {
+template <typename NativeStrTy, template <typename... CharT> class Traits>
+struct hash<basic_winnt_string_view<NativeStrTy, Traits>> {
+  size_t operator()(
+      basic_winnt_string_view<NativeStrTy, Traits> sv) const noexcept {
     return hash_bytes(sv.data(),
                       sizeof(unicode_string_view::value_type) * sv.size());
   }
