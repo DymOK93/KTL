@@ -71,18 +71,9 @@ template <class Ty, enable_if_t<is_trivial_v<Ty>, int> = 0>
 size_t hash_array(const Ty* data, size_t obj_count) noexcept {
   return hash_bytes(data, sizeof(Ty) * obj_count);
 }
-// A thin wrapper around hash, performing an additional simple mixing step
-// of the result.
-template <typename T, typename Enable = void>
-struct hash : public hash<T> {
-  size_t operator()(T const& obj) const
-      noexcept(noexcept(declval<hash<T>>().operator()(declval<T const&>()))) {
-    // call base hash
-    auto result = hash<T>::operator()(obj);
-    // return mixed of that, to be save against identity has
-    return hash_int(static_cast<size_t>(result));
-  }
-};
+
+template <class Ty, typename Enable = void>
+struct hash;
 
 template <size_t BufferSize,
           class NativeStrTy,
@@ -93,7 +84,7 @@ struct hash<basic_winnt_string<BufferSize, NativeStrTy, Traits, Alloc>> {
   size_t operator()(
       const basic_winnt_string<BufferSize, NativeStrTy, Traits, Alloc>& str)
       const noexcept {
-    return hash_array(str.data(), str.size());
+   return hash_array(str.data(), str.size());
   }
 };
 

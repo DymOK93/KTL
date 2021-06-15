@@ -309,7 +309,7 @@ struct NodeAllocator<Ty, BytesAllocator, MinSize, MaxSize, false>
 // dummy hash, unsed as mixer when robin_hood::hash is already used
 template <typename Ty>
 struct identity_hash {
-  constexpr size_t operator()(Ty const& obj) const noexcept {
+  constexpr size_t operator()(const Ty& obj) const noexcept {
     return static_cast<size_t>(obj);
   }
 };
