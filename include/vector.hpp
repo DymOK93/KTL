@@ -290,6 +290,28 @@ class vector {
     get_size() = 0;
   }
 
+  iterator insert(const_iterator pos, const Ty& value) {
+    return emplace(pos, value);
+  }
+
+  iterator insert(const_iterator pos, Ty&& value) {
+    return emplace(pos, move(value));
+  }
+
+  iterator insert(const_iterator pos, size_type count, const Ty& value);
+
+  template <class InputIt>
+  iterator insert(const_iterator pos, InputIt first, InputIt last);
+
+  template <class... Types>
+  iterator emplace(const_iterator pos, Types&&... args) {
+    if (pos == cend()) {
+      emplace_back(forward<Types>(args)...);
+      return prev(end());
+    }
+    assert(false);
+  }
+
   void push_back(const Ty& value) { emplace_back(value); }
 
   void push_back(Ty&& value) { emplace_back(move(value)); }
@@ -324,6 +346,15 @@ class vector {
   void resize(size_type count, const Ty& value) {
     resize_impl(count, make_construct_fill_helper(size()), value,
                 count - size());
+  }
+
+  void swap(vector& other) noexcept(
+      allocator_traits_type::propagate_on_container_swap::value ||
+      allocator_traits_type::is_always_equal::value) {
+    if (addressof(other) != this) {
+      swap_impl(other,
+                typename allocator_traits_type::propagate_on_container_swap{});
+    }
   }
 
  private:
@@ -438,6 +469,22 @@ class vector {
       }
     }
     get_size() = count;
+  }
+
+  void swap_impl(vector& other, true_type) noexcept {
+    ::swap(m_impl, other.m_impl);
+  }
+
+  void swap_impl(vector& other, false_type) noexcept(
+      allocator_traits_type::is_always_equal::value) {
+    if constexpr (allocator_traits_type::is_always_equal::value) {
+      ::swap(m_impl.get_second().other.m_impl.get_second());
+    } else {
+      assert_with_msg(
+          get_alloc() == other.get_alloc(),
+          "vectors are not swappable due to incompatible allocators");
+      ::swap(m_impl.get_second(), other.m_impl.get_second());
+    }
   }
 
   allocator_type& get_alloc() noexcept { return m_impl.get_first(); }
@@ -647,5 +694,31 @@ class vector {
  private:
   compressed_pair<allocator_type, Impl> m_impl;
 };
+
+template <class Ty, class Allocator>
+void swap(vector<Ty, Allocator>& lhs,
+          vector<Ty, Allocator>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+  lhs.swap(rhs);
+}
+
+template <class Ty, class Allocator>
+bool operator==(const vector<Ty, Allocator>& lhs,
+                const vector<Ty, Allocator>& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+  for (size_t idx = 0; idx < lhs.size(); ++idx) {
+    if (!(lhs[idx] == rhs[idx])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <class Ty, class Allocator>
+bool operator!=(const vector<Ty, Allocator>& lhs,
+                const vector<Ty, Allocator>& rhs) {
+  return !(lhs == rhs);
+}
 }  // namespace ktl
 #endif

@@ -23,13 +23,14 @@ struct get_const_pointer_type {
 
 template <class Target, class Ty>
 struct get_const_pointer_type<Target,
-                             Ty,
-                             void_t<typename Target::const_pointer>> {
+                              Ty,
+                              void_t<typename Target::const_pointer>> {
   using type = typename Target::pointer;
 };
 
 template <class Target, class Ty>
-using get_const_pointer_type_t = typename get_const_pointer_type<Target, Ty>::type;
+using get_const_pointer_type_t =
+    typename get_const_pointer_type<Target, Ty>::type;
 
 template <class Target, class Ty, class = void>
 struct get_reference_type {
@@ -43,6 +44,22 @@ struct get_reference_type<Target, Ty, void_t<typename Target::reference>> {
 
 template <class Target, class Ty>
 using get_reference_type_t = typename get_reference_type<Target, Ty>::type;
+
+template <class Target, class Ty, class = void>
+struct get_const_reference_type {
+  using type = add_lvalue_reference_t<add_const_t<Ty>>;
+};
+
+template <class Target, class Ty>
+struct get_const_reference_type<Target,
+                                Ty,
+                                void_t<typename Target::const_reference>> {
+  using type = typename Target::const_reference;
+};
+
+template <class Target, class Ty>
+using get_const_reference_type_t =
+    typename get_const_reference_type<Target, Ty>::type;
 
 template <class Target, class = void>
 struct get_size_type {
@@ -271,8 +288,9 @@ template <class Deleter, class = void>
 struct get_enable_delete_null : false_type {};
 
 template <class Deleter>
-struct get_enable_delete_null<Deleter,
-                              void_t<decltype(Deleter::enable_delete_null::value)>> {
+struct get_enable_delete_null<
+    Deleter,
+    void_t<decltype(Deleter::enable_delete_null::value)>> {
   static constexpr bool value = Deleter::enable_delete_null::value;
 };
 

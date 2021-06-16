@@ -94,8 +94,8 @@ OutBidirectionalIt copy_backward(InBidirectionalIt first,
 namespace algo::details {
 template <class InTy, class OutTy>
 OutTy* copy_impl(InTy* first, InTy* last, OutTy* d_first, true_type) {
-  return static_cast<OutTy*>(
-      memmove(d_first, first, static_cast<size_t>(last - first)));
+  return static_cast<OutTy*>(memmove(
+      d_first, first, static_cast<size_t>(last - first) * sizeof(InTy)));
 }
 
 template <class InputIt, class OutputIt>
@@ -163,118 +163,93 @@ template <class ForwardIt, class Ty>
 void fill(ForwardIt first, ForwardIt last, const Ty& value) {
   return algo::details::Filler<ForwardIt, Ty>{}(first, last, value);
 }
+
+namespace algo::details {
+template <class ForwardIt, class Shifter>
+ForwardIt shift_impl(
+    ForwardIt first,
+    ForwardIt last,
+    typename iterator_traits<ForwardIt>::difference_type offset,
+    Shifter shifter) {
+  using value_type = typename iterator_traits<ForwardIt>::value_type;
+  using difference_type = typename iterator_traits<ForwardIt>::difference_type;
+
+  const auto range_length{distance(first, last)};
+  if (offset > 0 && offset < range_length) {
+    return shifter(first, offset, range_length - offset,
+                   is_memcpyable_range<ForwardIt, ForwardIt>{});
+  }
+  return last;
+}
+
+template <class Ty>
+Ty* shift_left_impl(Ty* first,
+                    typename iterator_traits<Ty*>::difference_type offset,
+                    size_t count,
+                    true_type) {
+  return static_cast<Ty*>(memmove(first, first + offset, count * sizeof(Ty)));
+}
+
+template <class ForwardIt>
+ForwardIt shift_left_impl(
+    ForwardIt first,
+    typename iterator_traits<ForwardIt>::difference_type offset,
+    size_t count,
+    false_type) {
+  auto new_first{first};
+  advance(new_first, offset);
+  while (count--) {
+    *first = *new_first;
+    first = next(first);
+    new_first = next(new_first);
+  }
+  return new_first;
+}
+
+template <class Ty>
+Ty* shift_right_impl(Ty* first,
+                     typename iterator_traits<Ty*>::difference_type offset,
+                     size_t count,
+                     true_type) {
+  return static_cast<Ty*>(memmove(first + offset, first, count * sizeof(Ty)));
+}
+
+template <class ForwardIt>
+ForwardIt shift_right_impl(
+    ForwardIt first,
+    typename iterator_traits<ForwardIt>::difference_type offset,
+    size_t count,
+    false_type) {
+  auto new_last{first}, current{first};
+  advance(current, count - 1);
+  advance(new_last, offset + count - 1);
+  while (count--) {
+    *new_last = *current;
+    new_last = prev(new_last);
+    current = prev(current);
+  }
+  return new_last;
+}
+}  // namespace algo::details
+
+template <class ForwardIt>
+ForwardIt shift_left(
+    ForwardIt first,
+    ForwardIt last,
+    typename iterator_traits<ForwardIt>::difference_type offset) {
+  return algo::details::shift_impl(first, last, offset, [](auto... args) {
+    return algo::details::shift_left_impl(args...);
+  });
+}
+
+template <class ForwardIt>
+ForwardIt shift_right(
+    ForwardIt first,
+    ForwardIt last,
+    typename iterator_traits<ForwardIt>::difference_type offset) {
+  return algo::details::shift_impl(first, last, offset, [](auto... args) {
+    return algo::details::shift_right_impl(args...);
+  });
+}
 }  // namespace ktl
 #endif
-
-//#include <iterator.hpp>
-//#include <utility.hpp>
-//#include <type_traits.hpp>
-
-//#ifndef KTL_CXX20
-// namespace ktl {
-//#ifndef KTL_NO_EXCEPTIONS
-// template <class ForwardIt>
-// ForwardIt
-//#else
-// template <class Verifier, class ForwardIt>
-// bool
-//#endif
-// shift_right(
-//#ifdef KTL_NO_EXCEPTIONS
-//    Verifier&& vf,
-//#endif
-//    ForwardIt first,
-//    ForwardIt last,
-//    typename iterator_traits<ForwardIt>::difference_type offset) {
-//  using value_type = typename iterator_traits<ForwardIt>::value_type;
-//  const size_t range_length{distance(first, last)};
-//  if (offset > 0 && offset < range_length) {
-//    if constexpr (is_trivially_copyable_v<value_type> &&
-//                  is_pointer_v<ForwardIt>) {
-//      auto* dest{first + offset * sizeof(value_type)};
-//      memmove(dest, first, (range_length - offset) * sizeof(value_type));
-//      return dest;
-//    } else {
-//      ForwardIt current{next(first)};
-//#ifndef KTL_NO_EXCEPTIONS
-//      while (current != last) {
-//#else
-//      bool successfully_assigned{true};
-//      while (current != last && successfully_assigned) {
-//#endif
-//        auto& place{*current};
-//        place = move(*first);
-//        current = next(current);
-//        first = next(first);
-//#ifdef KTL_NO_EXCEPTIONS
-//        successfully_assigned = vf(place);
-//#endif
-//      }
-//    }
-//#ifndef KTL_NO_EXCEPTIONS
-//    return first;
-//#else
-//    return successfully_assigned;
-//#endif
-//  }
-//#ifndef KTL_NO_EXCEPTIONS
-//  return last;
-//#else
-//  return false;
-//#endif
-//}
-//
-//#ifndef KTL_NO_EXCEPTIONS
-// template <class ForwardIt>
-// ForwardIt
-//#else
-// template <class Verifier, class ForwardIt>
-// bool
-//#endif
-// shift_left(
-//#ifdef KTL_NO_EXCEPTIONS
-//    Verifier&& vf,
-//#endif
-//    ForwardIt first,
-//    ForwardIt last,
-//    typename iterator_traits<ForwardIt>::difference_type offset) {
-//  using value_type = typename iterator_traits<ForwardIt>::value_type;
-//  const size_t range_length{distance(first, last)};
-//  if (offset > 0 && offset < range_length) {
-//    if constexpr (is_trivially_copyable_v<value_type> &&
-//                  is_pointer_v<ForwardIt>) {
-//      auto* src{first + offset * sizeof(value_type)};
-//      memmove(first, src, (range_length - offset) * sizeof(value_type));
-//      return src;
-//    } else {
-//      ForwardIt current{prev(last)};
-//      ForwardIt old_current{current};
-//#ifndef KTL_NO_EXCEPTIONS
-//      while (current != first) {
-//#else
-//      bool successfully_assigned{true};
-//      while (current != first && successfully_assigned) {
-//#endif
-//        current = next(current);
-//        auto& place{*current};
-//        place = move(*old_current);
-//        old_current = current;
-//#ifdef KTL_NO_EXCEPTIONS
-//        successfully_assigned = vf(place);
-//#endif
-//      }
-//    }
-//#ifndef KTL_NO_EXCEPTIONS
-//    return old_current;
-//#else
-//    return successfully_assigned;
-//#endif
-//  }
-//#ifndef KTL_NO_EXCEPTIONS
-//  return first;
-//#else
-//  return false;
-//#endif
-//}
-//}  // namespace ktl
-//#endif

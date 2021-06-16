@@ -162,7 +162,8 @@ struct allocator_traits {
   using const_pointer =
       mm::details::get_const_pointer_type_t<Alloc, value_type>;
   using reference = mm::details::get_reference_type_t<Alloc, value_type>;
-  using const_reference = add_const_t<reference>;
+  using const_reference =
+      mm::details::get_const_reference_type_t<Alloc, value_type>;
   using size_type = mm::details::get_size_type_t<Alloc>;
   using difference_type = mm::details::get_difference_type<Alloc>;
 
