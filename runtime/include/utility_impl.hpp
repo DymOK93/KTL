@@ -22,6 +22,15 @@ constexpr remove_reference_t<Ty>&& move(Ty&& val) noexcept {
 }
 
 template <class Ty>
+constexpr conditional_t<!is_nothrow_move_constructible_v<Ty> &&
+                            is_copy_constructible_v<Ty>,
+                        Ty&&,
+                        const Ty&>
+move_if_noexcept(Ty& val) noexcept {
+  return move(val);
+}
+
+template <class Ty>
 constexpr Ty&& forward(remove_reference_t<Ty>& val) noexcept {
   return static_cast<Ty&&>(val);
 }

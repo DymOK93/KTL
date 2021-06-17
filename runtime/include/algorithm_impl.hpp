@@ -9,6 +9,7 @@ using std::min;
 #else
 #include <iterator_impl.hpp>
 #include <utility_impl.hpp>
+
 namespace ktl {
 template <class ForwardIt, class T, class Predicate>
 constexpr bool binary_search(ForwardIt first,

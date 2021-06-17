@@ -22,6 +22,8 @@ constexpr InputIt find(InputIt first, InputIt last, const Ty& value) {
   return first;
 }
 
+// TODO: optimized version with memchr
+
 template <class InputIt, class UnaryPredicate>
 constexpr InputIt find_if(InputIt first, InputIt last, UnaryPredicate pred) {
   for (; first != last; first = next(first)) {
@@ -93,7 +95,10 @@ OutBidirectionalIt copy_backward(InBidirectionalIt first,
 
 namespace algo::details {
 template <class InTy, class OutTy>
-OutTy* copy_impl(InTy* first, InTy* last, OutTy* d_first, true_type) {
+OutTy* copy_impl(const InTy* first,
+                 const InTy* last,
+                 OutTy* d_first,
+                 true_type) {
   return static_cast<OutTy*>(memmove(
       d_first, first, static_cast<size_t>(last - first) * sizeof(InTy)));
 }
@@ -251,5 +256,114 @@ ForwardIt shift_right(
     return algo::details::shift_right_impl(args...);
   });
 }
+
+namespace algo::details {
+template <class LhsInputIt, class RhsInputIt, class Compare, class = void>
+struct LexicographicalComparator {
+  constexpr bool operator()(LhsInputIt lhs_first,
+                            LhsInputIt lhs_last,
+                            RhsInputIt rhs_first,
+                            RhsInputIt rhs_last,
+                            Compare comp) const {
+    for (; lhs_first != lhs_last && rhs_first != rhs_last;
+         lhs_first = next(lhs_first), rhs_first = next(rhs_first)) {
+      if (comp(*lhs_first, *rhs_first)) {
+        return true;
+      }
+      if (comp(*rhs_first, *lhs_first)) {
+        return false;
+      }
+    }
+    return (lhs_first == lhs_last) && (rhs_first != rhs_last);
+  }
+};
+
+template <int ExpectedMemcmpResult, class Ty, class LengthCompare>
+bool compare_integral_impl(const Ty* lhs_first,
+                           const Ty* lhs_last,
+                           const Ty* rhs_first,
+                           const Ty* rhs_last,
+                           LengthCompare lc) {
+  const ptrdiff_t first_length{lhs_last - lhs_first},
+      second_length{rhs_last - rhs_first};
+  const auto cmp_length{
+      static_cast<size_t>((min)(first_length, second_length)) * sizeof(Ty)};
+
+  const int result{memcmp(lhs_first, rhs_first, cmp_length)};
+  if (result != 0) {
+    return result == ExpectedMemcmpResult;
+  }
+  return lc(first_length, second_length);
+}
+
+template <class Ty>
+bool compare_integral_less(const Ty* lhs_first,
+                           const Ty* lhs_last,
+                           const Ty* rhs_first,
+                           const Ty* rhs_last) {
+  return compare_integral_impl<-1>(lhs_first, lhs_last, rhs_first, rhs_last,
+                                   less<>{});
+}
+
+template <class Ty>
+bool compare_integral_greater(const Ty* lhs_first,
+                              const Ty* lhs_last,
+                              const Ty* rhs_first,
+                              const Ty* rhs_last) {
+  return compare_integral_impl<1>(lhs_first, lhs_last, rhs_first, rhs_last,
+                                  greater<>{});
+}
+
+template <class Ty, class... Types>
+struct LexicographicalComparator<Ty*,
+                                 Ty*,
+                                 less<Types...>,
+                                 void_t<enable_if<is_integral_v<Ty> > > > {
+  bool operator()(const Ty* lhs_first,
+                  const Ty* lhs_last,
+                  const Ty* rhs_first,
+                  const Ty* rhs_last,
+                  less<Types...>) const noexcept {
+    return compare_integral_less(lhs_first, lhs_last, rhs_first, rhs_last);
+  }
+};
+
+template <class Ty, class... Types>
+struct LexicographicalComparator<Ty*,
+                                 Ty*,
+                                 greater<Types...>,
+                                 void_t<enable_if<is_integral_v<Ty> > > > {
+  bool operator()(const Ty* lhs_first,
+                  const Ty* lhs_last,
+                  const Ty* rhs_first,
+                  const Ty* rhs_last,
+                  greater<Types...>) const noexcept {
+    return compare_integral_greater(lhs_first, lhs_last, rhs_first, rhs_last);
+  }
+};
+}  // namespace algo::details
+
+template <class LhsInputIt, class RhsInputIt>
+bool lexicographical_compare(LhsInputIt lhs_first,
+                             LhsInputIt lhs_last,
+                             RhsInputIt rhs_first,
+                             RhsInputIt rhs_last) {
+  return lexicographical_compare(lhs_first, lhs_last, rhs_first, rhs_last,
+                                 less<>{});
+}
+
+template <class LhsInputIt, class RhsInputIt, class Compare>
+bool lexicographical_compare(LhsInputIt lhs_first,
+                             LhsInputIt lhs_last,
+                             RhsInputIt rhs_first,
+                             RhsInputIt rhs_last,
+                             Compare comp) {
+  return algo::details::LexicographicalComparator<LhsInputIt, RhsInputIt,
+                                                  Compare>{}(
+      lhs_first, lhs_last, rhs_first, rhs_last, comp);
+}
+
+template <class ForwardIt>
+ForwardIt rotate(ForwardIt first, ForwardIt n_first, ForwardIt last);
 }  // namespace ktl
 #endif

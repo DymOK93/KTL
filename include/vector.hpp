@@ -309,7 +309,24 @@ class vector {
       emplace_back(forward<Types>(args)...);
       return prev(end());
     }
-    assert(false);
+
+    const auto current_size{size()}, offset{static_cast<size_t>(pos - begin())};
+
+    if (current_size == capacity()) {
+      grow<true>(calc_growth(), make_construct_at_helper(offset),
+                 make_transfer_with_shift_right({offset, offset + 1}),
+                 forward<Types>(args)...);
+    } else {
+      Ty tmp{forward<Types>(args)...};
+      value_type* buffer{data()};
+      make_construct_at_helper(current_size)(buffer, move_if_noexcept(back()));
+      ++get_size();
+      shift_right(begin() + offset, prev(end()),
+                  1);  // shift_right has overload optimized
+                       // for trivial types (unlike rotate)
+      make_construct_at_helper(offset)(buffer, move(tmp));
+    }
+    return begin() + offset;
   }
 
   void push_back(const Ty& value) { emplace_back(value); }
@@ -660,6 +677,16 @@ class vector {
     }
   }
 
+  static constexpr auto make_transfer_with_shift_right(
+      pair<size_type, size_type> bounds) noexcept {
+    return [bounds](value_type* dst, size_type count, const value_type* src) {
+      const auto [unshifted, tail_first]{bounds};
+      make_transfer_without_shift()(dst, unshifted, src);
+      make_transfer_without_shift()(dst + tail_first + (tail_first - unshifted),
+                                    count - unshifted, src + unshifted);
+    };
+  }
+
   static constexpr auto make_dummy_transfer() noexcept {
     return
         []([[maybe_unused]] value_type* dst, [[maybe_unused]] size_type count,
@@ -719,6 +746,31 @@ template <class Ty, class Allocator>
 bool operator!=(const vector<Ty, Allocator>& lhs,
                 const vector<Ty, Allocator>& rhs) {
   return !(lhs == rhs);
+}
+
+template <class Ty, class Allocator>
+bool operator<(const vector<Ty, Allocator>& lhs,
+               const vector<Ty, Allocator>& rhs) {
+  return lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(),
+                                 less<Ty>{});
+}
+
+template <class Ty, class Allocator>
+bool operator<=(const vector<Ty, Allocator>& lhs,
+                const vector<Ty, Allocator>& rhs) {
+  return !(lhs > rhs);
+}
+
+template <class Ty, class Allocator>
+bool operator>(const vector<Ty, Allocator>& lhs,
+               const vector<Ty, Allocator>& rhs) {
+  return rhs < lhs;
+}
+
+template <class Ty, class Allocator>
+bool operator>=(const vector<Ty, Allocator>& lhs,
+                const vector<Ty, Allocator>& rhs) {
+  return !(lhs < rhs);
 }
 }  // namespace ktl
 #endif

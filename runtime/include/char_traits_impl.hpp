@@ -140,7 +140,7 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
   static constexpr int compare(const char_type* str1,
                                const char_type* str2,
                                size_t count) noexcept {
-    if constexpr (is_same_v<char_type, wchar_t>) {
+    if constexpr (is_same_v<char_type, char>) {
       return __builtin_memcmp(str1, str2, count);
     } else {
       return char_traits_base<char_type, int_type>::compare(str1, str2, count);
@@ -157,7 +157,7 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
 
   [[nodiscard]] static constexpr const char_type*
   find(const char_type* str, size_t count, const char_type& ch) noexcept {
-    if constexpr (is_same_v<char_type, wchar_t>) {
+    if constexpr (is_same_v<char_type, char>) {
       return __builtin_char_memchr(str, ch, count);
     } else {
       return char_traits_base<char_type, int_type>::find(str, count, ch);
