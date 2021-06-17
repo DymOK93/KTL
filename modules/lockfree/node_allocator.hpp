@@ -12,9 +12,6 @@
 
 #include <ntddk.h>
 
-template <class>
-struct Deductor;
-
 namespace ktl::lockfree {
 template <class Ty,
           align_val_t Align,
