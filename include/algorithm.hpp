@@ -94,13 +94,10 @@ OutBidirectionalIt copy_backward(InBidirectionalIt first,
 }
 
 namespace algo::details {
-template <class InTy, class OutTy>
-OutTy* copy_impl(const InTy* first,
-                 const InTy* last,
-                 OutTy* d_first,
-                 true_type) {
-  return static_cast<OutTy*>(memmove(
-      d_first, first, static_cast<size_t>(last - first) * sizeof(InTy)));
+template <class Ty>
+Ty* copy_impl(const Ty* first, const Ty* last, Ty* d_first, true_type) {
+  return static_cast<Ty*>(
+      memmove(d_first, first, static_cast<size_t>(last - first) * sizeof(Ty)));
 }
 
 template <class InputIt, class OutputIt>
@@ -170,66 +167,27 @@ void fill(ForwardIt first, ForwardIt last, const Ty& value) {
 }
 
 namespace algo::details {
-template <class ForwardIt, class Shifter>
-ForwardIt shift_impl(
-    ForwardIt first,
-    ForwardIt last,
-    typename iterator_traits<ForwardIt>::difference_type offset,
-    Shifter shifter) {
-  using value_type = typename iterator_traits<ForwardIt>::value_type;
-  using difference_type = typename iterator_traits<ForwardIt>::difference_type;
-
-  const auto range_length{distance(first, last)};
-  if (offset > 0 && offset < range_length) {
-    return shifter(first, offset, range_length - offset,
-                   is_memcpyable_range<ForwardIt, ForwardIt>{});
-  }
-  return last;
-}
-
-template <class Ty>
-Ty* shift_left_impl(Ty* first,
-                    typename iterator_traits<Ty*>::difference_type offset,
-                    size_t count,
-                    true_type) {
-  return static_cast<Ty*>(memmove(first, first + offset, count * sizeof(Ty)));
-}
-
-template <class ForwardIt>
-ForwardIt shift_left_impl(
-    ForwardIt first,
-    typename iterator_traits<ForwardIt>::difference_type offset,
-    size_t count,
-    false_type) {
-  auto new_first{first};
-  advance(new_first, offset);
-  while (count--) {
-    *first = *new_first;
-    first = next(first);
-    new_first = next(new_first);
-  }
-  return new_first;
-}
-
 template <class Ty>
 Ty* shift_right_impl(Ty* first,
                      typename iterator_traits<Ty*>::difference_type offset,
-                     size_t count,
+                     size_t shift_count,
                      true_type) {
-  return static_cast<Ty*>(memmove(first + offset, first, count * sizeof(Ty)));
+  auto* begin{first + offset};
+  memmove(begin, first, shift_count * sizeof(Ty));
+  return begin;
 }
 
 template <class ForwardIt>
 ForwardIt shift_right_impl(
     ForwardIt first,
     typename iterator_traits<ForwardIt>::difference_type offset,
-    size_t count,
+    size_t shift_count,
     false_type) {
   auto new_last{first}, current{first};
-  advance(current, count - 1);
-  advance(new_last, offset + count - 1);
-  while (count--) {
-    *new_last = *current;
+  advance(current, shift_count - 1);
+  advance(new_last, offset + shift_count - 1);
+  while (shift_count--) {
+    *new_last = move(*current);
     new_last = prev(new_last);
     current = prev(current);
   }
@@ -242,9 +200,13 @@ ForwardIt shift_left(
     ForwardIt first,
     ForwardIt last,
     typename iterator_traits<ForwardIt>::difference_type offset) {
-  return algo::details::shift_impl(first, last, offset, [](auto... args) {
-    return algo::details::shift_left_impl(args...);
-  });
+  const auto range_length{distance(first, last)};
+  if (offset <= 0 || range_length < offset) {
+    return first;
+  }
+  auto new_first{first};
+  advance(new_first, offset);
+  return move(new_first, last, first);
 }
 
 template <class ForwardIt>
@@ -252,9 +214,13 @@ ForwardIt shift_right(
     ForwardIt first,
     ForwardIt last,
     typename iterator_traits<ForwardIt>::difference_type offset) {
-  return algo::details::shift_impl(first, last, offset, [](auto... args) {
-    return algo::details::shift_right_impl(args...);
-  });
+  const auto range_length{distance(first, last)};
+  if (offset <= 0 || range_length < offset) {
+    return last;
+  }
+  return algo::details::shift_right_impl(
+      first, offset, static_cast<size_t>(range_length - offset),
+      is_memcpyable<typename iterator_traits<ForwardIt>::value_type>{});
 }
 
 namespace algo::details {

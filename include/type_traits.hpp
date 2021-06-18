@@ -114,19 +114,18 @@ struct make_unsigned<long long> {
 template <class IntegralTy>
 using make_unsigned_t = typename make_unsigned<IntegralTy>::type;
 
-template <typename From, typename To>
-inline constexpr bool is_memcpyable_v = is_trivially_copyable_v<From>&&
-    is_trivially_constructible_v<From, To>&& is_trivially_destructible_v<To>;
+template <typename Ty>
+inline constexpr bool is_memcpyable_v =
+    is_trivially_copyable_v<Ty>&& is_trivially_destructible_v<Ty>;
 
-template <typename From, typename To>
-struct is_memcpyable : bool_constant<is_memcpyable_v<From, To>> {};
+template <typename Ty>
+struct is_memcpyable : bool_constant<is_memcpyable_v<Ty>> {};
 
 template <class InputIt, class OutputIt>
 inline constexpr bool is_memcpyable_range_v = false;
 
-template <typename From, typename To>
-inline constexpr bool is_memcpyable_range_v<From*, To*> =
-    is_memcpyable_v<From, To>;
+template <typename Ty>
+inline constexpr bool is_memcpyable_range_v<Ty*, Ty*> = is_memcpyable_v<Ty>;
 
 template <class InputIt, class OutputIt>
 struct is_memcpyable_range

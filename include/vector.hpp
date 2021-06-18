@@ -310,23 +310,40 @@ class vector {
       return prev(end());
     }
 
-    const auto current_size{size()}, offset{static_cast<size_t>(pos - begin())};
+    const size_type current_size{size()};
+    const auto offset{pos - begin()};
 
     if (current_size == capacity()) {
-      grow<true>(calc_growth(), make_construct_at_helper(offset),
-                 make_transfer_with_shift_right({offset, offset + 1}),
-                 forward<Types>(args)...);
+      grow<true>(
+          calc_growth(), make_construct_at_helper(offset),
+          make_transfer_with_shift_right({static_cast<size_type>(offset),
+                                          static_cast<size_type>(offset + 1)}),
+          forward<Types>(args)...);
     } else {
       Ty tmp{forward<Types>(args)...};
       value_type* buffer{data()};
       make_construct_at_helper(current_size)(buffer, move_if_noexcept(back()));
       ++get_size();
-      shift_right(begin() + offset, prev(end()),
-                  1);  // shift_right has overload optimized
-                       // for trivial types (unlike rotate)
+      shift_right(begin() + offset, prev(end()), 1);
       make_construct_at_helper(offset)(buffer, move(tmp));
     }
     return begin() + offset;
+  }
+
+  iterator erase(const_iterator pos) {
+    auto range_end{end()};
+    if (pos == range_end) {
+      return range_end;
+    }
+    return erase_impl(pos, 1);
+  }
+
+  iterator erase(const_iterator first, const_iterator last) {
+    const auto count{static_cast<size_type>(last - first)};
+    if (first == last) {
+      return begin() + count;
+    }
+    return erase_impl(first, count);
   }
 
   void push_back(const Ty& value) { emplace_back(value); }
@@ -468,6 +485,14 @@ class vector {
         other.clear();
       }
     }
+  }
+
+  iterator erase_impl(const_iterator pos, size_type count) {
+    auto range_begin{begin()};
+    const auto offset{pos - range_begin};
+    shift_left(range_begin + offset, end(), count);
+    get_size() -= count;
+    return range_begin + offset;
   }
 
   template <class ConstructionPolicy, class... Types>
