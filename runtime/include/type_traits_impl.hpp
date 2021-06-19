@@ -1348,6 +1348,12 @@ struct is_member_pointer {
 template <class Ty>
 inline constexpr bool is_member_pointer_v = is_member_pointer<Ty>::value;
 
+template <class Base, class Derived>
+inline constexpr bool is_base_of_v = __is_base_of(Base, Derived);
+
+template <class Base, class Derived>
+struct is_base_of : bool_constant<is_base_of_v<Base, Derived> > {};
+
 template <class Ty>
 struct is_scalar {
   static constexpr bool value = is_arithmetic_v<Ty> || is_enum_v<Ty> ||

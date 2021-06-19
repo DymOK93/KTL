@@ -12,6 +12,86 @@ using std::min;
 #include <utility.hpp>
 
 namespace ktl {
+template <class LhsInputIt, class RhsInputIt>
+constexpr bool equal(LhsInputIt lhs_first,
+                     LhsInputIt lhs_last,
+                     RhsInputIt rhs_first) {
+  return equal(lhs_first, lhs_last, rhs_first, equal_to<>{});
+}
+
+template <class LhsInputIt, class RhsInputIt, class BinaryPredicate>
+constexpr bool equal(LhsInputIt lhs_first,
+                     LhsInputIt lhs_last,
+                     RhsInputIt rhs_first,
+                     BinaryPredicate pred) {
+  for (; lhs_first != lhs_last;
+       lhs_first = next(lhs_first), rhs_first = next(rhs_first)) {
+    if (!pred(*lhs_first, *rhs_first)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <class LhsInputIt, class RhsInputIt>
+constexpr bool equal(LhsInputIt lhs_first,
+                     LhsInputIt lhs_last,
+                     RhsInputIt rhs_first,
+                     RhsInputIt rhs_last) {
+  return equal(lhs_first, lhs_last, rhs_first, rhs_last, equal_to<>{});
+}
+
+namespace algo::details {
+template <class LhsRandomAccessIt,
+          class RhsRandomAccessIt,
+          class BinaryPredicate>
+constexpr bool equal_impl(LhsRandomAccessIt lhs_first,
+                          LhsRandomAccessIt lhs_last,
+                          RhsRandomAccessIt rhs_first,
+                          RhsRandomAccessIt rhs_last,
+                          BinaryPredicate pred,
+                          true_type) {
+  const auto lhs_length{static_cast<size_t>(lhs_last - lhs_first)},
+      rhs_length{static_cast<size_t>(rhs_last - rhs_first)};
+  if (lhs_length != rhs_length) {
+    return false;
+  }
+  return equal(lhs_first, lhs_last, rhs_first, pred);
+}
+
+template <class LhsInputIt, class RhsInputIt, class BinaryPredicate>
+constexpr bool equal_impl(LhsInputIt lhs_first,
+                          LhsInputIt lhs_last,
+                          RhsInputIt rhs_first,
+                          RhsInputIt rhs_last,
+                          BinaryPredicate pred,
+                          false_type) {
+  for (; lhs_first != lhs_last && rhs_first != rhs_last;
+       lhs_first = next(lhs_first), rhs_first = next(rhs_first)) {
+    if (!pred(*lhs_first, *rhs_first)) {
+      return false;
+    }
+  }
+  return true;
+}
+}  // namespace algo::details
+
+template <class LhsInputIt, class RhsInputIt, class BinaryPredicate>
+constexpr bool equal(LhsInputIt lhs_first,
+                     LhsInputIt lhs_last,
+                     RhsInputIt rhs_first,
+                     RhsInputIt rhs_last,
+                     BinaryPredicate pred) {
+  constexpr bool random_access_iters{
+      is_base_of_v<typename iterator_traits<LhsInputIt>::iterator_category,
+                   random_access_iterator_tag> &&
+      is_base_of_v<typename iterator_traits<RhsInputIt>::iterator_category,
+                   random_access_iterator_tag>};
+
+  return algo::details::equal_impl(lhs_first, lhs_last, rhs_first, rhs_last,
+                                   pred, bool_constant<random_access_iters>{});
+}
+
 template <class InputIt, class Ty>
 constexpr InputIt find(InputIt first, InputIt last, const Ty& value) {
   for (; first != last; first = next(first)) {
@@ -133,7 +213,7 @@ OutputIt move(InputIt first, InputIt last, OutputIt d_first) {
 namespace algo::details {
 template <class ForwardIt, class Ty>
 struct Filler {
-  ForwardIt
+  void
   operator()(ForwardIt first, ForwardIt last, const Ty& value) const noexcept(
       is_nothrow_assignable_v<typename iterator_traits<ForwardIt>::value_type,
                               Ty>) {
@@ -145,25 +225,22 @@ struct Filler {
 
 template <>
 struct Filler<char*, char> {
-  char* operator()(char* first, char* last, char value) const noexcept {
-    return static_cast<char*>(
-        memset(first, value, static_cast<size_t>(last - first)));
+  void operator()(char* first, char* last, char value) const noexcept {
+    memset(first, value, static_cast<size_t>(last - first));
   }
 };
 
 template <>
 struct Filler<wchar_t*, wchar_t> {
-  wchar_t* operator()(wchar_t* first,
-                      wchar_t* last,
-                      wchar_t value) const noexcept {
-    return wmemset(first, value, static_cast<size_t>(last - first));
+  void operator()(wchar_t* first, wchar_t* last, wchar_t value) const noexcept {
+    wmemset(first, value, static_cast<size_t>(last - first));
   }
 };
 }  // namespace algo::details
 
 template <class ForwardIt, class Ty>
 void fill(ForwardIt first, ForwardIt last, const Ty& value) {
-  return algo::details::Filler<ForwardIt, Ty>{}(first, last, value);
+  algo::details::Filler<ForwardIt, Ty>{}(first, last, value);
 }
 
 namespace algo::details {

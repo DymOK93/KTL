@@ -73,11 +73,9 @@ class vector {
 
  private:
   template <class InputIt>
-  using forward_or_greater_t = bool_constant<
-      is_same_v<typename iterator_traits<InputIt>::iterator_category,
-                forward_iterator_tag> ||
-      is_same_v<typename iterator_traits<InputIt>::iterator_category,
-                random_access_iterator_tag> >;
+  using forward_or_greater_t =
+      is_base_of<typename iterator_traits<InputIt>::iterator_category,
+                 forward_iterator_tag>;
 
  private:
   static constexpr size_type MIN_CAPACITY{1}, GROWTH_MULTIPLIER{2};
@@ -123,8 +121,8 @@ class vector {
           Alloc{}) noexcept(is_nothrow_constructible_v<allocator_type, Alloc>&&
                                 is_nothrow_default_constructible_v<Ty>)
       : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
-    grow(object_count, make_construct_fill_helper(0), make_dummy_transfer(),
-         value, object_count);
+    grow<true>(object_count, make_construct_fill_helper(0),
+               make_dummy_transfer(), value, object_count);
   }
 
   template <class InputIt,
@@ -198,8 +196,8 @@ class vector {
 
   void assign(size_type count, const Ty& value) {
     if (count > capacity()) {
-      grow(count, make_construct_fill_helper(0), make_dummy_transfer(), value,
-           count);
+      grow<true>(count, make_construct_fill_helper(0), make_dummy_transfer(),
+                 value, count);
     } else {
       auto last{fill(data(), data() + count, value)};
       destroy(last, data() + size());
@@ -298,10 +296,33 @@ class vector {
     return emplace(pos, move(value));
   }
 
-  iterator insert(const_iterator pos, size_type count, const Ty& value);
+  iterator insert(const_iterator pos, size_type count, const Ty& value) {
+    if (pos == end()) {
+      return append_n(count, value);
+    }
 
-  template <class InputIt>
-  iterator insert(const_iterator pos, InputIt first, InputIt last);
+    const size_type current_size{size()};
+    const auto offset{static_cast<size_t>(pos - begin())};
+
+    if (current_size + count > capacity()) {
+      grow<true>(count, make_construct_fill_helper(offset),
+                 make_transfer_with_shift_right({offset, offset + count}),
+                 value, count);
+    } else {
+      Ty tmp{value};  // It's required to construct value to avoid moved-from
+                      // state aster shift
+      auto first{data() + offset};
+      make_transfer_without_shift()(data() + current_size,
+                                    current_size - offset, first);
+      get_size() += count;
+      fill(first, first + count, tmp);
+    }
+    return begin() + offset;
+  }
+
+  // TODO: SFINAE
+  // template <class InputIt>
+  // iterator insert(const_iterator pos, InputIt first, InputIt last);
 
   template <class... Types>
   iterator emplace(const_iterator pos, Types&&... args) {
@@ -372,9 +393,9 @@ class vector {
   void resize(size_type count) {
     resize_impl(
         count, make_default_construct_helper(size()),
-        count - size());  // Беззнаковое переполнение разрешено Стандартом. Если
+        count - size());  // Unsigned underflow is allowed by C++ Standard. If
                           // count < size(), uninitialized_default_construct_n()
-                          // не будет вызвана
+                          // won't be called
   }
 
   void resize(size_type count, const Ty& value) {
@@ -487,8 +508,23 @@ class vector {
     }
   }
 
+  iterator append_n(size_type count, const Ty& value) {
+    const size_type current_size{size()};
+    if (current_size + count > capacity()) {
+      grow<true>(count, make_construct_fill_helper(current_size),
+                 make_transfer_without_shift(), value, count);
+    } else {
+      make_construct_fill_helper(current_size)(data() + current_size, value,
+                                               count);
+      get_size() += count;
+    }
+    return begin() + current_size;
+  }
+
   iterator erase_impl(const_iterator pos, size_type count) {
     auto range_begin{begin()};
+    assert_with_msg(pos >= range_begin && pos + count <= end(),
+                    L"iterator does not belong to the vector");
     const auto offset{pos - range_begin};
     shift_left(range_begin + offset, end(), count);
     get_size() -= count;
@@ -658,6 +694,7 @@ class vector {
   static constexpr auto make_construct_fill_helper(size_type pos) {
     return [pos](value_type* buffer, const Ty& value, size_t count) {
       uninitialized_fill_n(buffer + pos, count, value);
+      return count;
     };
   }
 
@@ -756,15 +793,7 @@ void swap(vector<Ty, Allocator>& lhs,
 template <class Ty, class Allocator>
 bool operator==(const vector<Ty, Allocator>& lhs,
                 const vector<Ty, Allocator>& rhs) {
-  if (lhs.size() != rhs.size()) {
-    return false;
-  }
-  for (size_t idx = 0; idx < lhs.size(); ++idx) {
-    if (!(lhs[idx] == rhs[idx])) {
-      return false;
-    }
-  }
-  return true;
+  return lhs.size() == rhs.size() && equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
 template <class Ty, class Allocator>
