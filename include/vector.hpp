@@ -304,16 +304,17 @@ class vector {
     const size_type current_size{size()};
     const auto offset{static_cast<size_t>(pos - begin())};
 
-    if (current_size + count > capacity()) {
-      grow<true>(count, make_construct_fill_helper(offset),
-                 make_transfer_with_shift_right({offset, offset + count}),
-                 value, count);
+    if (const size_type required = current_size + count;
+        required > capacity()) {
+      grow<true>(
+          calc_optimal_growth(required), make_construct_fill_helper(offset),
+          make_transfer_with_shift_right(offset, offset + count), value, count);
     } else {
       Ty tmp{value};  // It's required to construct value to avoid moved-from
                       // state aster shift
-      auto first{data() + offset};
-      make_transfer_without_shift()(data() + current_size,
-                                    current_size - offset, first);
+      auto* first{data() + offset};
+      make_transfer_without_shift()(first + count, current_size - offset,
+                                    first);
       get_size() += count;
       fill(first, first + count, tmp);
     }
@@ -332,14 +333,12 @@ class vector {
     }
 
     const size_type current_size{size()};
-    const auto offset{pos - begin()};
+    const auto offset{static_cast<size_type>(pos - begin())};
 
     if (current_size == capacity()) {
-      grow<true>(
-          calc_growth(), make_construct_at_helper(offset),
-          make_transfer_with_shift_right({static_cast<size_type>(offset),
-                                          static_cast<size_type>(offset + 1)}),
-          forward<Types>(args)...);
+      grow<true>(calc_growth(), make_construct_at_helper(offset),
+                 make_transfer_with_shift_right(offset, offset + 1),
+                 forward<Types>(args)...);
     } else {
       Ty tmp{forward<Types>(args)...};
       value_type* buffer{data()};
@@ -510,8 +509,10 @@ class vector {
 
   iterator append_n(size_type count, const Ty& value) {
     const size_type current_size{size()};
-    if (current_size + count > capacity()) {
-      grow<true>(count, make_construct_fill_helper(current_size),
+    if (const size_type required = current_size + count;
+        required > capacity()) {
+      grow<true>(calc_optimal_growth(required),
+                 make_construct_fill_helper(current_size),
                  make_transfer_without_shift(), value, count);
     } else {
       make_construct_fill_helper(current_size)(data() + current_size, value,
@@ -740,12 +741,13 @@ class vector {
   }
 
   static constexpr auto make_transfer_with_shift_right(
-      pair<size_type, size_type> bounds) noexcept {
-    return [bounds](value_type* dst, size_type count, const value_type* src) {
-      const auto [unshifted, tail_first]{bounds};
-      make_transfer_without_shift()(dst, unshifted, src);
-      make_transfer_without_shift()(dst + tail_first + (tail_first - unshifted),
-                                    count - unshifted, src + unshifted);
+      size_type left_bound,
+      size_type right_bound) noexcept {
+    return [left_bound, right_bound](value_type* dst, size_type count,
+                                     const value_type* src) {
+      make_transfer_without_shift()(dst, left_bound, src);
+      make_transfer_without_shift()(dst + right_bound, count - left_bound,
+                                    src + left_bound);
     };
   }
 
