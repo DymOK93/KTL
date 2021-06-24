@@ -216,7 +216,7 @@ struct add_reference {
 
 template <class Ty>
 struct add_reference<Ty,
-                     void_t<Ty&> > {  //Для типов, на которые допустимы ссылки
+                     void_t<Ty&>> {  //Для типов, на которые допустимы ссылки
   using lvalue = Ty&;
   using rvalue = Ty&&;
 };
@@ -273,7 +273,7 @@ using remove_volatile_t = typename remove_volatile<Ty>::type;
 
 template <class Ty>
 struct remove_cv {
-  using type = remove_volatile_t<remove_const_t<Ty> >;
+  using type = remove_volatile_t<remove_const_t<Ty>>;
 };
 
 template <class Ty>
@@ -366,7 +366,7 @@ struct is_convertible : false_type {};
 template <class From, class To>
 struct is_convertible<From,
                       To,
-                      void_t<decltype(static_cast<To>(declval<From>()))> >
+                      void_t<decltype(static_cast<To>(declval<From>()))>>
     : true_type {};
 
 template <class From, class To>
@@ -439,7 +439,7 @@ inline constexpr bool is_nothrow_default_constructible_v =
 template <class Ty>
 struct is_copy_constructible {
   static constexpr bool value =
-      is_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty> > >;
+      is_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty>>>;
 };
 
 template <class Ty>
@@ -449,7 +449,7 @@ inline constexpr bool is_copy_constructible_v =
 template <class Ty>
 struct is_move_constructible {
   static constexpr bool value =
-      is_constructible_v<Ty, add_rvalue_reference_t<Ty> >;
+      is_constructible_v<Ty, add_rvalue_reference_t<Ty>>;
 };
 
 template <class Ty>
@@ -469,8 +469,8 @@ inline constexpr bool is_nothrow_constructible_v =
 template <class Ty>
 struct is_nothrow_copy_constructible {
   static constexpr bool value =
-      is_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty> > >&& noexcept(
-          Ty(declval<add_const_t<add_lvalue_reference_t<Ty> > >()));
+      is_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty>>>&& noexcept(
+          Ty(declval<add_const_t<add_lvalue_reference_t<Ty>>>()));
 };
 
 template <class Ty>
@@ -480,8 +480,8 @@ inline constexpr bool is_nothrow_copy_constructible_v =
 template <class Ty>
 struct is_nothrow_move_constructible {
   static constexpr bool value =
-      is_constructible_v<Ty, add_rvalue_reference_t<Ty> >&& noexcept(
-          Ty(declval<add_rvalue_reference_t<Ty> >()));
+      is_constructible_v<Ty, add_rvalue_reference_t<Ty>>&& noexcept(
+          Ty(declval<add_rvalue_reference_t<Ty>>()));
   ;
 };
 
@@ -496,7 +496,7 @@ template <class To, class From>
 struct is_assignable<
     To,
     From,
-    void_t<decltype(declval<add_lvalue_reference_t<To> >() = declval<From>())> >
+    void_t<decltype(declval<add_lvalue_reference_t<To>>() = declval<From>())>>
     : true_type {};
 
 template <class To, class From>
@@ -505,7 +505,7 @@ inline constexpr bool is_assignable_v = is_assignable<To, From>::value;
 template <class Ty>
 struct is_copy_assignable {
   static constexpr bool value =
-      is_assignable_v<Ty, add_const_t<add_lvalue_reference_t<Ty> > >;
+      is_assignable_v<Ty, add_const_t<add_lvalue_reference_t<Ty>>>;
 };
 
 template <class Ty>
@@ -513,8 +513,7 @@ inline constexpr bool is_copy_assignable_v = is_copy_assignable<Ty>::value;
 
 template <class Ty>
 struct is_move_assignable {
-  static constexpr bool value =
-      is_assignable_v<Ty, add_rvalue_reference_t<Ty> >;
+  static constexpr bool value = is_assignable_v<Ty, add_rvalue_reference_t<Ty>>;
 };
 
 template <class Ty>
@@ -523,7 +522,7 @@ inline constexpr bool is_move_assignable_v = is_move_assignable<Ty>::value;
 template <class To, class From>
 struct is_nothrow_assignable {
   static constexpr bool value = is_assignable_v<To, From>&& noexcept(
-      declval<add_lvalue_reference_t<To> >() = declval<From>());
+      declval<add_lvalue_reference_t<To>>() = declval<From>());
 };
 
 template <class To, class From>
@@ -533,8 +532,8 @@ inline constexpr bool is_nothrow_assignable_v =
 template <class Ty>
 struct is_nothrow_copy_assignable {
   static constexpr bool value = is_copy_assignable_v<Ty>&& noexcept(
-      declval<add_lvalue_reference_t<Ty> >() =
-          declval<add_const_t<add_lvalue_reference_t<Ty> > >());
+      declval<add_lvalue_reference_t<Ty>>() =
+          declval<add_const_t<add_lvalue_reference_t<Ty>>>());
 };
 
 template <class Ty>
@@ -544,8 +543,8 @@ inline constexpr bool is_nothrow_copy_assignable_v =
 template <class Ty>
 struct is_nothrow_move_assignable {
   static constexpr bool value = is_move_assignable_v<Ty>&& noexcept(
-      declval<add_lvalue_reference_t<Ty> >() =
-          declval<add_rvalue_reference_t<Ty> >());
+      declval<add_lvalue_reference_t<Ty>>() =
+          declval<add_rvalue_reference_t<Ty>>());
 };
 
 template <class Ty>
@@ -674,7 +673,7 @@ template <class Ty>
 inline constexpr bool is_array_v<Ty[]> = true;
 
 template <class Ty>
-struct is_array : bool_constant<is_array_v<Ty> > {};
+struct is_array : bool_constant<is_array_v<Ty>> {};
 
 template <class Ty>
 struct is_function {
@@ -823,7 +822,7 @@ template <class Ty>
 inline constexpr bool is_enum_v = is_enum<Ty>::value;
 
 namespace tt::details {
-template <class Ty, bool = is_enum_v<Ty> >
+template <class Ty, bool = is_enum_v<Ty>>
 struct underlying_type_impl {
   using type = __underlying_type(Ty);
 };
@@ -882,10 +881,10 @@ struct decay {
 
  public:
   using type = conditional_t<is_array_v<unref_t>,
-                             add_pointer_t<remove_extent_t<unref_t> >,
+                             add_pointer_t<remove_extent_t<unref_t>>,
                              conditional_t<is_function_v<unref_t>,
                                            add_pointer_t<unref_t>,
-                                           remove_cv_t<unref_t> > >;
+                                           remove_cv_t<unref_t>>>;
 };
 
 template <class Ty>
@@ -975,7 +974,7 @@ struct is_member_object_pointer_impl<Ty ClassTy::*const volatile> {
 template <class Ty>
 struct is_member_object_pointer {
   static constexpr bool value =
-      tt::details::is_member_object_pointer_impl<remove_cv_t<Ty> >::value;
+      tt::details::is_member_object_pointer_impl<remove_cv_t<Ty>>::value;
 };
 
 template <class Ty>
@@ -1352,7 +1351,7 @@ template <class Base, class Derived>
 inline constexpr bool is_base_of_v = __is_base_of(Base, Derived);
 
 template <class Base, class Derived>
-struct is_base_of : bool_constant<is_base_of_v<Base, Derived> > {};
+struct is_base_of : bool_constant<is_base_of_v<Base, Derived>> {};
 
 template <class Ty>
 struct is_scalar {
@@ -1383,5 +1382,24 @@ struct conjunction<Head, Tail...>
 
 template <class... Traits>
 inline constexpr bool conjunction_v = conjunction<Traits...>::value;
+
+template <class Trait>
+inline constexpr bool negation_v = !Trait::value;
+
+template <class Trait>
+struct negation : bool_constant<negation_v<Trait>> {};
+
+#define DEFINE_GET_NESTED_TYPE(NestedType)                       \
+  template <class Ty, class = void>                              \
+  struct get_##NestedType {};                                    \
+                                                                 \
+  template <class Ty>                                            \
+  struct get_##NestedType<Ty, void_t<typename Ty::NestedType>> { \
+    using type = typename Ty::NestedType;                        \
+  };                                                             \
+                                                                 \
+  template <class Ty>                                            \
+  using get_##NestedType##_t = typename get_##NestedType<Ty>::type;
+
 }  // namespace ktl
 #endif

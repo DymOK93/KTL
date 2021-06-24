@@ -321,9 +321,18 @@ class vector {
     return begin() + offset;
   }
 
-  // TODO: SFINAE
-  // template <class InputIt>
-  // iterator insert(const_iterator pos, InputIt first, InputIt last);
+  template <
+      class InputIt,
+      enable_if_t<
+          is_base_of_v<input_iterator_tag,
+                       typename iterator_traits<InputIt>::iterator_category>,
+          int> = 0>
+  iterator insert(const_iterator pos, InputIt first, InputIt last) {
+    return insert_range(
+        pos, first, last,
+        is_base_of<forward_iterator_tag,
+                   typename iterator_traits<InputIt>::iterator_category>{});
+  }
 
   template <class... Types>
   iterator emplace(const_iterator pos, Types&&... args) {
@@ -522,14 +531,37 @@ class vector {
     return begin() + current_size;
   }
 
+  template <class InputIt>
+  iterator insert_range(const_iterator pos,
+                        InputIt first,
+                        InputIt last,
+                        false_type) {
+    for (; first; first != last) {
+      emplace_back(*first);
+    }
+    auto sequence_begin{begin()};
+    const auto offset{static_cast<size_type>(pos - sequence_begin)};
+    assert(false);  // TODO: rotate
+    return sequence_begin + offset;
+  }
+
+  template <class ForwardIt>
+  iterator insert_range(const_iterator pos,
+                        ForwardIt first,
+                        ForwardIt last,
+                        true_type) {
+    const auto range_length{distance(first, last)};
+    const size_type current_size{};
+  }
+
   iterator erase_impl(const_iterator pos, size_type count) {
-    auto range_begin{begin()};
-    assert_with_msg(pos >= range_begin && pos + count <= end(),
+    auto sequence_begin{begin()};
+    assert_with_msg(pos >= sequence_begin && pos + count <= end(),
                     L"iterator does not belong to the vector");
-    const auto offset{pos - range_begin};
-    shift_left(range_begin + offset, end(), count);
+    const auto offset{pos - sequence_begin};
+    shift_left(data() + offset, end(), count);
     get_size() -= count;
-    return range_begin + offset;
+    return sequence_begin + offset;
   }
 
   template <class ConstructionPolicy, class... Types>

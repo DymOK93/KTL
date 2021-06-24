@@ -8,6 +8,7 @@ using std::min;
 }  // namespace ktl
 #else
 #include <algorithm_impl.hpp>
+#include <memory_type_traits.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
@@ -212,7 +213,7 @@ OutputIt move(InputIt first, InputIt last, OutputIt d_first) {
 
 namespace algo::details {
 template <class ForwardIt, class Ty>
-struct Filler {
+struct FillerBase {
   void
   operator()(ForwardIt first, ForwardIt last, const Ty& value) const noexcept(
       is_nothrow_assignable_v<typename iterator_traits<ForwardIt>::value_type,
@@ -223,10 +224,38 @@ struct Filler {
   }
 };
 
-template <>
-struct Filler<char*, char> {
-  void operator()(char* first, char* last, char value) const noexcept {
-    memset(first, value, static_cast<size_t>(last - first));
+template <class ForwardIt, class Ty, bool = mm::details::memset_is_safe_v<Ty> >
+struct Filler : FillerBase<ForwardIt, Ty> {
+  using MyBase = FillerBase<ForwardIt, Ty>;
+
+  using MyBase::operator();
+};
+
+template <class Ty>
+class Filler<Ty*, Ty, true> {
+ public:
+  void operator()(Ty* first, Ty* last, Ty value) const noexcept {
+    memset(first, value, static_cast<size_t>(last - first) * sizeof(Ty));
+  }
+};
+
+template <class Ty>
+struct Filler<Ty*, Ty, false> : FillerBase<Ty*, Ty> {
+  using MyBase = FillerBase<Ty*, Ty>;
+
+  void operator()(Ty* first, Ty* last, const Ty& value) const
+      noexcept(is_nothrow_assignable_v<Ty, Ty>) {
+    if constexpr (!is_scalar_v<Ty> || is_member_pointer_v<Ty> ||
+                  is_volatile_v<remove_reference_t<
+                      typename iterator_traits<Ty*>::reference> >) {
+      MyBase::operator()(first, last, value);
+    } else {
+      if (value != static_cast<Ty>(0)) {
+        MyBase::operator()(first, last, value);
+      } else {
+        memset(first, 0, static_cast<size_t>(last - first) * sizeof(Ty));
+      }
+    }
   }
 };
 

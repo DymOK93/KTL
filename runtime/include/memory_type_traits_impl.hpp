@@ -312,5 +312,4 @@ struct memset_is_safe<unsigned char> : true_type {};
 
 template <class Ty>
 inline constexpr bool memset_is_safe_v = memset_is_safe<Ty>::value;
-
 }  // namespace ktl::mm::details

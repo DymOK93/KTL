@@ -24,60 +24,27 @@ struct forward_iterator_tag : output_iterator_tag {};
 struct bidirectional_iterator_tag : forward_iterator_tag {};
 struct random_access_iterator_tag : bidirectional_iterator_tag {};
 
-namespace it::details {
 template <class It, class = void>
-struct get_reference_type {
-  using type = decltype(*declval<It>());
-};
+struct iterator_traits {};
 
 template <class It>
-struct get_reference_type<It, void_t<typename It::value_type> > {
-  using type = typename It::reference;
-};
-
-template <class It>
-using get_reference_type_t = typename get_reference_type<It>::type;
-
-template <class It, class = void>
-struct get_value_type {
-  using type = remove_reference_t<get_reference_type_t<It> >;
-};
-
-template <class It>
-struct get_value_type<It, void_t<typename It::value_type> > {
-  using type = typename It::value_type;
-};
-
-template <class It>
-using get_value_type_t = typename get_value_type<It>::type;
-
-template <class It, class = void>
-struct get_pointer_type {
-  using type = add_pointer_t<get_value_type_t<It> >;
-};
-
-template <class It>
-struct get_pointer_type<It, void_t<typename It::value_type> > {
-  using type = typename It::pointer;
-};
-
-template <class It>
-using get_pointer_type_t = typename get_pointer_type<It>::type;
-}  // namespace it::details
-
-template <class It>
-struct iterator_traits {
-  using difference_type = mm::details::get_difference_type_t<It>;
-  using value_type = it::details::get_value_type_t<It>;
-  using pointer = it::details::get_pointer_type_t<It>;
-  using reference = it::details::get_reference_type_t<It>;
-  using iterator_category = typename It::iterator_category;
+struct iterator_traits<It,
+                       void_t<typename It::iterator_category,
+                              typename It::value_type,
+                              typename It::difference_type,
+                              typename It::pointer,
+                              typename It::reference> > {
+  using difference_type = typename It::difference_type;
+  using value_type = typename It::value_type;
+  using pointer = typename It::pointer;
+  using reference = typename It::reference;
+  using iterator_category = It::iterator_category;
   static constexpr bool is_raw_pointer = false;
   static constexpr bool is_fancy_pointer = true;
 };
 
 namespace it::details {
-template <class Ty>
+template <class Ty, enable_if_t<is_object_v<Ty>, int> = 0>
 struct pointer_traits {
   using difference_type = ptrdiff_t;
   using value_type = Ty;
