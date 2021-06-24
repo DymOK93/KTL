@@ -13,6 +13,11 @@ using std::min;
 #include <utility.hpp>
 
 namespace ktl {
+template <class LhsForwardIt, class RhsForwardIt>
+constexpr void iter_swap(LhsForwardIt lhs, RhsForwardIt rhs) {
+  swap(*lhs, *rhs);
+}
+
 template <class LhsInputIt, class RhsInputIt>
 constexpr bool equal(LhsInputIt lhs_first,
                      LhsInputIt lhs_last,
@@ -435,7 +440,115 @@ bool lexicographical_compare(LhsInputIt lhs_first,
       lhs_first, lhs_last, rhs_first, rhs_last, comp);
 }
 
+namespace algo::details {
+template <class BidirectionalIt>
+void reverse_impl(BidirectionalIt first,
+                  BidirectionalIt last,
+                  random_access_iterator_tag) {
+  if (first != last) {
+    for (last = prev(last); first < last;
+         first = next(first), last = prev(last)) {
+      iter_swap(first++, last);
+    }
+  }
+}
+
+template <class BidirectionalIt>
+void reverse_impl(BidirectionalIt first,
+                  BidirectionalIt last,
+                  bidirectional_iterator_tag) {
+  while (first != last) {
+    auto prev_last{prev(last)};
+    if (first == prev_last) {
+      break;
+    }
+    iter_swap(first++, last);
+    first = next(first);
+  }
+}
+}  // namespace algo::details
+
+template <class BidirectionalIt>
+void reverse(BidirectionalIt first, BidirectionalIt last) {
+  algo::details::reverse_impl(
+      first, last,
+      typename iterator_traits<BidirectionalIt>::iterator_category{});
+}
+
+namespace algo::details {
+template <class RandomAccessIt>
+RandomAccessIt rotate_impl(RandomAccessIt first,
+                           RandomAccessIt new_first,
+                           RandomAccessIt last,
+                           random_access_iterator_tag) {
+  reverse(first, new_first);
+  reverse(new_first, last);
+  reverse(first, last);
+  advance(first, first + (last - new_first));
+  return first;
+}
+
+template <class BidirectionalIt>
+BidirectionalIt rotate_impl(BidirectionalIt first,
+                            BidirectionalIt new_first,
+                            BidirectionalIt last,
+                            bidirectional_iterator_tag) {
+  reverse(first, new_first);
+  reverse(new_first, last);
+
+  for (; first != new_first && last != new_first; first = next(first)) {
+    last = prev(last);
+    iter_swap(first, last);
+  }
+
+  reverse(first, last);
+
+  return first;
+}
+
 template <class ForwardIt>
-ForwardIt rotate(ForwardIt first, ForwardIt n_first, ForwardIt last);
+ForwardIt rotate_impl(ForwardIt first,
+                      ForwardIt new_first,
+                      ForwardIt last,
+                      forward_iterator_tag) {
+  auto current{new_first};
+
+  do {
+    iter_swap(first, current);
+    first = next(first);
+    current = next(current);
+    if (first == new_first) {
+      new_first = current;
+    }
+  } while (current != last);
+
+  while (new_first != last) {
+    current = new_first;
+    do {
+      iter_swap(first, current);
+      first = next(first);
+      current = next(current);
+      if (first == new_first) {
+        new_first = current;
+      }
+    } while (current != last);
+  }
+
+  return first;
+}
+}  // namespace algo::details
+
+template <class ForwardIt>
+ForwardIt rotate(ForwardIt first, ForwardIt new_first, ForwardIt last) {
+  if (first == new_first) {
+    return new_first;
+  }
+  if (new_first == last) {
+    return first;
+  }
+  return algo::details::rotate_impl(
+      first, new_first, last,
+      typename iterator_traits<ForwardIt>::iterator_category{});
+}
 }  // namespace ktl
 #endif
