@@ -128,13 +128,13 @@ class vector {
   template <class InputIt,
             class Alloc = allocator_type,
             enable_if_t<is_constructible_v<allocator_type, Alloc> &&
-                            is_constructible_v<
-                                value_type,
-                                typename iterator_traits<InputIt>::reference>,
+                            is_base_of_v<input_iterator_tag,
+                                         typename iterator_traits<
+                                             InputIt>::iterator_category>,
                         int> = 0>
   vector(InputIt first, InputIt last, Alloc&& alloc = Alloc{})
       : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
-    assign_range_impl<true>(first, last, forward_or_greater_t<InputIt>{});
+    construct_from_range(first, last, forward_or_greater_t<InputIt>{});
   }
 
   vector(const vector& other)
@@ -205,9 +205,14 @@ class vector {
     }
   }
 
-  template <class InputIt>
+  template <
+      class InputIt,
+      enable_if_t<
+          is_base_of_v<input_iterator_tag,
+                       typename iterator_traits<InputIt>::iterator_category>,
+          int> = 0>
   void assign(InputIt first, InputIt last) {
-    assign_range_impl<true>(first, last, forward_or_greater_t<InputIt>{});
+    assign_range<true>(first, last, forward_or_greater_t<InputIt>{});
   }
 
   const allocator_type& get_allocator() const noexcept { return get_alloc(); }
@@ -353,8 +358,8 @@ class vector {
       value_type* buffer{data()};
       make_construct_at_helper(current_size)(buffer, move_if_noexcept(back()));
       ++get_size();
-      shift_right(begin() + offset, prev(end()), 1);
-      make_construct_at_helper(offset)(buffer, move(tmp));
+      shift_right(buffer + offset, buffer + current_size, 1);
+      buffer[offset] = move(tmp);
     }
     return begin() + offset;
   }
@@ -364,15 +369,17 @@ class vector {
     if (pos == range_end) {
       return range_end;
     }
-    return erase_impl(pos, 1);
+    return erase_impl(pos - begin(), 1);
   }
 
   iterator erase(const_iterator first, const_iterator last) {
-    const auto count{static_cast<size_type>(last - first)};
+    auto my_first{begin()};
+    const auto offset{static_cast<size_type>(first - my_first)},
+        count{static_cast<size_type>(last - first)};
     if (first == last) {
-      return begin() + count;
+      return my_first + offset;
     }
-    return erase_impl(first, count);
+    return erase_impl(offset, count);
   }
 
   void push_back(const Ty& value) { emplace_back(value); }
@@ -426,15 +433,41 @@ class vector {
     deallocate_buffer(get_alloc(), data(), capacity());
   }
 
-  template <bool VerifyRangeLength, class InputIt>
-  void assign_range_impl(InputIt first, InputIt last, false_type) {
+  template <class InputIt>
+  void construct_from_range(InputIt first, InputIt last, false_type) {
     for (; first != last; first = next(first)) {
-      push_back(*first);
+      emplace_back(*first);
+    }
+  }
+
+  template <class ForwardIt>
+  void construct_from_range(ForwardIt first, ForwardIt last, true_type) {
+    const auto range_length{static_cast<size_type>(distance(first, last))};
+    grow_with_optional_check_and_adjust_resize<true>(
+        range_length, make_range_construct_helper(0), make_dummy_transfer(),
+        first, range_length);
+  }
+
+  template <bool VerifyRangeLength, class InputIt>
+  void assign_range(InputIt first, InputIt last, false_type) {
+    const size_type current_size{size()};
+    size_type idx{0};
+
+    for (value_type* buffer = data(); idx < current_size && first != last;
+         first = next(first), ++idx) {
+      *buffer++ = *first;
+    }
+    if (idx == current_size) {
+      construct_from_range(first, last, false_type{});
+    } else {
+      const size_type extra_elements{current_size - idx};
+      destroy_n(begin() + idx, extra_elements);
+      get_size() -= extra_elements;
     }
   }
 
   template <bool VerifyRangeLength, class ForwardIt>
-  void assign_range_impl(ForwardIt first, ForwardIt last, true_type) {
+  void assign_range(ForwardIt first, ForwardIt last, true_type) {
     const size_type current_size{size()},
         range_length{static_cast<size_type>(distance(first, last))};
     if (range_length > capacity()) {
@@ -480,7 +513,7 @@ class vector {
   }
 
   void copy_assignment_impl(const vector& other, false_type) {
-    assign_range_impl<false>(other.begin(), other.end(), true_type{});
+    assign_range<false>(other.begin(), other.end(), true_type{});
   }
 
   void move_assignment_impl(vector&& other, true_type) {
@@ -536,13 +569,15 @@ class vector {
                         InputIt first,
                         InputIt last,
                         false_type) {
-    for (; first; first != last) {
+    size_type count{0};
+    for (; first != last; first = next(first), ++count) {
       emplace_back(*first);
     }
-    auto sequence_begin{begin()};
-    const auto offset{static_cast<size_type>(pos - sequence_begin)};
-    assert(false);  // TODO: rotate
-    return sequence_begin + offset;
+    auto my_first{begin()};
+    const auto offset{static_cast<size_type>(pos - my_first)};
+    auto* buffer{data()};
+    rotate(buffer + offset, buffer + offset + count, buffer + size());
+    return my_first + offset;
   }
 
   template <class ForwardIt>
@@ -551,17 +586,70 @@ class vector {
                         ForwardIt last,
                         true_type) {
     const auto range_length{distance(first, last)};
-    const size_type current_size{};
+    const size_type current_size{size()};
+    const auto offset{static_cast<size_type>(pos - begin())};
+
+    if (const size_type required = current_size + range_length;
+        required > capacity()) {
+      grow<true>(calc_optimal_growth(required),
+                 make_range_construct_helper(offset),
+                 make_transfer_with_shift_right(offset, offset + range_length),
+                 first, range_length);
+    } else {
+      if (pos == end()) {
+        append_range_without_grow(first, range_length);
+      } else {
+        insert_range_without_grow(first, range_length, offset);
+      }
+    }
+    return begin() + current_size;
   }
 
-  iterator erase_impl(const_iterator pos, size_type count) {
-    auto sequence_begin{begin()};
-    assert_with_msg(pos >= sequence_begin && pos + count <= end(),
-                    L"iterator does not belong to the vector");
-    const auto offset{pos - sequence_begin};
-    shift_left(data() + offset, end(), count);
+  template <class ForwardIt>
+  void append_range_without_grow(ForwardIt first, size_type range_length) {
+    const size_type current_size{size()};
+    assert(current_size + range_length <= capacity());
+    get_size() +=
+        make_range_construct_helper(current_size)(data(), first, range_length);
+  }
+
+  template <class ForwardIt>
+  void insert_range_without_grow(ForwardIt first,
+                                 size_type range_length,
+                                 size_type offset) {
+    const size_type current_size{size()}, residue{current_size - offset};
+    assert(current_size + range_length <= capacity());
+
+    value_type* buffer{data()};
+    value_type* subrange_first{buffer + offset};
+
+    if (range_length <= residue) {
+      const size_type unshifted{residue - range_length};
+      value_type* buffer_end{buffer + current_size};
+      make_transfer_without_shift()(buffer_end, range_length,
+                                    subrange_first + unshifted);
+      get_size() += range_length;
+      shift_right(subrange_first, buffer_end, range_length);
+      copy_n(first, range_length, subrange_first);
+    } else {
+      const size_type in_raw_memory{range_length - residue};
+      auto first_not_copied{first};
+      advance(first_not_copied, residue);
+      get_size() += make_range_construct_helper(current_size)(
+          buffer, first_not_copied, in_raw_memory);
+      value_type* buffer_end{buffer + size()};
+      make_transfer_without_shift()(buffer_end, residue, subrange_first);
+      get_size() += residue;
+      copy_n(first, residue, subrange_first);
+    }
+  }
+
+  iterator erase_impl(size_type offset, size_type count) {
+    assert_with_msg(offset < size(), L"iterator does not belong to the vector");
+    value_type* buffer{data()};
+    shift_left(buffer + offset, buffer + size(), count);
     get_size() -= count;
-    return sequence_begin + offset;
+    return begin() + offset;
   }
 
   template <class ConstructionPolicy, class... Types>

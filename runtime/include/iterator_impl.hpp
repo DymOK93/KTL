@@ -38,7 +38,7 @@ struct iterator_traits<It,
   using value_type = typename It::value_type;
   using pointer = typename It::pointer;
   using reference = typename It::reference;
-  using iterator_category = It::iterator_category;
+  using iterator_category = typename It::iterator_category;
   static constexpr bool is_raw_pointer = false;
   static constexpr bool is_fancy_pointer = true;
 };

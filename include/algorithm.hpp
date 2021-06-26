@@ -181,9 +181,14 @@ OutBidirectionalIt copy_backward(InBidirectionalIt first,
 
 namespace algo::details {
 template <class Ty>
+Ty* copy_n_impl(const Ty* first, size_t count, Ty* d_first, true_type) {
+  return static_cast<Ty*>(memmove(d_first, first, count * sizeof(Ty)));
+}
+
+template <class Ty>
 Ty* copy_impl(const Ty* first, const Ty* last, Ty* d_first, true_type) {
-  return static_cast<Ty*>(
-      memmove(d_first, first, static_cast<size_t>(last - first) * sizeof(Ty)));
+  return copy_n_impl(first, static_cast<size_t>(last - first), d_first,
+                     true_type{});
 }
 
 template <class InputIt, class OutputIt>
@@ -193,15 +198,30 @@ OutputIt copy_impl(InputIt first, InputIt last, OutputIt d_first, false_type) {
   }
   return d_first;
 }
+
+template <class InputIt, class SizeType, class OutputIt>
+OutputIt copy_n_impl(InputIt first,
+                     SizeType count,
+                     OutputIt d_first,
+                     false_type) {
+  for (auto idx = static_cast<SizeType>(0); idx != count;
+       first = next(first), d_first = next(d_first), ++idx) {
+    *d_first = *first;
+  }
+  return d_first;
+}
 }  // namespace algo::details
 
 template <class InputIt, class OutputIt>
 OutputIt copy(InputIt first, InputIt last, OutputIt d_first) {
-  using input_value_type = typename iterator_traits<InputIt>::value_type;
-  using output_value_type = typename iterator_traits<OutputIt>::value_type;
-
   return algo::details::copy_impl(first, last, d_first,
                                   is_memcpyable_range<InputIt, OutputIt>{});
+}
+
+template <class InputIt, class SizeType, class OutputIt>
+OutputIt copy_n(InputIt first, SizeType count, OutputIt d_first) {
+  return algo::details::copy_n_impl(first, count, d_first,
+                                    is_memcpyable_range<InputIt, OutputIt>{});
 }
 
 template <class InputIt, class OutputIt>
@@ -217,6 +237,17 @@ OutputIt move(InputIt first, InputIt last, OutputIt d_first) {
 }
 
 namespace algo::details {
+template <class Ty>
+inline constexpr bool memset_zeroying_is_safe_v =
+    is_scalar_v<Ty> && !is_member_pointer_v<Ty> && !is_volatile_v<Ty>;
+
+template <class Ty>
+bool all_bits_are_zeroes(const Ty& value) {
+  static_assert(is_scalar_v<Ty> && !is_member_pointer_v<Ty>);
+  constexpr Ty reference{};
+  return memcmp(addressof(value), addressof(reference), sizeof(Ty)) == 0;
+}
+
 template <class ForwardIt, class Ty>
 struct FillerBase {
   void
@@ -250,12 +281,10 @@ struct Filler<Ty*, Ty, false> : FillerBase<Ty*, Ty> {
 
   void operator()(Ty* first, Ty* last, const Ty& value) const
       noexcept(is_nothrow_assignable_v<Ty, Ty>) {
-    if constexpr (!is_scalar_v<Ty> || is_member_pointer_v<Ty> ||
-                  is_volatile_v<remove_reference_t<
-                      typename iterator_traits<Ty*>::reference> >) {
+    if constexpr (!memset_zeroying_is_safe_v<Ty>) {
       MyBase::operator()(first, last, value);
     } else {
-      if (value != static_cast<Ty>(0)) {
+      if (!all_bits_are_zeroes(value)) {
         MyBase::operator()(first, last, value);
       } else {
         memset(first, 0, static_cast<size_t>(last - first) * sizeof(Ty));
@@ -448,7 +477,7 @@ void reverse_impl(BidirectionalIt first,
   if (first != last) {
     for (last = prev(last); first < last;
          first = next(first), last = prev(last)) {
-      iter_swap(first++, last);
+      iter_swap(first, last);
     }
   }
 }
@@ -462,7 +491,7 @@ void reverse_impl(BidirectionalIt first,
     if (first == prev_last) {
       break;
     }
-    iter_swap(first++, last);
+    iter_swap(first, last);
     first = next(first);
   }
 }
@@ -477,22 +506,21 @@ void reverse(BidirectionalIt first, BidirectionalIt last) {
 
 namespace algo::details {
 template <class RandomAccessIt>
-RandomAccessIt rotate_impl(RandomAccessIt first,
-                           RandomAccessIt new_first,
-                           RandomAccessIt last,
-                           random_access_iterator_tag) {
+RandomAccessIt rotate_left_impl(RandomAccessIt first,
+                                RandomAccessIt new_first,
+                                RandomAccessIt last,
+                                random_access_iterator_tag) {
   reverse(first, new_first);
   reverse(new_first, last);
   reverse(first, last);
-  advance(first, first + (last - new_first));
-  return first;
+  return first + (last - new_first);
 }
 
 template <class BidirectionalIt>
-BidirectionalIt rotate_impl(BidirectionalIt first,
-                            BidirectionalIt new_first,
-                            BidirectionalIt last,
-                            bidirectional_iterator_tag) {
+BidirectionalIt rotate_left_impl(BidirectionalIt first,
+                                 BidirectionalIt new_first,
+                                 BidirectionalIt last,
+                                 bidirectional_iterator_tag) {
   reverse(first, new_first);
   reverse(new_first, last);
 
@@ -507,10 +535,10 @@ BidirectionalIt rotate_impl(BidirectionalIt first,
 }
 
 template <class ForwardIt>
-ForwardIt rotate_impl(ForwardIt first,
-                      ForwardIt new_first,
-                      ForwardIt last,
-                      forward_iterator_tag) {
+ForwardIt rotate_left_impl(ForwardIt first,
+                           ForwardIt new_first,
+                           ForwardIt last,
+                           forward_iterator_tag) {
   auto current{new_first};
 
   do {
@@ -536,19 +564,24 @@ ForwardIt rotate_impl(ForwardIt first,
 
   return first;
 }
-}  // namespace algo::details
 
 template <class ForwardIt>
-ForwardIt rotate(ForwardIt first, ForwardIt new_first, ForwardIt last) {
+ForwardIt rotate_left(ForwardIt first, ForwardIt new_first, ForwardIt last) {
   if (first == new_first) {
     return new_first;
   }
   if (new_first == last) {
     return first;
   }
-  return algo::details::rotate_impl(
+  return rotate_left_impl(
       first, new_first, last,
       typename iterator_traits<ForwardIt>::iterator_category{});
+}
+}  // namespace algo::details
+
+template <class ForwardIt>
+ForwardIt rotate(ForwardIt first, ForwardIt new_first, ForwardIt last) {
+  return algo::details::rotate_left(first, new_first, last);
 }
 }  // namespace ktl
 #endif
