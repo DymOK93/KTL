@@ -200,8 +200,8 @@ class uninitialized_backout_with_allocator
   template <class... Types>
   decltype(auto) emplace(Types&&... args) {
     auto& dst{this->m_dst_cur};
-    auto& place{allocator_traits_type::construct(addressof(*dst),
-                                                 forward<Types>(args)...)};
+    auto& place{*allocator_traits_type::construct(*m_alc, addressof(*dst),
+                                                  forward<Types>(args)...)};
     dst = next(dst);
     return place;
   }
@@ -308,20 +308,13 @@ NoThrowForwardIt uninitialized_move_n_impl(InputIt first,
   return uemph.release();
 }
 
-template <class Ty, class InputIt, class OutputIt, class Allocator>
-inline constexpr bool memcpy_or_memmove_is_safe =
-    (is_trivially_copyable_v<Ty>)&&(is_pointer_v<InputIt>)&&(
-        is_pointer_v<
-            OutputIt>)&&(is_same_v<remove_cv_t<typename iterator_traits<InputIt>::
-                                                   value_type>,
-                                   remove_cv_t<typename iterator_traits<
-                                       OutputIt>::value_type> >);
+template <class Ty, class InputIt, class OutputIt>
+inline constexpr bool memcpy_or_memmove_is_safe_v = is_trivially_copyable_v<
+    Ty>&& is_pointer_v<InputIt>&& is_pointer_v<OutputIt>&&
+    is_same_v<remove_cv_t<typename iterator_traits<InputIt>::value_type>,
+              remove_cv_t<typename iterator_traits<OutputIt>::value_type> >;
 
-template <class Ty,
-          class InputIt,
-          class OutputIt,
-          class Allocator,
-          class... Types>
+template <class Ty, class InputIt, class OutputIt, class Allocator>
 inline constexpr bool enable_transfer_without_allocator_v =
     memcpy_or_memmove_is_safe_v<Ty, InputIt, OutputIt> &&
     !has_construct_v<Allocator,
@@ -334,6 +327,7 @@ NoThrowForwardIt uninitialized_copy(InputIt first,
                                     InputIt last,
                                     NoThrowForwardIt dest) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {  // using memmove() for
                                                    // trivially copyable types
@@ -350,6 +344,7 @@ NoThrowForwardIt uninitialized_copy(InputIt first,
                                     NoThrowForwardIt dest,
                                     Allocator& alloc) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (mm::details::enable_transfer_without_allocator_v<
                     value_type, InputIt, NoThrowForwardIt,
                     Allocator>) {  // using memmove() for
@@ -366,6 +361,7 @@ NoThrowForwardIt uninitialized_copy_unchecked(InputIt first,
                                               InputIt last,
                                               NoThrowForwardIt dest) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {  // using memcpy() for
                                                    // trivially copyable types
@@ -384,6 +380,7 @@ NoThrowForwardIt uninitialized_copy_unchecked(InputIt first,
                                               NoThrowForwardIt dest,
                                               Allocator& alloc) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (mm::details::enable_transfer_without_allocator_v<
                     value_type, InputIt, NoThrowForwardIt,
                     Allocator>) {  // using memcpy() for
@@ -402,6 +399,7 @@ NoThrowForwardIt uninitialized_copy_n(InputIt first,
                                       size_t count,
                                       NoThrowForwardIt dest) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {  // using memmove() for
                                                    // trivially copyable types
@@ -418,6 +416,7 @@ NoThrowForwardIt uninitialized_copy_n(InputIt first,
                                       NoThrowForwardIt dest,
                                       Allocator& alloc) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (mm::details::enable_transfer_without_allocator_v<
                     value_type, InputIt, NoThrowForwardIt,
                     Allocator>) {  // using memmove() for
@@ -434,6 +433,7 @@ NoThrowForwardIt uninitialized_copy_n_unchecked(InputIt first,
                                                 size_t count,
                                                 NoThrowForwardIt dest) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {  // using memcpy() for
                                                    // trivially copyable types
@@ -451,6 +451,7 @@ NoThrowForwardIt uninitialized_copy_n_unchecked(InputIt first,
                                                 NoThrowForwardIt dest,
                                                 Allocator& alloc) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (mm::details::enable_transfer_without_allocator_v<
                     value_type, InputIt, NoThrowForwardIt,
                     Allocator>) {  // using memcpy() for
@@ -468,6 +469,7 @@ NoThrowForwardIt uninitialized_move(InputIt first,
                                     InputIt last,
                                     NoThrowForwardIt dest) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {  // using memmove() for
                                                    // trivially copyable types
@@ -485,6 +487,7 @@ NoThrowForwardIt uninitialized_move(InputIt first,
                                     NoThrowForwardIt dest,
                                     Allocator& alloc) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (mm::details::enable_transfer_without_allocator_v<
                     value_type, InputIt, NoThrowForwardIt,
                     Allocator>) {  // using memmove() for
@@ -501,6 +504,7 @@ NoThrowForwardIt uninitialized_move_unckecked(InputIt first,
                                               InputIt last,
                                               NoThrowForwardIt dest) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {  // using memcpy() for
                                                    // trivially copyable types
@@ -518,6 +522,7 @@ NoThrowForwardIt uninitialized_move_unckecked(InputIt first,
                                               NoThrowForwardIt dest,
                                               Allocator& alloc) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (mm::details::enable_transfer_without_allocator_v<
                     value_type, InputIt, NoThrowForwardIt,
                     Allocator>) {  // using memcpy() for
@@ -535,6 +540,7 @@ NoThrowForwardIt uninitialized_move_n(InputIt first,
                                       size_t count,
                                       NoThrowForwardIt dest) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {  // using memmove() for
                                                    // trivially copyable types
@@ -551,6 +557,7 @@ NoThrowForwardIt uninitialized_move_n(InputIt first,
                                       NoThrowForwardIt dest,
                                       Allocator& alloc) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (mm::details::enable_transfer_without_allocator_v<
                     value_type, InputIt, NoThrowForwardIt,
                     Allocator>) {  // using memmove() for
@@ -567,6 +574,7 @@ NoThrowForwardIt uninitialized_move_n_unchecked(InputIt first,
                                                 size_t count,
                                                 NoThrowForwardIt dest) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (is_trivially_copyable_v<value_type> && is_pointer_v<InputIt> &&
                 is_pointer_v<NoThrowForwardIt>) {  // using memcpy() for
                                                    // trivially copyable types
@@ -584,6 +592,7 @@ NoThrowForwardIt uninitialized_move_n_unchecked(InputIt first,
                                                 NoThrowForwardIt dest,
                                                 Allocator& alloc) {
   using value_type = typename iterator_traits<InputIt>::value_type;
+
   if constexpr (mm::details::enable_transfer_without_allocator_v<
                     value_type, InputIt, NoThrowForwardIt,
                     Allocator>) {  // using memcpy() for
@@ -711,6 +720,8 @@ constexpr bool is_memset_safe(const FillerTy& value) {
 template <class Ty, class OutputIt, class Allocator, class FillerTy>
 constexpr bool is_memset_safe_with_allocator(const FillerTy& value) {
   if constexpr (!is_pointer_v<OutputIt>) {
+    return false;
+  } else {
     if constexpr (has_construct_v<
                       Allocator, typename iterator_traits<OutputIt>::pointer>) {
       return false;
