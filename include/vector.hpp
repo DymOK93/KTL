@@ -355,7 +355,7 @@ class vector {
                  forward<Types>(args)...);
     } else {
       Ty tmp{forward<Types>(args)...};
-      value_type* buffer{data()};
+      pointer buffer{data()};
       make_construct_at_helper(current_size)(buffer, move_if_noexcept(back()));
       ++get_size();
       shift_right(buffer + offset, buffer + current_size, 1);
@@ -453,7 +453,7 @@ class vector {
     const size_type current_size{size()};
     size_type idx{0};
 
-    for (value_type* buffer = data(); idx < current_size && first != last;
+    for (pointer buffer = data(); idx < current_size && first != last;
          first = next(first), ++idx) {
       *buffer++ = *first;
     }
@@ -620,12 +620,12 @@ class vector {
     const size_type current_size{size()}, residue{current_size - offset};
     assert(current_size + range_length <= capacity());
 
-    value_type* buffer{data()};
-    value_type* subrange_first{buffer + offset};
+    pointer buffer{data()};
+    pointer subrange_first{buffer + offset};
 
     if (range_length <= residue) {
       const size_type unshifted{residue - range_length};
-      value_type* buffer_end{buffer + current_size};
+      pointer buffer_end{buffer + current_size};
       make_transfer_without_shift()(buffer_end, range_length,
                                     subrange_first + unshifted);
       get_size() += range_length;
@@ -637,7 +637,7 @@ class vector {
       advance(first_not_copied, residue);
       get_size() += make_range_construct_helper(current_size)(
           buffer, first_not_copied, in_raw_memory);
-      value_type* buffer_end{buffer + size()};
+      pointer buffer_end{buffer + size()};
       make_transfer_without_shift()(buffer_end, residue, subrange_first);
       get_size() += residue;
       copy_n(first, residue, subrange_first);
@@ -646,7 +646,7 @@ class vector {
 
   iterator erase_impl(size_type offset, size_type count) {
     assert_with_msg(offset < size(), L"iterator does not belong to the vector");
-    value_type* buffer{data()};
+    pointer buffer{data()};
     shift_left(buffer + offset, buffer + size(), count);
     get_size() -= count;
     return begin() + offset;
@@ -749,9 +749,9 @@ class vector {
                       TransferPolicy transfer_handler,
                       Types&&... args) {
     auto& alc{get_alloc()};
-    value_type* old_buffer{data()};
+    pointer old_buffer{data()};
     const size_type old_size{size()};
-    value_type* new_buffer{allocate_buffer(alc, new_capacity)};
+    pointer new_buffer{allocate_buffer(alc, new_capacity)};
 
     auto alc_guard{make_alloc_temporary_guard(new_buffer, alc, new_capacity)};
     const size_type size_adjustment{
@@ -786,53 +786,53 @@ class vector {
   }
 
   static constexpr auto make_dummy_construct_helper() {
-    return []([[maybe_unused]] value_type* buffer, size_t old_size) {
+    return []([[maybe_unused]] pointer buffer, size_t old_size) {
       return old_size;
     };
   }
 
   static constexpr auto make_construct_at_helper(size_type pos) {
-    return [pos](value_type* buffer, auto&&... args) {
+    return [pos](pointer buffer, auto&&... args) {
       construct_at(buffer + pos, forward<decltype(args)>(args)...);
       return 1u;
     };
   }
 
   static constexpr auto make_range_construct_helper(size_type pos) {
-    return [pos](value_type* buffer, auto first, size_type count) {
+    return [pos](pointer buffer, auto first, size_type count) {
       make_copy_helper()(buffer + pos, count, first);
       return count;
     };
   }
 
   static constexpr auto make_default_construct_helper(size_type pos) {
-    return [pos](value_type* buffer, size_type count) {
+    return [pos](pointer buffer, size_type count) {
       uninitialized_default_construct_n(buffer + pos, count);
       return count;
     };
   }
 
   static constexpr auto make_construct_fill_helper(size_type pos) {
-    return [pos](value_type* buffer, const Ty& value, size_t count) {
+    return [pos](pointer buffer, const Ty& value, size_t count) {
       uninitialized_fill_n(buffer + pos, count, value);
       return count;
     };
   }
 
   static constexpr auto make_copy_helper() noexcept {
-    return [](value_type* dst, size_type count, auto src_it) noexcept {
+    return [](pointer dst, size_type count, auto src_it) noexcept {
       uninitialized_copy_n(src_it, count, dst);
     };
   }
 
   static constexpr auto make_move_helper() noexcept {
-    return [](value_type* dst, size_type count, auto src_it) noexcept {
+    return [](pointer dst, size_type count, auto src_it) noexcept {
       uninitialized_move_n(src_it, count, dst);
     };
   }
 
   static constexpr auto make_cloner() noexcept {
-    return [](value_type* dst, const vector& other) noexcept {
+    return [](pointer dst, const vector& other) noexcept {
       const size_type object_count{other.size()};
       make_copy_helper()(dst, object_count, other.data());
       return object_count;
@@ -840,7 +840,7 @@ class vector {
   }
 
   static constexpr auto make_taker() noexcept {
-    return [](value_type* dst, vector&& other) noexcept {
+    return [](pointer dst, vector&& other) noexcept {
       const size_type object_count{other.size()};
       make_move_helper()(dst, object_count, other.data());
       return object_count;
@@ -850,11 +850,11 @@ class vector {
   static constexpr auto make_transfer_without_shift() noexcept {
     if constexpr (is_nothrow_move_constructible_v<value_type> ||
                   !is_copy_constructible_v<value_type>) {
-      return [](value_type* dst, size_type count, const value_type* src) {
+      return [](pointer dst, size_type count, const pointer src) {
         make_move_helper()(dst, count, src);
       };
     } else {
-      return [](value_type* dst, size_type count, const value_type* src) {
+      return [](pointer dst, size_type count, const pointer src) {
         make_copy_helper()(dst, count, src);
       };
     }
@@ -863,8 +863,8 @@ class vector {
   static constexpr auto make_transfer_with_shift_right(
       size_type left_bound,
       size_type right_bound) noexcept {
-    return [left_bound, right_bound](value_type* dst, size_type count,
-                                     const value_type* src) {
+    return [left_bound, right_bound](pointer dst, size_type count,
+                                     const pointer src) {
       make_transfer_without_shift()(dst, left_bound, src);
       make_transfer_without_shift()(dst + right_bound, count - left_bound,
                                     src + left_bound);
@@ -872,17 +872,16 @@ class vector {
   }
 
   static constexpr auto make_dummy_transfer() noexcept {
-    return
-        []([[maybe_unused]] value_type* dst, [[maybe_unused]] size_type count,
-           [[maybe_unused]] const value_type* src) noexcept {};
+    return []([[maybe_unused]] pointer dst, [[maybe_unused]] size_type count,
+              [[maybe_unused]] const pointer src) noexcept {};
   }
 
-  static value_type* allocate_buffer(allocator_type& alc, size_type obj_count) {
+  static pointer allocate_buffer(allocator_type& alc, size_type obj_count) {
     return allocator_traits_type::allocate(alc, obj_count);
   }
 
   static void deallocate_buffer(allocator_type& alc,
-                                value_type* buffer,
+                                pointer buffer,
                                 size_type obj_count) noexcept {
     if constexpr (allocator_traits_type::enable_delete_null::value) {
       allocator_traits_type::deallocate(alc, buffer, obj_count);
