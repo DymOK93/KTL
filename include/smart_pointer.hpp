@@ -3,16 +3,20 @@
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <memory>
 namespace ktl {
-using std::unique_ptr;
 using std::shared_ptr;
+using std::unique_ptr;
 using std::weak_ptr;
 }  // namespace ktl
 #else
+#include <exception.h>
 #include <heap.h>
-#include <functional.hpp>
 #include <allocator.hpp>
-#include <memory_type_traits.hpp>
 #include <atomic.hpp>
+#include <compressed_pair.hpp>
+#include <functional.hpp>
+#include <memory_type_traits.hpp>
+#include <type_traits.hpp>
+#include <utility.hpp>
 
 namespace ktl {
 namespace mm::details {
@@ -57,23 +61,31 @@ class unique_ptr {
   using element_type = Ty;
   using deleter_type = Deleter;
 
+ private:
+  template <class,
+            class>  //Для конструирования из unique_ptr с указателем
+                    //другого типа
+  friend class unique_ptr;  //(например, для
+                            //полиморфных объектов)
+
  public:
   template <class Dx = Deleter,
             enable_if_t<!is_pointer_v<Dx> &&  //Нельзя хранить nullptr
                                               //в качестве deleter'a
                             is_default_constructible_v<Dx>,
                         int> = 0>
-  constexpr unique_ptr() noexcept : m_ptr{nullptr} {}
+  constexpr unique_ptr() noexcept {}
 
-  constexpr unique_ptr(nullptr_t) noexcept : m_ptr{nullptr} {}
+  constexpr unique_ptr(nullptr_t) noexcept {}
 
-  explicit unique_ptr(pointer ptr) noexcept : m_ptr{ptr} {}
+  explicit unique_ptr(pointer ptr) noexcept
+      : m_value{zero_then_variadic_args{}, ptr} {}
 
   template <class Dx = Deleter,
             enable_if_t<is_constructible_v<Dx, const Dx&>, int> = 0>
-  unique_ptr(pointer ptr,
-             const Deleter& deleter) noexcept(is_nothrow_constructible_v<Dx>)
-      : m_ptr{ptr}, m_deleter(deleter) {}
+  unique_ptr(pointer ptr, const Deleter& deleter) noexcept(
+      is_nothrow_copy_constructible_v<Dx>)
+      : m_value{deleter, ptr} {}
 
   // Dx - не ссылочный тип
   template <
@@ -81,7 +93,7 @@ class unique_ptr {
       enable_if_t<!is_reference_v<Dx> && is_move_constructible_v<Dx>, int> = 0>
   unique_ptr(pointer ptr,
              Deleter&& deleter) noexcept(is_nothrow_move_constructible_v<Dx>)
-      : m_ptr{ptr}, m_deleter(move(deleter)) {}
+      : m_value{move(deleter), ptr} {}
 
   // Dx - ссылочный тип
   template <class Dx = Deleter,
@@ -95,8 +107,7 @@ class unique_ptr {
   template <class Dx = Deleter,
             enable_if_t<is_move_constructible_v<Dx>, int> = 0>
   unique_ptr(unique_ptr&& other) noexcept(is_nothrow_move_constructible_v<Dx>)
-      : m_ptr{exchange(other.m_ptr, nullptr)},
-        m_deleter(forward<Dx>(other.get_deleter())) {}
+      : m_value{forward<deleter_type>(other.get_deleter()), other.release()} {}
 
   template <
       class OtherTy,
@@ -113,19 +124,18 @@ class unique_ptr {
                                                     //типы OtherDeleter
                                                     //и deleter_type
                                                     //должны совпадать
-                            is_convertible<deleter_type, OtherDeleter> >::value,
+                            is_convertible<OtherDeleter, deleter_type> >::value,
           int> = 0>
   unique_ptr(unique_ptr<OtherTy, OtherDeleter>&& other) noexcept(
       is_nothrow_constructible_v<deleter_type, OtherDeleter>)
-      : m_ptr{other.release()},
-        m_deleter(forward<deleter_type>(other.get_deleter())) {}
+      : m_value{forward<deleter_type>(other.get_deleter()), other.release()} {}
 
   template <class Dx = Deleter, enable_if_t<is_move_assignable_v<Dx>, int> = 0>
   unique_ptr& operator=(unique_ptr&& other) noexcept(
       is_nothrow_move_assignable_v<Dx>) {
     if (addressof(other) != this) {
       reset(other.release());
-      m_deleter = forward<deleter_type>(other.get_deleter());
+      get_deleter() = forward<deleter_type>(other.get_deleter());
     }
     return *this;
   }
@@ -144,7 +154,7 @@ class unique_ptr {
     //Проверка addressof(other) != this не обязательная: в таком случае
     //будет выбран предыдущий шаблон, а там проверка есть
     reset(other.release());
-    m_deleter = forward<deleter_type>(other.get_deleter());
+    get_deleter() = forward<deleter_type>(other.get_deleter());
     return *this;
   }
 
@@ -153,10 +163,10 @@ class unique_ptr {
 
   ~unique_ptr() { reset(); }
 
-  pointer release() noexcept { return exchange(m_ptr, nullptr); }
+  pointer release() noexcept { return exchange(get_ref_to_ptr(), nullptr); }
 
   void reset(pointer ptr = pointer{}) noexcept {
-    pointer target{exchange(m_ptr, ptr)};
+    pointer target{exchange(get_ref_to_ptr(), ptr)};
     if constexpr (mm::details::get_enable_delete_null_v<
                       deleter_type>) {  //Поддерживает
       //передачу nullptr в
@@ -170,75 +180,68 @@ class unique_ptr {
   }
 
   void swap(unique_ptr& other) noexcept(is_nothrow_swappable_v<deleter_type>) {
-    swap(m_ptr, other.m_ptr);
-    swap(m_deleter, other.m_deleter);
+    swap(m_value, other.m_value);
   }
 
-  pointer get() const noexcept { return m_ptr; }
+  pointer get() const noexcept { return m_value.get_second(); }
 
-  Deleter& get_deleter() noexcept { return m_deleter; }
-  const Deleter& get_deleter() const noexcept { return m_deleter; }
+  Deleter& get_deleter() noexcept { return m_value.get_first(); }
+  const Deleter& get_deleter() const noexcept { return m_value.get_first(); }
 
-  operator bool() const noexcept { return static_cast<bool>(m_ptr); }
+  operator bool() const noexcept { return static_cast<bool>(get()); }
 
-  add_lvalue_reference_t<Ty> operator*()
-      const& {  //Перегруженный Ty::operator*() способен вызвать
-                //исключение
-    return *m_ptr;
+  add_lvalue_reference_t<Ty> operator*() const& noexcept { return *get(); }
+
+  add_rvalue_reference_t<Ty> operator*() const&& noexcept {
+    return move(*get());
   }
 
-  add_rvalue_reference_t<Ty> operator*() const&& { return move(*m_ptr); }
-
-  pointer operator->() const noexcept { return m_ptr; }
+  pointer operator->() const noexcept { return m_value.get_second(); }
 
  private:
-  template <class,
-            class>  //Для конструирования из unique_ptr с указателем
-                    //другого типа
-  friend class unique_ptr;  //(например, для
-                            //полиморфных объектов)
+  pointer& get_ref_to_ptr() { return m_value.get_second(); }
 
-  pointer m_ptr;
-  deleter_type m_deleter;
+ private:
+  compressed_pair<deleter_type, pointer> m_value{};
 };
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
 bool operator==(const unique_ptr<Ty1, Dx1>& lhs,
-                const unique_ptr<Ty1, Dx1>& rhs) noexcept {
+                const unique_ptr<Ty2, Dx2>& rhs) noexcept {
   return lhs.get() == rhs.get();
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
 bool operator!=(const unique_ptr<Ty1, Dx1>& lhs,
-                const unique_ptr<Ty1, Dx1>& rhs) noexcept {
+                const unique_ptr<Ty1, Dx2>& rhs) noexcept {
   return !(lhs == rhs);
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
 bool operator<(const unique_ptr<Ty1, Dx1>& lhs,
-               const unique_ptr<Ty1, Dx1>& rhs) noexcept {
+               const unique_ptr<Ty2, Dx2>& rhs) noexcept {
   using common_t = common_type_t<typename unique_ptr<Ty1, Dx1>::pointer,
                                  typename unique_ptr<Ty2, Dx2>::pointer>;
-  return less<add_const<common_t> >(lhs.get(), rhs.get());
+  return less<add_const<common_t> >{}(lhs.get(), rhs.get());
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
 bool operator>(const unique_ptr<Ty1, Dx1>& lhs,
-               const unique_ptr<Ty1, Dx1>& rhs) noexcept {
+               const unique_ptr<Ty2, Dx2>& rhs) noexcept {
   using common_t = common_type_t<typename unique_ptr<Ty1, Dx1>::pointer,
                                  typename unique_ptr<Ty2, Dx2>::pointer>;
-  return greater<add_const<common_t> >(lhs.get(), rhs.get());
+  return greater<add_const<common_t> >{}(lhs.get(), rhs.get());
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
 bool operator<=(const unique_ptr<Ty1, Dx1>& lhs,
-                const unique_ptr<Ty1, Dx1>& rhs) noexcept {
+                const unique_ptr<Ty2, Dx2>& rhs) noexcept {
   return !(lhs > rhs);
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
 bool operator>=(const unique_ptr<Ty1, Dx1>& lhs,
-                const unique_ptr<Ty1, Dx1>& rhs) noexcept {
+                const unique_ptr<Ty2, Dx2>& rhs) noexcept {
   return !(lhs < rhs);
 }
 
@@ -308,7 +311,7 @@ unique_ptr(Ty*) -> unique_ptr<Ty>;
 
 // C++17 deduction guide
 template <class Ty, class Dx>
-unique_ptr(Ty*, Dx &&) -> unique_ptr<Ty, Dx>;
+unique_ptr(Ty*, Dx&&) -> unique_ptr<Ty, Dx>;
 
 /********************************************************************************
 В соответствии с правилами вывода типов шаблонных аргументов
@@ -336,7 +339,7 @@ unique_ptr(Ty*, Dx&) -> unique_ptr<Ty, Dx>;
 
 template <class Ty, class... Types>
 unique_ptr<Ty> make_unique(Types&&... args) {
-  return unique_ptr<Ty>(new (nothrow) Ty(forward<Types>(args)...));
+  return unique_ptr<Ty>(new Ty(forward<Types>(args)...));
 }
 
 namespace mm::details {
@@ -388,30 +391,15 @@ class ref_counter_base {
   virtual void delete_this() noexcept = 0;
 
  private:
-  atomic_counter_t inc_strong_refs() noexcept {
-    return static_cast<atomic_counter_t>(InterlockedIncrementRelease(
-        reinterpret_cast<volatile long*>(addressof(m_strong_counter))));
-  }
-
-  atomic_counter_t inc_weak_refs() noexcept {
-    return static_cast<atomic_counter_t>(InterlockedIncrementRelease(
-        reinterpret_cast<volatile long*>(addressof(m_weak_counter))));
-  }
-
-  atomic_counter_t dec_strong_refs() noexcept {
-    return static_cast<atomic_counter_t>(InterlockedDecrementRelease(
-        reinterpret_cast<volatile long*>(addressof(m_strong_counter))));
-  }
-
-  atomic_counter_t dec_weak_refs() noexcept {
-    return static_cast<atomic_counter_t>(InterlockedDecrementRelease(
-        reinterpret_cast<volatile long*>(addressof(m_weak_counter))));
-  }
+  atomic_counter_t inc_strong_refs() noexcept { return ++m_strong_counter; }
+  atomic_counter_t inc_weak_refs() noexcept { return ++m_weak_counter; }
+  atomic_counter_t dec_strong_refs() noexcept { return --m_strong_counter; }
+  atomic_counter_t dec_weak_refs() noexcept { return --m_weak_counter; }
 
  private:
-  atomic_counter_t m_strong_counter{1},
-      m_weak_counter{
-          1};  //Для выполнения декремента без дополнительных проверок
+  atomic_uint32_t m_strong_counter{1};
+  atomic_uint32_t m_weak_counter{
+      1};  //!< Для выполнения декремента без дополнительных проверок
 };
 
 template <class Ty>
@@ -421,9 +409,7 @@ class ref_counter_ptr_holder : public ref_counter_base {
   ref_counter_ptr_holder(Ty* ptr) noexcept : m_ptr{ptr} {}
 
   Ty* get_ptr() const noexcept { return m_ptr; }
-  Ty* exchange_ptr(Ty* new_ptr) noexcept {
-    return interlocked_exchange_pointer(addressof(m_ptr), new_ptr);
-  }
+  Ty* exchange_ptr(Ty* new_ptr) noexcept { return exchange(m_ptr, new_ptr); }
 
  protected:
   Ty* m_ptr{nullptr};
@@ -501,7 +487,7 @@ class ref_counter_with_custom_deleter
  protected:
   void destroy_object() noexcept final {
     Ty* target{MyBase::exchange_ptr(nullptr)};  //Лишняя Interlocked-операция?
-    if constexpr (get_enable_delete_nulle_v<Deleter>) {
+    if constexpr (get_enable_delete_null_v<Deleter>) {
       get_deleter()(target);
     } else {
       if (target) {
@@ -603,48 +589,40 @@ class PtrBase {
   explicit PtrBase(Ty* ptr, ref_counter_t* ref_counter) noexcept
       : m_value_ptr{ptr}, m_ref_counter{ref_counter} {}
 
-  Ty* get_value_ptr() const noexcept {
-    return interlocked_compare_exchange_pointer<Ty>(addressof(m_value_ptr),
-                                                    nullptr, nullptr);
-  }
-  ref_counter_t* get_ref_counter() const noexcept {
-    return interlocked_compare_exchange_pointer<ref_counter_t>(
-        addressof(m_ref_counter), nullptr, nullptr);
-  }
+  Ty* get_value_ptr() const noexcept { return m_value_ptr; }
+  ref_counter_t* get_ref_counter() const noexcept { return m_ref_counter; }
 
   void incref() noexcept;  //Дочерние классы ConcretePtr
   void decref() noexcept;  //должны переопределить два этих метода
 
   template <class U, class OtherPtr>
   ConcretePtr& copy_construct_from(const PtrBase<U, OtherPtr>& other) noexcept {
-    static_assert(is_convertible_v<U*, Ty*>, "Can't convert value pointer");
+    static_assert(is_convertible_v<U*, Ty*>, "can't convert value pointer");
     decref_if_not_null();
-    exchange_value_ptr(static_cast<Ty*>(other.m_value_ptr));
-    exchange_ref_counter(other.m_ref_counter);
+    m_value_ptr = static_cast<Ty*>(other.m_value_ptr);
+    m_ref_counter = other.m_ref_counter;
     incref_if_not_null();
     return get_context();
   }
 
   template <class U, class OtherPtr>
   ConcretePtr& move_construct_from(PtrBase<U, OtherPtr>&& other) noexcept {
-    static_assert(is_convertible_v<U*, Ty*>, "Can't convert value pointer");
+    static_assert(is_convertible_v<U*, Ty*>, "can't convert value pointer");
     decref_if_not_null();
-    exchange_value_ptr(static_cast<Ty*>(other.exchange_value_ptr(nullptr)));
-    exchange_ref_counter(other.exchange_ref_counter(nullptr));
+    m_value_ptr = static_cast<Ty*>(exchange(other.m_value_ptr, nullptr));
+    m_ref_counter = exchange(other.m_ref_counter, nullptr);
     return get_context();
   }
 
   void reset() {
     decref_if_not_null();
-    exchange_value_ptr(nullptr);
-    exchange_ref_counter(nullptr);
+    m_value_ptr = nullptr;
+    m_ref_counter = nullptr;
   }
 
   void swap(PtrBase& other) noexcept {
-    Ty* value_ptr{m_value_ptr};
-    ref_counter_t* ref_counter{m_ref_counter};
-    exchange_value_ptr(other.exchange_value_ptr(value_ptr));
-    exchange_ref_counter(other.exchange_ref_counter(ref_counter));
+    ::swap(m_value_ptr, other.m_value_ptr);
+    ::swap(m_ref_counter, other.m_ref_counter);
   }
 
  private:
@@ -661,15 +639,6 @@ class PtrBase {
 
   ConcretePtr& get_context() noexcept {
     return static_cast<ConcretePtr&>(*this);
-  }
-
-  Ty* exchange_value_ptr(Ty* new_value_ptr) noexcept {
-    return interlocked_exchange_pointer(addressof(m_value_ptr), new_value_ptr);
-  }
-
-  ref_counter_t* exchange_ref_counter(ref_counter_t* new_ref_counter) noexcept {
-    return interlocked_exchange_pointer(addressof(m_ref_counter),
-                                        new_ref_counter);
   }
 
  private:
@@ -796,11 +765,12 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
             class Alloc,
             enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
   shared_ptr(U* ptr, Alloc&& alloc, custom_allocator_tag_t)
-      : MyBase(ptr,
-               make_special_ref_counter<
-                   details::ref_counter_with_allocator_default_delete_itself>(
-                   ptr,
-                   forward<Alloc>(alloc))) {}
+      : MyBase(
+            ptr,
+            make_special_ref_counter<
+                mm::details::ref_counter_with_allocator_default_delete_itself>(
+                ptr,
+                forward<Alloc>(alloc))) {}
 
   template <class Dx>
   shared_ptr(nullptr_t, Dx&& deleter, custom_deleter_tag_t) {}
@@ -829,10 +799,11 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
   }
 
   template <class U, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
-  shared_ptr(const weak_ptr<U>& wptr) noexcept {
-    if (!wptr.expired()) {
-      MyBase::copy_construct_from(wptr);
+  shared_ptr(const weak_ptr<U>& wptr) {
+    if (wptr.expired()) {
+      throw bad_weak_ptr{};
     }
+    construct_from_weak(wptr);
   }
 
   template <class U, class Dx, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
@@ -841,11 +812,8 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
     auto new_ref_counter{
         make_special_ref_counter<mm::details::ref_counter_with_custom_deleter>(
             ptr, move(uptr.get_deleter()))};
-    if (new_ref_counter) {
-      uptr.release();  //Если создание контрольного блока не удалось, отбирать
-                       //владение объектом нельзя
-      MyBase::move_construct_from(shared_ptr<U>(ptr, new_ref_counter));
-    }
+    uptr.release();  // при выбросе исключения в new указатель не будет утерян
+    MyBase::move_construct_from(shared_ptr<U>(ptr, new_ref_counter));
   }
 
   shared_ptr& operator=(const shared_ptr& other) {
@@ -871,13 +839,13 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
   template <class OtherTy,
             enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
   shared_ptr& operator=(shared_ptr<OtherTy>&& other) {
-    MyBase::move_construct_from(move(other));
+    return MyBase::move_construct_from(move(other));
   }
 
   template <class U, class Dx>
   shared_ptr& operator=(unique_ptr<U, Dx>&& uptr) {
     auto* ptr{uptr.release()};
-    MyBase::move_construct_from(MyBase(
+    return MyBase::move_construct_from(MyBase(
         ptr,
         make_special_ref_counter<mm::details::ref_counter_with_custom_deleter>(
             ptr, move(uptr.get_deleter()))));
@@ -900,15 +868,15 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
   void swap(shared_ptr& other) noexcept { MyBase::swap(other); }
 
   pointer get() const noexcept { return MyBase::get_value_ptr(); }
-  add_lvalue_reference<element_type> operator*() const& {
+  add_lvalue_reference_t<element_type> operator*() const& {
     return *MyBase::get_value_ptr();
   }
-  add_rvalue_reference<element_type> operator*() const&& {
+  add_rvalue_reference_t<element_type> operator*() const&& {
     return move(*MyBase::get_value_ptr());
   }
   pointer operator->() const noexcept { return MyBase::get_value_ptr(); }
 
-  add_lvalue_reference<element_type> operator[](ptrdiff_t idx)
+  add_lvalue_reference_t<element_type> operator[](ptrdiff_t idx)
       const {  // UB, если хранится не массив или idx больше его длины!
     return *(MyBase::get_value_ptr() + idx);
   }
@@ -931,25 +899,29 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
   shared_ptr(Ty* ptr, ref_counter_t* ref_counter) noexcept
       : MyBase(ptr, ref_counter) {}
 
+ protected:
+  template <class U, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
+  void construct_from_weak(const weak_ptr<U>& wptr) noexcept {
+    MyBase::copy_construct_from(wptr);
+  }
+
  private:
   template <bool is_array, class U>
-  static ref_counter_t* make_ref_counter_and_share(U* ptr) noexcept {
+  static ref_counter_t* make_ref_counter_and_share(U* ptr) {
     if (ptr) {
       if constexpr (is_array) {
-        return new (nothrow) mm::details::ref_counter_with_array_delete<U>(ptr);
+        return new mm::details::ref_counter_with_array_delete<U>(ptr);
       } else {
-        return new (nothrow)
-            mm::details::ref_counter_with_scalar_delete<U>(ptr);
+        return new mm::details::ref_counter_with_scalar_delete<U>(ptr);
       }
     }
     return nullptr;
   }
 
   template <template <class, class> class RefCounter, class U, class Destroyer>
-  static ref_counter_t*
-  make_special_ref_counter(U* ptr, Destroyer&& destroyer) noexcept(
-      is_nothrow_constructible_v<remove_reference_t<Destroyer>, Destroyer>) {
-    return new (nothrow) RefCounter<U, remove_reference_t<Destroyer> >(
+  static ref_counter_t* make_special_ref_counter(U* ptr,
+                                                 Destroyer&& destroyer) {
+    return new RefCounter<U, remove_reference_t<Destroyer> >(
         ptr,
         forward<Destroyer>(
             destroyer));  //Конструирование с нулевым указателем
@@ -967,50 +939,63 @@ weak_ptr<Ty>::weak_ptr(const shared_ptr<OtherTy>& sptr) noexcept {
   MyBase::copy_construct_from(sptr);
 }
 
+namespace mm::details {
+template <class Ty>
+struct shared_from_weak : shared_ptr<Ty> {
+  using MyBase = shared_ptr<Ty>;
+
+  template <class U, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
+  shared_ptr<Ty> operator()(const weak_ptr<U>& wptr) noexcept {
+    if (!wptr.expired()) {
+      MyBase::construct_from_weak(wptr);
+    }
+    return move(*this);
+  }
+};
+}  // namespace mm::details
+
 template <class Ty>
 shared_ptr<Ty> weak_ptr<Ty>::lock() const noexcept {
-  return shared_ptr<Ty>(*this);  //В отличие от std::shared_ptr, конструктор
-                                 // ktl::mm::shared_ptr(const
-                                 // weak_ptr&) не бросает исключений
+  return mm::details::shared_from_weak<Ty>{}(*this);
 }
 
 template <class Ty1, class Ty2>
 bool operator==(const shared_ptr<Ty1>& lhs,
-                const shared_ptr<Ty1>& rhs) noexcept {
+                const shared_ptr<Ty2>& rhs) noexcept {
   return lhs.get() == rhs.get();
 }
 
 template <class Ty1, class Ty2>
 bool operator!=(const shared_ptr<Ty1>& lhs,
-                const shared_ptr<Ty1>& rhs) noexcept {
+                const shared_ptr<Ty2>& rhs) noexcept {
   return !(lhs == rhs);
 }
 
 template <class Ty1, class Ty2>
 bool operator<(const shared_ptr<Ty1>& lhs,
-               const shared_ptr<Ty1>& rhs) noexcept {
+               const shared_ptr<Ty2>& rhs) noexcept {
   using common_t = common_type_t<typename shared_ptr<Ty1>::pointer,
                                  typename shared_ptr<Ty2>::pointer>;
-  return less<common_t>(lhs.get(), rhs.get());
+  return less<common_t>{}(lhs.get(), rhs.get());
 }
 
 template <class Ty1, class Ty2>
 bool operator>(const shared_ptr<Ty1>& lhs,
-               const shared_ptr<Ty1>& rhs) noexcept {
+               const shared_ptr<Ty2>& rhs) noexcept {
   using common_t = common_type_t<typename shared_ptr<Ty1>::pointer,
                                  typename shared_ptr<Ty2>::pointer>;
-  return greater<common_t>(lhs.get(), rhs.get());
+  return greater<common_t>{}(lhs.get(), rhs.get());
 }
 
 template <class Ty1, class Ty2>
 bool operator<=(const shared_ptr<Ty1>& lhs,
-                const shared_ptr<Ty1>& rhs) noexcept {
+                const shared_ptr<Ty2>& rhs) noexcept {
   return !(lhs > rhs);
 }
 
 template <class Ty1, class Ty2>
 bool operator>=(const shared_ptr<Ty1>& lhs,
-                const shared_ptr<Ty1>& rhs) noexcept {
+                const shared_ptr<Ty2>& rhs) noexcept {
   return !(lhs < rhs);
 }
 
@@ -1094,16 +1079,13 @@ template <class Ty, class... Types>
 shared_ptr<Ty> make_shared(Types&&... args) {
   using ref_counter_t = mm::details::ref_counter_with_destroy_only<Ty>;
   constexpr size_t summary_size{sizeof(Ty) + sizeof(ref_counter_t)};
-  auto* memory_block{operator new(summary_size, nothrow)};
-  if (!memory_block) {
-    return {};
-  }
+  auto* memory_block{operator new(summary_size)};
   Ty* object_ptr{reinterpret_cast<Ty*>(static_cast<byte*>(memory_block) +
                                        sizeof(ref_counter_t))};
   shared_ptr<Ty> sptr(object_ptr,
                       new (memory_block) ref_counter_t(
                           object_ptr));  //Конструирование ref_counter'a
-  new (object_ptr) Ty(forward<Types>(args)...);
+  construct_at(object_ptr, forward<Types>(args)...);
   return sptr;
 }
 
@@ -1120,17 +1102,14 @@ shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
       mm::details::ref_counter_with_allocator_deallocate_itself<Ty, AlTy>;
 
   constexpr size_t summary_size{sizeof(Ty) + sizeof(ref_counter_t)};
-  auto* memory_block{
-      allocator_traits<AlTy>::allocate_bytes(alloc, summary_size)}; //Alloc должен предоставить allocate_bytes()
-  if (!memory_block) {
-    return {};
-  }
+  auto* memory_block{allocator_traits<AlTy>::allocate_bytes(
+      alloc, summary_size)};  // Alloc должен предоставить allocate_bytes()
   Ty* object_ptr{reinterpret_cast<Ty*>(static_cast<byte*>(memory_block) +
                                        sizeof(ref_counter_t))};
 
-  auto* ref_counter{construct_at(static_cast<ref_counter_t*>(memory_block), object_ptr,
-                   forward <Alloc>(alloc))};  
-                                                
+  auto* ref_counter{construct_at(static_cast<ref_counter_t*>(memory_block),
+                                 object_ptr, forward<Alloc>(alloc))};
+
   shared_ptr<Ty> sptr(object_ptr, ref_counter);
   allocator_traits<AlTy>::construct(ref_counter->get_alloc(), object_ptr,
                                     forward<Types>(args)...);
@@ -1145,16 +1124,45 @@ void swap(unique_ptr<Ty, Deleter>& lhs,
 }
 
 template <class Ty>
-void swap(ktl::shared_ptr<Ty>& lhs,
-          ktl::shared_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+void swap(shared_ptr<Ty>& lhs,
+          shared_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
   lhs.swap(rhs);
 }
 
 template <class Ty>
-void swap(ktl::weak_ptr<Ty>& lhs,
-          ktl::weak_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
+void swap(weak_ptr<Ty>& lhs,
+          weak_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
   lhs.swap(rhs);
 }
-}  // namespace ktl
 
+namespace mm::details {
+template <class Alloc, typename SizeTy>
+struct alloc_temporary_guard_delete {
+  using allocator_type = Alloc;
+  using allocator_traits_type = allocator_traits<allocator_type>;
+  using value_type = typename allocator_traits<allocator_type>::value_type;
+  using pointer = typename allocator_traits_type::pointer;
+
+  alloc_temporary_guard_delete(Alloc& alc, SizeTy cnt)
+      : alloc{addressof(alc)}, count{cnt} {}
+
+  void operator()(pointer ptr) {
+    allocator_traits_type::deallocate(*alloc, ptr, count);
+  }
+
+  Alloc* const alloc;
+  SizeTy count;
+};
+}  // namespace mm::details
+
+template <class Ty, class Alloc, typename SizeTy>
+static constexpr auto make_alloc_temporary_guard(Ty* ptr,
+                                                 Alloc& alc,
+                                                 SizeTy count) {
+  using deleter_type = mm::details::alloc_temporary_guard_delete<Alloc, SizeTy>;
+  return unique_ptr<typename deleter_type::value_type, deleter_type>{
+      static_cast<typename deleter_type::pointer>(ptr),
+      deleter_type{alc, count}};
+}
+}  // namespace ktl
 #endif

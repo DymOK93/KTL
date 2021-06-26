@@ -1,87 +1,82 @@
+#include <bugcheck.h>
 #include <exception_base.h>
 #include <heap.h>
+#include <placement_new.h>
+#include <char_traits_impl.hpp>
 
 namespace ktl::crt {
-using exception_index = uint16_t;
-struct ExceptionList {
-  static constexpr exception_index MAX_COUNT{1024};
-  ExceptionBase* polymorphic_exc[MAX_COUNT];
-};
+exception_base::exception_base(const exc_char_t* msg)
+    : m_data{try_create_masked_shared_data(
+          msg,
+          char_traits<exc_char_t>::length(msg))} {}
 
-ExceptionList& get_gobal_exception_list() {
-  static ExceptionList exc_list{};
-  return exc_list;
+exception_base::exception_base(const exc_char_t* msg, size_t msg_length)
+    : m_data{try_create_masked_shared_data(msg, msg_length)} {}
+
+exception_base::exception_base(const exception_base& other)
+    : m_data{other.m_data} {
+  if (has_shared_data()) {
+    ++as_shared_data()->ref_counter;
+  }
 }
 
-exception_index save_exception_in_global_list(ExceptionBase* exc_ptr) {
-  exception_index idx{0};
-  auto& exc_list{get_gobal_exception_list()};
-  while (idx < exc_list.MAX_COUNT) {
-    if (InterlockedCompareExchangePointer(
-            reinterpret_cast<void**>(exc_list.polymorphic_exc + idx), exc_ptr,
-            nullptr) == nullptr) {
-      break;
+exception_base& exception_base::operator=(const exception_base& other) {
+  if (this != &other) {
+    m_data = other.m_data;
+    if (has_shared_data()) {
+      ++as_shared_data()->ref_counter;
     }
-    ++idx;
   }
-  return idx;
+  return *this;
 }
 
-bool is_ktl_exception(NTSTATUS exc_code) {
-  return exc_code & KTL_EXCEPTION;
-}
-
-exception_index extract_exception_index(NTSTATUS exc_code) {
-  return static_cast<exception_index>(exc_code);
-}
-
-void init_exception_environment() {
-  get_gobal_exception_list();
-}
-
-ExceptionBase* get_exception(NTSTATUS exc_code) {
-  if (!is_ktl_exception(exc_code)) {
-    return nullptr;
-  }
-  auto& exc_list{get_gobal_exception_list().polymorphic_exc};
-  return exc_list[extract_exception_index(exc_code)];
-}
-
-void replace_exception(NTSTATUS old_exc_code, ExceptionBase* new_exc) {
-  if (is_ktl_exception(old_exc_code)) {
-    auto& exc_list{get_gobal_exception_list().polymorphic_exc};
-    InterlockedExchangePointer(
-        reinterpret_cast<void**>(exc_list +
-                                 extract_exception_index(old_exc_code)),
-        new_exc);
+exception_base::~exception_base() {
+  if (has_shared_data()) {
+    auto* shared_data{as_shared_data()};
+    --shared_data->ref_counter;
+    if (!shared_data->ref_counter) {
+      destroy_shared_data(shared_data);
+    }
   }
 }
 
-void remove_exception(NTSTATUS exc_code) {
-  replace_exception(exc_code, nullptr);
+bool exception_base::has_shared_data() const noexcept {
+  return reinterpret_cast<size_t>(m_data) &
+         SHARED_DATA_MASK;  // Адреса выровнены по границе 16 байт -
+                            // можно использовать младшие биты
 }
 
-void cleanup_exception_environment() {
-  auto& exc_list{get_gobal_exception_list().polymorphic_exc};
-  for (auto* exc_ptr : exc_list) {
-    delete exc_ptr;
+exception_data* exception_base::as_shared_data() const noexcept {
+  return reinterpret_cast<exception_data*>(reinterpret_cast<size_t>(m_data) &
+                                           ~SHARED_DATA_MASK);
+}
+
+const exc_char_t* exception_base::get_message() const noexcept {
+  return has_shared_data() ? as_shared_data()->str
+                           : static_cast<const exc_char_t*>(m_data);
+}
+
+const void* exception_base::try_create_masked_shared_data(
+    const exc_char_t* msg,
+    size_t msg_length) noexcept {
+  auto* buffer{static_cast<byte*>(alloc_non_paged(
+      sizeof(exception_data) +
+      (msg_length + 1) * sizeof(exc_char_t)))};  // Длина с учётом нуль-символа
+  if (!buffer) {
+    return ALLOCATION_FAILED_MSG;
   }
+
+  auto* msg_buf{reinterpret_cast<exc_char_t*>(buffer + sizeof(exception_data))};
+  char_traits<exc_char_t>::copy(msg_buf, msg, msg_length);
+  msg_buf[msg_length] = static_cast<exc_char_t>(0);
+
+  auto* shared_data{new (buffer) exception_data{msg_buf, 1}};
+  auto data_as_num{reinterpret_cast<size_t>(shared_data)};
+  data_as_num |= SHARED_DATA_MASK;
+  return reinterpret_cast<void*>(data_as_num);
 }
 
-[[noreturn]] void throw_exception(ExceptionBase* exc_ptr) {
-  if (auto exc_idx = save_exception_in_global_list(exc_ptr);
-      exc_idx < get_gobal_exception_list().MAX_COUNT) {
-    ExRaiseStatus(KTL_EXCEPTION | exc_idx);
-  }
-  delete exc_ptr;
-  throw_ktl_crt_failure();
-}
-
-[[noreturn]] void throw_again(NTSTATUS exc_code) {
-  ExRaiseStatus(exc_code);
-}
-
-[[noreturn]] void throw_ktl_crt_failure() {
-  ExRaiseStatus(KTL_CRT_FAILURE);
+void exception_base::destroy_shared_data(exception_data* target) noexcept {
+  ktl::free(target);
 }
 }  // namespace ktl::crt

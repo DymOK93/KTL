@@ -1,5 +1,5 @@
 # ----------
-# 2020 Dmitry Bolshakov
+# 2020-2021 Dmitry Bolshakov
 # ----------
 # Kernel Template Library
 # CRT environment, STL-style containers and RAII tools for Windows Kernel programming
@@ -14,6 +14,7 @@ set(KTL_RUNTIME_DIR "${KTL_DIR}/runtime")
 set(KTL_RUNTIME_INCLUDE_DIR "${KTL_RUNTIME_DIR}/include")
 set(KTL_INCLUDE_DIR "${KTL_DIR}/include")
 set(KTL_SOURCE_DIR "${KTL_DIR}/src")
+set(KTL_MODULES_DIR "${KTL_DIR}/modules")
 
 file(GLOB KTL_RUNTIME_LIBRARIES "${KTL_RUNTIME_DIR}/lib/*.lib")    
 file(GLOB KTL_CPP_LIBRARIES "${KTL_DIR}/lib/*.lib")  

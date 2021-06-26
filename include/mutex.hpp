@@ -1,30 +1,31 @@
 #pragma once
 #include <basic_types.h>
+#include <irql.h>
+#include <atomic.hpp>
+#include <chrono.hpp>
+#include <compressed_pair.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
-#include <chrono.hpp>
-#include <atomic.hpp>
 
 #include <ntddk.h>
 
 namespace ktl {  // threads management
 namespace th::details {
 template <class SyncPrimitive>
-class sync_primitive_base {
+class sync_primitive_base : non_relocatable {
  public:
   using sync_primitive_t = SyncPrimitive;
   using native_handle_t = sync_primitive_t*;
 
  public:
-  template <class SP>
-  sync_primitive_base(const sync_primitive_base<SP>&) = delete;
-  template <class SP>
-  sync_primitive_base& operator=(const sync_primitive_base<SP>&) = delete;
-
   native_handle_t native_handle() noexcept { return addressof(m_native_sp); }
 
  protected:
   sync_primitive_base() = default;
+
+  native_handle_t get_non_const_native_handle() const noexcept {
+    return const_cast<native_handle_t>(addressof(m_native_sp));
+  }
 
  protected:
   SyncPrimitive m_native_sp;
@@ -72,7 +73,6 @@ class recursive_mutex
   recursive_mutex() { KeInitializeMutex(native_handle(), 0); }
 
   void lock() { MyBase::lock_indefinite(); }
-
   void unlock() { KeReleaseMutex(MyBase::native_handle(), false); }
 };
 
@@ -120,46 +120,289 @@ class shared_mutex
 
  public:
   shared_mutex() { ExInitializeResourceLite(native_handle()); }
+  ~shared_mutex() { ExDeleteResourceLite(native_handle()); }
 
   void lock() {  //Вход в критическую секцию
     ExEnterCriticalRegionAndAcquireResourceExclusive(native_handle());
   }
+
   void lock_shared() {
     ExEnterCriticalRegionAndAcquireResourceShared(native_handle());
   }
+
   void unlock() {  //Выход из критической секции
     ExReleaseResourceAndLeaveCriticalRegion(native_handle());
   }
+
   void unlock_shared() {
     ExReleaseResourceAndLeaveCriticalRegion(native_handle());
   }
 };
 
-class dpc_spin_lock
-    : public th::details::sync_primitive_base<KSPIN_LOCK> {  // DISPATCH_LEVEL
-                                                             // spin
-                                                             // lock
+namespace th::details {
+template <class LockPolicy>
+class spin_lock_base : non_relocatable {
  public:
-      using MyBase = th::details::sync_primitive_base<KSPIN_LOCK>;
-  using sync_primitive_t = typename MyBase::sync_primitive_t;
-  using native_handle_t = typename MyBase::native_handle_t;
-  using irql_t = KIRQL;
+  using sync_primitive_t = KSPIN_LOCK;
+  using native_handle_t = sync_primitive_t*;
 
  public:
-  using MyBase = th::details::sync_primitive_base<KSPIN_LOCK>;
-  using sync_primitive_t = typename MyBase::sync_primitive_t;
-  using native_handle_t = typename MyBase::native_handle_t;
+  spin_lock_base() noexcept { KeInitializeSpinLock(native_handle()); }
 
- public:
-  dpc_spin_lock() : m_old_irql{KeGetCurrentIrql()} {
-    KeInitializeSpinLock(native_handle());
+  void lock() noexcept { m_lock.get_first().lock(m_lock.get_second()); }
+  void unlock() noexcept { m_lock.get_first().unlock(m_lock.get_second()); }
+
+  native_handle_t native_handle() noexcept {
+    return addressof(m_lock.get_second());
   }
 
-  void lock() { KeAcquireSpinLock(native_handle(), addressof(m_old_irql)); }
-  void unlock() { KeReleaseSpinLock(native_handle(), m_old_irql); }
-
  private:
-  irql_t m_old_irql;
+  compressed_pair<LockPolicy, KSPIN_LOCK> m_lock;
+};
+
+class spin_lock_capture_irql_policy_base {
+ protected:
+  irql_t m_prev_irql;
+};
+
+class spin_lock_apc_policy : spin_lock_capture_irql_policy_base {
+ public:
+  void lock(KSPIN_LOCK& target) noexcept {
+    KeAcquireSpinLock(addressof(target), addressof(m_prev_irql));
+  }
+
+  void unlock(KSPIN_LOCK& target) noexcept {
+    KeReleaseSpinLock(addressof(target), m_prev_irql);
+  }
+};
+
+struct spin_lock_dpc_policy {
+  void lock(KSPIN_LOCK& target) noexcept {
+    KeAcquireSpinLockAtDpcLevel(addressof(target));
+  }
+
+  void unlock(KSPIN_LOCK& target) noexcept {
+    KeReleaseSpinLockFromDpcLevel(addressof(target));
+  }
+};
+
+struct spin_lock_mixed_policy : spin_lock_capture_irql_policy_base {
+  void lock(KSPIN_LOCK& target) noexcept {
+    if (auto irql = get_current_irql(); irql < DISPATCH_LEVEL) {
+      KeAcquireSpinLock(addressof(target), addressof(m_prev_irql));
+    } else {
+      KeAcquireSpinLockAtDpcLevel(addressof(target));
+      m_prev_irql = irql;
+    }
+  }
+
+  void unlock(KSPIN_LOCK& target) noexcept {
+    if (m_prev_irql < DISPATCH_LEVEL) {
+      KeReleaseSpinLock(addressof(target), m_prev_irql);
+    } else {
+      KeReleaseSpinLockFromDpcLevel(addressof(target));
+    }
+  }
+};
+
+class queued_spin_lock_policy_base {
+ protected:
+  KLOCK_QUEUE_HANDLE m_queue_handle;
+};
+
+struct queued_spin_lock_apc_policy : queued_spin_lock_policy_base {
+  void lock(KSPIN_LOCK& target) noexcept {
+    KeAcquireInStackQueuedSpinLock(addressof(target),
+                                   addressof(m_queue_handle));
+  }
+
+  void unlock([[maybe_unused]] KSPIN_LOCK& target) noexcept {
+    KeReleaseInStackQueuedSpinLock(addressof(m_queue_handle));
+  }
+};
+
+struct queued_spin_lock_dpc_policy : queued_spin_lock_policy_base {
+  void lock(KSPIN_LOCK& target) noexcept {
+    KeAcquireInStackQueuedSpinLockAtDpcLevel(addressof(target),
+                                             addressof(m_queue_handle));
+  }
+
+  void unlock([[maybe_unused]] KSPIN_LOCK& target) noexcept {
+    KeReleaseInStackQueuedSpinLockFromDpcLevel(addressof(m_queue_handle));
+  }
+};
+
+struct queued_spin_lock_mixed_policy : queued_spin_lock_policy_base,
+                                       spin_lock_capture_irql_policy_base {
+  void lock(KSPIN_LOCK& target) noexcept {
+    auto irql{get_current_irql()};
+    if (irql < DISPATCH_LEVEL) {
+      KeAcquireInStackQueuedSpinLock(addressof(target),
+                                     addressof(m_queue_handle));
+    } else {
+      KeAcquireInStackQueuedSpinLockAtDpcLevel(addressof(target),
+                                               addressof(m_queue_handle));
+    }
+    m_prev_irql = irql;
+  }
+
+  void unlock([[maybe_unused]] KSPIN_LOCK& target) noexcept {
+    if (m_prev_irql < DISPATCH_LEVEL) {
+      KeReleaseInStackQueuedSpinLock(addressof(m_queue_handle));
+    } else {
+      KeReleaseInStackQueuedSpinLockFromDpcLevel(addressof(m_queue_handle));
+    }
+  }
+};
+
+inline constexpr uint32_t DEVICE_SPIN_LOCK_TAG{0x0}, DPC_SPIN_LOCK_TAG{0x2},
+    APC_SPIN_LOCK_TAG{0x3};
+
+enum class SpinlockType { ApcSpinLock, MixedSpinLock, DpcSpinLock };
+
+template <uint8_t>
+struct spin_lock_selector_base {
+  static constexpr SpinlockType value = SpinlockType::MixedSpinLock;
+};
+
+template <>
+struct spin_lock_selector_base<DEVICE_SPIN_LOCK_TAG> {
+  static constexpr SpinlockType value = SpinlockType::DpcSpinLock;
+};
+
+template <>
+struct spin_lock_selector_base<DPC_SPIN_LOCK_TAG> {
+  static constexpr SpinlockType value = SpinlockType::DpcSpinLock;
+};
+
+template <>
+struct spin_lock_selector_base<APC_SPIN_LOCK_TAG> {
+  static constexpr SpinlockType value = SpinlockType::ApcSpinLock;
+};
+
+template <irql_t MinIrql, irql_t MaxIrql>
+struct spin_lock_selector {
+  static_assert(MinIrql <= MaxIrql, "invalid spinlock type");
+
+  static constexpr SpinlockType value =
+      spin_lock_selector_base<static_cast<uint8_t>(MinIrql <= APC_LEVEL) |
+                              (static_cast<uint8_t>(MaxIrql <= DISPATCH_LEVEL)
+                               << 1)>::value;
+};
+
+template <irql_t MinIrql, irql_t MaxIrql>
+inline constexpr SpinlockType spin_lock_selector_v =
+    spin_lock_selector<MinIrql, MaxIrql>::value;
+}  // namespace th::details
+
+template <irql_t MinIrql = PASSIVE_LEVEL,
+          irql_t MaxIrql = HIGH_LEVEL,
+          th::details::SpinlockType =
+              th::details::spin_lock_selector_v<MinIrql, MaxIrql>>
+struct spin_lock : public th::details::spin_lock_base<
+                       th::details::queued_spin_lock_mixed_policy> {
+  using MyBase =
+      th::details::spin_lock_base<th::details::queued_spin_lock_mixed_policy>;
+  using sync_primitive_t = MyBase::sync_primitive_t;
+  using native_handle_t = MyBase::native_handle_t;
+
+  using MyBase::MyBase;
+
+  using MyBase::lock;
+  using MyBase::unlock;
+
+  using MyBase::native_handle;
+};
+
+template <irql_t MinIrql, irql_t MaxIrql>
+struct spin_lock<MinIrql, MaxIrql, th::details::SpinlockType::ApcSpinLock>
+    : public th::details::spin_lock_base<
+          th::details::queued_spin_lock_apc_policy> {
+  using MyBase =
+      th::details::spin_lock_base<th::details::queued_spin_lock_apc_policy>;
+  using sync_primitive_t = MyBase::sync_primitive_t;
+  using native_handle_t = MyBase::native_handle_t;
+
+  using MyBase::MyBase;
+
+  using MyBase::lock;
+  using MyBase::unlock;
+
+  using MyBase::native_handle;
+};
+
+template <irql_t MinIrql, irql_t MaxIrql>
+struct spin_lock<MinIrql, MaxIrql, th::details::SpinlockType::DpcSpinLock>
+    : public th::details::spin_lock_base<
+          th::details::queued_spin_lock_dpc_policy> {
+  using MyBase =
+      th::details::spin_lock_base<th::details::queued_spin_lock_dpc_policy>;
+  using sync_primitive_t = MyBase::sync_primitive_t;
+  using native_handle_t = MyBase::native_handle_t;
+
+  using MyBase::MyBase;
+
+  using MyBase::lock;
+  using MyBase::unlock;
+
+  using MyBase::native_handle;
+};
+
+template <irql_t MinIrql = PASSIVE_LEVEL,
+          irql_t MaxIrql = HIGH_LEVEL,
+          th::details::SpinlockType =
+              th::details::spin_lock_selector_v<MinIrql, MaxIrql>>
+struct queued_spin_lock : public th::details::spin_lock_base<
+                              th::details::queued_spin_lock_mixed_policy> {
+  using MyBase =
+      th::details::spin_lock_base<th::details::queued_spin_lock_mixed_policy>;
+  using sync_primitive_t = MyBase::sync_primitive_t;
+  using native_handle_t = MyBase::native_handle_t;
+
+  using MyBase::MyBase;
+
+  using MyBase::lock;
+  using MyBase::unlock;
+
+  using MyBase::native_handle;
+};
+
+template <irql_t MinIrql, irql_t MaxIrql>
+struct queued_spin_lock<MinIrql,
+                        MaxIrql,
+                        th::details::SpinlockType::ApcSpinLock>
+    : public th::details::spin_lock_base<
+          th::details::queued_spin_lock_apc_policy> {
+  using MyBase =
+      th::details::spin_lock_base<th::details::queued_spin_lock_apc_policy>;
+  using sync_primitive_t = MyBase::sync_primitive_t;
+  using native_handle_t = MyBase::native_handle_t;
+
+  using MyBase::MyBase;
+
+  using MyBase::lock;
+  using MyBase::unlock;
+
+  using MyBase::native_handle;
+};
+
+template <irql_t MinIrql, irql_t MaxIrql>
+struct queued_spin_lock<MinIrql,
+                        MaxIrql,
+                        th::details::SpinlockType::DpcSpinLock>
+    : public th::details::spin_lock_base<
+          th::details::queued_spin_lock_dpc_policy> {
+  using MyBase =
+      th::details::spin_lock_base<th::details::queued_spin_lock_dpc_policy>;
+  using sync_primitive_t = MyBase::sync_primitive_t;
+  using native_handle_t = MyBase::native_handle_t;
+
+  using MyBase::MyBase;
+
+  using MyBase::lock;
+  using MyBase::unlock;
+
+  using MyBase::native_handle;
 };
 
 class semaphore
@@ -198,119 +441,104 @@ class semaphore
   }
 };
 
-class event : public th::details::sync_primitive_base<KEVENT> {  // Implemented
-  // using KSEMAPHORE
+enum class cv_status : uint8_t { no_timeout, timeout };
+
+namespace th::details {
+using event_type = _EVENT_TYPE;
+template <event_type type>
+class event : public sync_primitive_base<KEVENT> {
  public:
-  using MyBase = th::details::sync_primitive_base<KEVENT>;
+  using MyBase = sync_primitive_base<KEVENT>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
   using native_handle_t = typename MyBase::native_handle_t;
+  using duration_t = chrono::duration_t;
 
  public:
   enum class State { Active, Inactive };
 
  public:
-  event(State state = State::Inactive) {
+  event(State state = State::Inactive) noexcept {
     bool activated{state == State::Active};
-    KeInitializeEvent(native_handle(), SynchronizationEvent, activated);
+    KeInitializeEvent(native_handle(), type, activated);
     update_state(state);
   }
-  event& operator=(State state) { update_state(state); }
+  event& operator=(State state) noexcept {
+    update_state(state);
+    return *this;
+  }
 
-  void wait_for(size_t us) {
-    LARGE_INTEGER wait_time;
-    wait_time.QuadPart = us;
+  void wait() noexcept {
     KeWaitForSingleObject(native_handle(),
                           Executive,   // Wait reason
                           KernelMode,  // Processor mode
                           false,
-                          addressof(wait_time)  // Indefinite waiting
+                          nullptr  // Indefinite waiting
     );
   }
-  void set() { update_state(State::Active); }
-  void clear() { update_state(State::Inactive); }
-  State signaled() const noexcept { return m_state; }
 
- private:
-  void update_state(State new_state) {
-    if (new_state != m_state) {
-      switch (m_state) {
-        case State::Active:
-          KeSetEvent(native_handle(), HIGH_PRIORITY, false);
-          break;
-        case State::Inactive:
-          KeClearEvent(native_handle());
-          break;
-        default:
-          break;
-      };
-      m_state = new_state;
-    }
+  cv_status wait_for(duration_t us) noexcept {
+    LARGE_INTEGER wait_time;
+    wait_time.QuadPart = us;
+    wait_time.QuadPart *= -10;  // relative time in 100ns tics
+    NTSTATUS result{KeWaitForSingleObject(
+        native_handle(),
+        Executive,   // Wait reason
+        KernelMode,  // Processor mode
+        false,
+        addressof(wait_time)  // Indefinite waiting
+        )};
+    return result == STATUS_TIMEOUT ? cv_status::timeout
+                                    : cv_status::no_timeout;
+  }
+
+  void set() noexcept { update_state(State::Active); }
+  void clear() noexcept { update_state(State::Inactive); }
+  State state() const noexcept { return get_current_state(); }
+  bool is_signaled() const noexcept {
+    return get_current_state() == State::Active;
   }
 
  private:
-  State m_state;
+  void update_state(State new_state) noexcept {
+    switch (new_state) {
+      case State::Active:
+        KeSetEvent(native_handle(), 0, false);
+        break;
+      case State::Inactive:
+        KeClearEvent(native_handle());
+        break;
+      default:
+        break;
+    };
+  }
+
+  State get_current_state() const noexcept {
+    return KeReadStateEvent(MyBase::get_non_const_native_handle())
+               ? State::Active
+               : State::Inactive;
+  }
 };
-
-namespace th::details {
-bool unlock_impl() {
-  return true;  // Dummy
-}
-
-template <class FirstLocable, class... RestLockables>
-bool unlock_impl(FirstLocable& first, RestLockables&... rest) {
-  bool current_unlock_success{true};
-  __try {
-    first.unlock();
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    current_unlock_success = false;
-  }
-  return current_unlock_success && unlock_impl(rest...);
-}
 }  // namespace th::details
 
-template <class... Lockable>
-void unlock(Lockable&... locables) {
-  th::details::unlock_impl(locables);
-}
+using sync_event =
+    th::details::event<th::details::event_type::SynchronizationEvent>;
+using notify_event =
+    th::details::event<th::details::event_type::NotificationEvent>;
 
 namespace th::details {
-bool lock_impl() {
-  return true;  // Dummy
-}
-
-template <class FirstLocable, class... RestLockables>
-bool lock_impl(FirstLocable& first, RestLockables&... rest) {
-  __try {
-    first.lock();
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return false;
-  }
-  bool lock_chain_result{lock_impl(rest...)};
-  if (!lock_chain_result) {
-    unlock(first);
-  }
-  return lock_chain_result;
-}
-}  // namespace th::details
-
-template <class... Lockable>
-void lock(Lockable&... locables) {
-  th::details::lock_impl(locables);
-}
-
-namespace th::details {
-template <class Locable, class Duration, class = void>
+template <class Lockable, class Duration, class = void>
 struct has_try_lock_for : false_type {};
 
-template <class Locable, class Duration>
+template <class Lockable, class Duration>
 struct has_try_lock_for<
-    Locable,
+    Lockable,
     Duration,
-    void_t<decltype(declval<Locable>().try_lock_for(declval<Duration>()))>>
+    void_t<decltype(declval<Lockable>().try_lock_for(declval<Duration>()))>>
     : true_type {};
 
-template <class Locable, class Duration>
-inline constexpr bool has_try_lock_for_v = false;
+template <class Lockable, class Duration>
+inline constexpr bool has_try_lock_for_v =
+    has_try_lock_for<Lockable, Duration>::value;
 // has_try_lock_for<Locable, Duration>::value;
 
 }  // namespace th::details
@@ -334,65 +562,61 @@ template <class Mutex>
 using get_duration_type_t = typename get_duration_type<Mutex>::type;
 
 template <class Mutex>
-class mutex_guard_base {
+class mutex_guard_base : non_copyable {
  public:
   using mutex_t = Mutex;
   using duration_t = get_duration_type_t<mutex_t>;
 
  public:
-  mutex_guard_base(const mutex_guard_base& mtx) = delete;
-  mutex_guard_base& operator=(const mutex_guard_base& mtx) = delete;
-
   void swap(mutex_guard_base& other) {
-    interlocked_swap_pointer(this->m_mtx, other.m_mtx);
-    interlocked_swap(this->m_owned, other.m_owned);
+    swap(m_mtx, other.m_mtx);
+    swap(m_owned, other.m_owned);
   }
 
-  bool owns() const noexcept { return m_owned; }
+  bool owns_lock() const noexcept { return m_owned; }
   Mutex* mutex() noexcept { return m_mtx; }
 
  protected:
-  constexpr mutex_guard_base() = default;
-  mutex_guard_base(Mutex& mtx, bool owned = false)
+  constexpr mutex_guard_base() noexcept = default;
+  mutex_guard_base(Mutex& mtx, bool owned = false) noexcept
       : m_mtx{addressof(mtx)}, m_owned{owned} {}
 
-  mutex_guard_base& move_construct_from(mutex_guard_base&& mtx) {
-    interlocked_exchange_pointer(
-        this->m_mtx, interlocked_exchange_pointer(other.m_mtx, nullptr));
-    interlocked_exchange(this->m_owned,
-                         interlocked_exchange(other.m_owned, false));
+  mutex_guard_base& move_construct_from(mutex_guard_base&& other) noexcept {
+    m_mtx = exchange(other.m_mtx, nullptr);
+    m_owned = exchange(other.m_owned, false);
+    return *this;
   }
 
   void lock() {
     m_mtx->lock();
-    interlocked_exchange(m_owned, true);
+    m_owned = true;
   }
 
   void lock_shared() {
     m_mtx->lock_shared();
-    interlocked_exchange(m_owned, true);
+    m_owned = true;
   }
 
   bool try_lock_for(duration_t timeout_duration) {
     static_assert(has_try_lock_for_v<mutex_t, duration_t>,
                   "Mutex doesn't support locking with timeout");
-    interlocked_exchange(m_owned, m_mtx->try_lock_for(timeout_duration));
+    m_owned = m_mtx->try_lock_for(timeout_duration);
+    return m_owned;
   }
 
   void unlock() {
     m_mtx->unlock();
-    interlocked_exchange(m_owned, false);
+    m_owned = false;
   }
 
   void unlock_shared() {
     m_mtx->unlock_shared();
-    interlocked_exchange(m_owned, false);
+    m_owned = false;
   }
 
   mutex_t* release() {
-    mutex_t* mtx{interlocked_exchange_pointer(m_owned, false)};
-    interlocked_exchange(m_owned, false);
-    return mtx;
+    m_owned = false;
+    return exchange(m_mtx, nullptr);
   }
 
  protected:
@@ -438,26 +662,33 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
       class Mtx = mutex_t,
       enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
   unique_lock(mutex_t& mtx, duration_t timeout_duration, try_lock_for_tag)
-      : MyBase(mtx){MyBase::try_lock_for(timeout_duration)}
-
-        unique_lock(const unique_lock& other) = delete;
-  unique_lock operator=(const unique_lock& other) = delete;
-
-  unique_lock(unique_lock&& other) { MyBase::move_construct_from(move(other)); }
-
-  unique_lock operator=(unique_lock&& other) {
-    reset();
-    MyBase::move_construct_from(move(other));
+      : MyBase(mtx) {
+    MyBase::try_lock_for(timeout_duration);
   }
 
-  ~unique_lock() { reset(); }
+  unique_lock(const unique_lock& other) = delete;
+  unique_lock operator=(const unique_lock& other) = delete;
 
-  mutex_t* release() noexcept { return MyBase::release(); }
+  unique_lock(unique_lock&& other) noexcept {
+    return MyBase::move_construct_from(move(other));
+  }
+
+  unique_lock& operator=(unique_lock&& other) noexcept {
+    reset_if_needed();
+    return MyBase::move_construct_from(move(other));
+  }
+
+  ~unique_lock() { reset_if_needed(); }
+
   operator bool() const noexcept { return MyBase::owns(); }
 
+  using MyBase::lock;
+  using MyBase::release;
+  using MyBase::unlock;
+
  private:
-  void reset() {
-    if (MyBase::owns()) {
+  void reset_if_needed() noexcept {
+    if (MyBase::owns_lock()) {
       MyBase::unlock();
     }
   }
@@ -498,26 +729,34 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
       class Mtx = mutex_t,
       enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
   shared_lock(mutex_t& mtx, duration_t timeout_duration, try_lock_for_tag)
-      : MyBase(mtx){MyBase::try_lock_for(timeout_duration)}
+      : MyBase(mtx) {
+    MyBase::try_lock_for(timeout_duration);
+  }
 
-        shared_lock(const shared_lock& other) = delete;
+  shared_lock(const shared_lock& other) = delete;
   shared_lock operator=(const shared_lock& other) = delete;
 
-  shared_lock(shared_lock&& other) { MyBase::move_construct_from(move(other)); }
-
-  shared_lock operator=(shared_lock&& other) {
-    reset();
+  shared_lock(shared_lock&& other) noexcept {
     MyBase::move_construct_from(move(other));
   }
 
-  ~shared_lock() { reset(); }
+  shared_lock& operator=(shared_lock&& other) noexcept {
+    reset_if_needed();
+    return MyBase::move_construct_from(move(other));
+  }
 
-  mutex_t* release() noexcept { return MyBase::release(); }
-  operator bool() const noexcept { return MyBase::owns(); }
+  ~shared_lock() { reset_if_needed(); }
+
+  operator bool() const noexcept { return MyBase::owns_lock(); }
+
+  using MyBase::release;
+
+  void lock() { MyBase::lock_shared; }
+  void unlock() { MyBase::unlock_shared; }
 
  private:
-  void reset() {
-    if (MyBase::owns()) {
+  void reset_if_needed() noexcept {
+    if (MyBase::owns_lock()) {
       MyBase::unlock_shared();
     }
   }

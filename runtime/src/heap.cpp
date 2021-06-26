@@ -2,47 +2,42 @@
 
 namespace ktl {
 namespace crt {
-void* zero_fill(void* ptr, size_t size) {
-  return RtlZeroMemory(ptr, size);  //«атирание во избежание утечки чужих данных
-}
-
-void deallocate_impl(void* memory_block) {
-#ifdef KTL_RUNTIME_DBG
-  NT_ASSERT(reinterpret_cast<size_t>(memory_block) % allocation_alignment == 0);
-#endif
-  auto* raw_header{static_cast<byte*>(memory_block) - allocation_alignment};
-  auto* memory_block_header{reinterpret_cast<MemoryBlockHeader*>(raw_header)};
-#ifdef KTL_RUNTIME_DBG
-  NT_ASSERT(memory_block_header->tag >= tag_base);
-#endif
-  ExFreePoolWithTag(memory_block_header, memory_block_header->tag);
+void deallocate_impl(void* memory_block,
+                     [[maybe_unused]] align_val_t alignment) noexcept {
+  ExFreePoolWithTag(memory_block, KTL_HEAP_TAG);
 }
 }  // namespace crt
 
-void* alloc_paged(size_t bytes_count) {
-  return crt::allocate_impl<crt::tag_paged>(ExAllocatePoolWithTag, bytes_count);
-}
-
-void* alloc_non_paged(size_t bytes_count) {
-  return crt::allocate_impl<crt::tag_non_paged>(ExAllocatePoolWithTag,
-                                                bytes_count);
-}
-
-void deallocate(void* memory_block) {
-  if (memory_block) {
-    crt::deallocate_impl(memory_block);
+void* alloc_paged(size_t bytes_count, align_val_t alignment) noexcept {
+  if (alignment <= crt::DEFAULT_ALLOCATION_ALIGNMENT) {
+    return crt::allocate_impl<PagedPool, crt::DEFAULT_ALLOCATION_ALIGNMENT>(
+        bytes_count, alignment);
+  } else {
+    return crt::allocate_impl<PagedPoolCacheAligned,
+                              crt::EXTENDED_ALLOCATION_ALIGNMENT>(bytes_count,
+                                                                  alignment);
   }
 }
 
-void free(void* ptr, size_t) {
-  deallocate(ptr);
+void* alloc_non_paged(size_t bytes_count, align_val_t alignment) noexcept {
+  if (alignment <= crt::DEFAULT_ALLOCATION_ALIGNMENT) {
+    return crt::allocate_impl<NonPagedPoolNx,
+                              crt::DEFAULT_ALLOCATION_ALIGNMENT>(bytes_count,
+                                                                 alignment);
+  } else {
+    return crt::allocate_impl<NonPagedPoolCacheAligned,
+                              crt::EXTENDED_ALLOCATION_ALIGNMENT>(bytes_count,
+                                                                  alignment);
+  }
 }
 
-wchar_t* allocate_string(size_t length_in_bytes) {
-  return static_cast<wchar_t*>(alloc_paged(length_in_bytes));
+void deallocate(void* memory_block, align_val_t alignment) noexcept {
+  if (memory_block) {
+    crt::deallocate_impl(memory_block, alignment);
+  }
 }
 
-void deallocate_string(wchar_t* str, size_t capacity) {
-  free(str, capacity);
+void free(void* ptr, size_t, align_val_t alignment) noexcept {
+  deallocate(ptr, alignment);
 }
 }  // namespace ktl

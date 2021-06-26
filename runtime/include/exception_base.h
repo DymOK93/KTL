@@ -1,27 +1,57 @@
 #pragma once
 #include <basic_types.h>
-#include <ntddk.h>
 
-namespace ktl::crt {
-inline constexpr auto KTL_EXCEPTION{
-    static_cast<NTSTATUS>(0xEA9B0000)};  // 0xE, ('K' - 'A') % 10, ('T' - 'A') %
-                                         // 10, ('L' - 'A') % 10
-inline constexpr auto KTL_CRT_FAILURE{
-    static_cast<NTSTATUS>(KTL_EXCEPTION | 0x0000FFFF)};
+namespace ktl {
+using exc_char_t = wchar_t;
 
-struct ExceptionBase {
-  virtual ~ExceptionBase() = default;
+struct constexpr_message_tag {};
+
+namespace crt {
+struct exception_data {
+  const exc_char_t* str;
+  size_t ref_counter;
 };
 
-bool is_ktl_exception(NTSTATUS exc_code);
+class exception_base {
+ private:
+  static constexpr size_t SHARED_DATA_MASK{1};
+  static constexpr const exc_char_t* ALLOCATION_FAILED_MSG{
+      L"unable to allocate memory for exception data"};
 
-void init_exception_environment();
-ExceptionBase* get_exception(NTSTATUS exc_code);
-void replace_exception(NTSTATUS old_exc_code, ExceptionBase* new_exc);
-void remove_exception(NTSTATUS exc_code);
-void cleanup_exception_environment();
+ public:
+  exception_base(const exc_char_t* msg);
+  exception_base(const exc_char_t* msg, size_t length);
 
-[[noreturn]] void throw_exception(ExceptionBase* exc_ptr);
-[[noreturn]] void throw_again(NTSTATUS exc_code);
-[[noreturn]] void throw_ktl_crt_failure();
-}  // namespace ktl::crt
+  template <size_t N>
+  explicit constexpr exception_base(const exc_char_t (&msg)[N])
+      : exception_base(msg, N) {}
+
+  constexpr exception_base(const exc_char_t* msg,
+                           constexpr_message_tag) noexcept
+      : m_data{msg} {}
+
+  template <size_t N>
+  explicit constexpr exception_base(const exc_char_t (&msg)[N],
+                                    constexpr_message_tag)
+      : m_data{msg} {}
+
+  exception_base(const exception_base& other);
+  exception_base& operator=(const exception_base& other);
+  virtual ~exception_base();
+
+ protected:
+  const exc_char_t* get_message() const noexcept;
+
+ private:
+  bool has_shared_data() const noexcept;
+  exception_data* as_shared_data() const noexcept;
+
+  static const void* try_create_masked_shared_data(const exc_char_t* msg,
+                                             size_t msg_length) noexcept;
+  static void destroy_shared_data(exception_data* target) noexcept;
+
+ private:
+  const void* m_data;  //!< exception_data* or exc_char_t*
+};
+}  // namespace crt
+}  // namespace ktl
