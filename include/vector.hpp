@@ -13,8 +13,7 @@ using std::vector;
 #include <assert.hpp>
 #include <compressed_pair.hpp>
 #include <iterator.hpp>
-#include <memory_tools.hpp>
-#include <smart_pointer.hpp>
+#include <memory.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
@@ -161,16 +160,11 @@ class vector {
             enable_if_t<is_constructible_v<allocator_type, Alloc>, int> = 0>
   vector(vector&& other, Alloc&& alloc)
       : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {
-    if constexpr (is_same_v<allocator_type, remove_cv_t<Alloc> > &&
-                  allocator_traits_type::is_always_equal::value) {
+    if (alc::details::allocators_are_equal(get_alloc(), other.get_alloc())) {
       m_impl.get_second() = move(other.m_impl.get_second());
     } else {
-      if (other.get_alloc() == alloc) {
-        m_impl.get_second() = move(other.m_impl.get_second());
-      } else {
-        assign(other);
-        other.clear();
-      }
+      assign(other.begin(), other.end());
+      other.clear();
     }
   }
 
@@ -200,7 +194,7 @@ class vector {
                  value, count);
     } else {
       auto last{fill(data(), data() + count, value)};
-      destroy(last, data() + size());
+      destroy(last, data() + size(), get_alloc());
       get_size() = count;
     }
   }
@@ -302,12 +296,8 @@ class vector {
   }
 
   iterator insert(const_iterator pos, size_type count, const Ty& value) {
-    if (pos == end()) {
-      return append_n(count, value);
-    }
-
     const size_type current_size{size()};
-    const auto offset{static_cast<size_t>(pos - begin())};
+    const auto offset{static_cast<size_type>(pos - begin())};
 
     if (const size_type required = current_size + count;
         required > capacity()) {
@@ -315,15 +305,39 @@ class vector {
           calc_optimal_growth(required), make_construct_fill_helper(offset),
           make_transfer_with_shift_right(offset, offset + count), value, count);
     } else {
-      Ty tmp{value};  // It's required to construct value to avoid moved-from
-                      // state aster shift
-      auto* first{data() + offset};
-      make_transfer_without_shift()(first + count, current_size - offset,
-                                    first);
-      get_size() += count;
-      fill(first, first + count, tmp);
+      if (pos == end()) {
+        append_n_without_grow(value, count);
+      } else {
+        Ty tmp{value};  // It's required to construct value to avoid moved-from
+                        // state aster shift
+        insert_n_without_grow(count, tmp, offset);
+      }
     }
-    return begin() + offset;
+    return begin() + current_size;
+
+    // if (pos == end()) {
+    //  return append_n(count, value);
+    //}
+
+    // const size_type current_size{size()};
+    // const auto offset{static_cast<size_t>(pos - begin())};
+
+    // if (const size_type required = current_size + count;
+    //    required > capacity()) {
+    //  grow<true>(
+    //      calc_optimal_growth(required), make_construct_fill_helper(offset),
+    //      make_transfer_with_shift_right(offset, offset + count), value,
+    //      count);
+    //} else {
+    //  Ty tmp{value};  // It's required to construct value to avoid moved-from
+    //                  // state aster shift
+    //  auto* first{data() + offset};
+    //  make_transfer_without_shift()(first + count, current_size - offset,
+    //                                first);
+    //  get_size() += count;
+    //  fill(first, first + count, tmp);
+    //}
+    // return begin() + offset;
   }
 
   template <
@@ -478,7 +492,7 @@ class vector {
     } else if (range_length <= current_size) {
       auto my_first{begin()};
       copy(first, last, my_first);
-      destroy(my_first + range_length, end());
+      destroy(my_first + range_length, end(), get_alloc());
       get_size() = range_length;
     } else {
       auto subrange_end{first};
@@ -491,25 +505,17 @@ class vector {
   }
 
   void copy_assignment_impl(const vector& other, true_type) {
-    if constexpr (allocator_traits_type::is_always_equal::value) {
-      copy_assignment_impl_equal_allocators(other);
+    if (alc::details::allocators_are_equal(get_alloc(), other.get_alloc())) {
+      get_alloc() = other.get_alloc();
+      copy_assignment_impl(other, false_type{});
     } else {
-      if (get_alloc() == other.get_alloc()) {
-        copy_assignment_impl_equal_allocators(other);
-      } else {
-        destroy_and_deallocate();
-        m_impl.get_second() = Impl{};  // Explicitly fill by zeros pointer to
-                                       // old buffer, size and capacity fields
-        get_alloc() = other.get_alloc();
-        grow_unchecked<true>(other.size(), make_cloner(), make_dummy_transfer(),
-                             other);
-      }
+      destroy_and_deallocate();
+      m_impl.get_second() = Impl{};  // Explicitly fill by zeros pointer to
+                                     // old buffer, size and capacity fields
+      get_alloc() = other.get_alloc();
+      grow_unchecked<true>(other.size(), make_cloner(), make_dummy_transfer(),
+                           other);
     }
-  }
-
-  void copy_assignment_impl_equal_allocators(const vector& other) {
-    get_alloc() = other.get_alloc();
-    copy_assignment_impl(other, false_type{});
   }
 
   void copy_assignment_impl(const vector& other, false_type) {
@@ -522,46 +528,24 @@ class vector {
     m_impl.get_second() = move(other.m_impl.get_second());
   }
 
-  void move_assignment_impl_equal_allocators(vector&& other) {
-    destroy_and_deallocate();
-    m_impl.get_second() = move(other.m_impl.get_second());
-  }
-
   void move_assignment_impl(vector&& other, false_type) {
-    if constexpr (allocator_traits_type::is_always_equal::value) {
-      move_assignment_impl_equal_allocators(other);
+    if (alc::details::allocators_are_equal(get_alloc(), other.get_alloc())) {
+      destroy_and_deallocate();
+      m_impl.get_second() = move(other.m_impl.get_second());
     } else {
-      if (get_alloc() == other.get_alloc()) {
-        move_assignment_impl_equal_allocators(other);
-      } else {  // With move_iterator it's possible to lose optimization for the
-                // trivially copyable types
-        const size_type other_size{other.size()};
-        if (other_size > capacity()) {
-          grow_unchecked(other_size, make_taker(),
-                         make_transfer_without_shift(), move(other));
-        } else {
-          auto last{move(other.begin(), other.end(), begin())};
-          destroy(last, end());
-          get_size() = other_size;
-        }
-        other.clear();
+      // With move_iterator it's possible to lose optimization for the
+      // trivially copyable types
+      const size_type other_size{other.size()};
+      if (other_size > capacity()) {
+        grow_unchecked(other_size, make_taker(), make_transfer_without_shift(),
+                       move(other));
+      } else {
+        auto last{move(other.begin(), other.end(), begin())};
+        destroy(last, end(), get_alloc());
+        get_size() = other_size;
       }
+      other.clear();
     }
-  }
-
-  iterator append_n(size_type count, const Ty& value) {
-    const size_type current_size{size()};
-    if (const size_type required = current_size + count;
-        required > capacity()) {
-      grow<true>(calc_optimal_growth(required),
-                 make_construct_fill_helper(current_size),
-                 make_transfer_without_shift(), value, count);
-    } else {
-      make_construct_fill_helper(current_size)(data() + current_size, value,
-                                               count);
-      get_size() += count;
-    }
-    return begin() + current_size;
   }
 
   template <class InputIt>
@@ -603,6 +587,41 @@ class vector {
       }
     }
     return begin() + current_size;
+  }
+
+  void append_n_without_grow(size_type count, const Ty& value) {
+    const size_type current_size{size()};
+    assert(current_size + count <= capacity());
+    get_size() +=
+        make_construct_fill_helper(current_size)(data(), value, count);
+  }
+
+  void insert_n_without_grow(size_type count,
+                             const Ty& value,
+                             size_type offset) {
+    const size_type current_size{size()}, residue{current_size - offset};
+    assert(current_size + count <= capacity());
+
+    pointer buffer{data()};
+    pointer subrange_first{buffer + offset};
+
+    if (count <= residue) {
+      const size_type unshifted{residue - count};
+      pointer buffer_end{buffer + current_size};
+      make_transfer_without_shift()(buffer_end, count,
+                                    subrange_first + unshifted);
+      get_size() += count;
+      shift_right(subrange_first, buffer_end, count);
+      fill_n(subrange_first, count, value);
+    } else {
+      const size_type in_raw_memory{count - residue};
+      get_size() += make_construct_fill_helper(current_size)(buffer, value,
+                                                             in_raw_memory);
+      pointer buffer_end{buffer + size()};
+      make_transfer_without_shift()(buffer_end, residue, subrange_first);
+      get_size() += residue;
+      fill_n(subrange_first, residue, value);
+    }
   }
 
   template <class ForwardIt>
@@ -676,14 +695,11 @@ class vector {
 
   void swap_impl(vector& other, false_type) noexcept(
       allocator_traits_type::is_always_equal::value) {
-    if constexpr (allocator_traits_type::is_always_equal::value) {
-      ::swap(m_impl.get_second().other.m_impl.get_second());
-    } else {
-      assert_with_msg(
-          get_alloc() == other.get_alloc(),
-          "vectors are not swappable due to incompatible allocators");
+    if (alc::details::allocators_are_equal(get_alloc(), other.get_alloc())) {
       ::swap(m_impl.get_second(), other.m_impl.get_second());
     }
+    assert_with_msg(get_alloc() == other.get_alloc(),
+                    "vectors are not swappable due to incompatible allocators");
   }
 
   allocator_type& get_alloc() noexcept { return m_impl.get_first(); }
@@ -821,13 +837,13 @@ class vector {
 
   static constexpr auto make_copy_helper() noexcept {
     return [](pointer dst, size_type count, auto src_it) noexcept {
-      uninitialized_copy_n(src_it, count, dst);
+      uninitialized_copy_n_unchecked(src_it, count, dst);
     };
   }
 
   static constexpr auto make_move_helper() noexcept {
     return [](pointer dst, size_type count, auto src_it) noexcept {
-      uninitialized_move_n(src_it, count, dst);
+      uninitialized_move_n_unchecked(src_it, count, dst);
     };
   }
 

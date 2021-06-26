@@ -310,6 +310,18 @@ struct memset_is_safe<signed char> : true_type {};
 template <>
 struct memset_is_safe<unsigned char> : true_type {};
 
+template <>
+struct memset_is_safe<bool> : true_type {};
+
 template <class Ty>
 inline constexpr bool memset_is_safe_v = memset_is_safe<Ty>::value;
+
+template <class Ty>
+struct wmemset_is_safe : false_type {};
+
+template <>
+struct wmemset_is_safe<wchar_t> : true_type {};
+
+template <class Ty>
+inline constexpr bool wmemset_is_safe_v = wmemset_is_safe<Ty>::value;
 }  // namespace ktl::mm::details

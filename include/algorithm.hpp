@@ -8,7 +8,7 @@ using std::min;
 }  // namespace ktl
 #else
 #include <algorithm_impl.hpp>
-#include <memory_tools.hpp>
+#include <memory.hpp>
 #include <memory_type_traits.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
@@ -238,21 +238,28 @@ OutputIt move(InputIt first, InputIt last, OutputIt d_first) {
 }
 
 namespace algo::details {
-template <class ForwardIt, class Ty>
+template <class It, class Ty>
 struct FillerBase {
-  void
-  operator()(ForwardIt first, ForwardIt last, const Ty& value) const noexcept(
-      is_nothrow_assignable_v<typename iterator_traits<ForwardIt>::value_type,
-                              Ty>) {
+  It operator()(It first, size_t count, const Ty& value) const noexcept(
+      is_nothrow_assignable_v<typename iterator_traits<It>::value_type, Ty>) {
+    for (size_t idx = 0; idx < count; first = next(first), ++idx) {
+      *first = value;
+    }
+    return first;
+  }
+
+  It operator()(It first, It last, const Ty& value) const noexcept(
+      is_nothrow_assignable_v<typename iterator_traits<It>::value_type, Ty>) {
     for (; first != last; first = next(first)) {
       *first = value;
     }
+    return first;
   }
 };
 
-template <class ForwardIt, class Ty, bool = mm::details::memset_is_safe_v<Ty> >
-struct Filler : FillerBase<ForwardIt, Ty> {
-  using MyBase = FillerBase<ForwardIt, Ty>;
+template <class It, class Ty, bool = mm::details::memset_is_safe_v<Ty> >
+struct Filler : FillerBase<It, Ty> {
+  using MyBase = FillerBase<It, Ty>;
 
   using MyBase::operator();
 };
@@ -260,9 +267,14 @@ struct Filler : FillerBase<ForwardIt, Ty> {
 template <class Ty>
 class Filler<Ty*, Ty, true> {
  public:
-  void operator()(Ty* first, Ty* last, Ty value) const noexcept {
-    memset(first, static_cast<int>(value),
-           static_cast<size_t>(last - first) * sizeof(Ty));
+  Ty* operator()(Ty* first, size_t count, Ty value) const noexcept {
+    return static_cast<Ty*>(
+        memset(first, static_cast<int>(value), count * sizeof(Ty)));
+  }
+
+  Ty* operator()(Ty* first, Ty* last, Ty value) const noexcept {
+    return operator()(first, static_cast<size_t>(last - first),
+                      static_cast<int>(value));
   }
 };
 
@@ -270,24 +282,44 @@ template <class Ty>
 struct Filler<Ty*, Ty, false> : FillerBase<Ty*, Ty> {
   using MyBase = FillerBase<Ty*, Ty>;
 
-  void operator()(Ty* first, Ty* last, const Ty& value) const
+  Ty* operator()(Ty* first, Ty* last, const Ty& value) const
       noexcept(is_nothrow_assignable_v<Ty, Ty>) {
     if constexpr (!mm::details::memset_zeroying_is_safe_v<Ty>) {
-      MyBase::operator()(first, last, value);
+      return MyBase::operator()(first, last, value);
     } else {
       if (!mm::details::all_bits_are_zeroes(value)) {
-        MyBase::operator()(first, last, value);
-      } else {
-        memset(first, 0, static_cast<size_t>(last - first) * sizeof(Ty));
+        return MyBase::operator()(first, last, value);
       }
+      return static_cast<Ty*>(
+          memset(first, 0, static_cast<size_t>(last - first) * sizeof(Ty)));
+    }
+  }
+
+  Ty* operator()(Ty* first, size_t count, const Ty& value) const
+      noexcept(is_nothrow_assignable_v<Ty, Ty>) {
+    if constexpr (!mm::details::memset_zeroying_is_safe_v<Ty>) {
+      return MyBase::operator()(first, count, value);
+    } else {
+      if (!mm::details::all_bits_are_zeroes(value)) {
+        return MyBase::operator()(first, count, value);
+      }
+      return static_cast<Ty*>(memset(first, 0, count * sizeof(Ty)));
     }
   }
 };
 
 template <>
 struct Filler<wchar_t*, wchar_t> {
-  void operator()(wchar_t* first, wchar_t* last, wchar_t value) const noexcept {
-    wmemset(first, value, static_cast<size_t>(last - first));
+  wchar_t* operator()(wchar_t* first,
+                      size_t count,
+                      wchar_t value) const noexcept {
+    return wmemset(first, value, count);
+  }
+
+  wchar_t* operator()(wchar_t* first,
+                      wchar_t* last,
+                      wchar_t value) const noexcept {
+    return operator()(first, static_cast<size_t>(last - first), value);
   }
 };
 }  // namespace algo::details
@@ -295,6 +327,14 @@ struct Filler<wchar_t*, wchar_t> {
 template <class ForwardIt, class Ty>
 void fill(ForwardIt first, ForwardIt last, const Ty& value) {
   algo::details::Filler<ForwardIt, Ty>{}(first, last, value);
+}
+
+template <class OutputIt, class SizeType, class Ty>
+OutputIt fill_n(OutputIt first, SizeType count, const Ty& value) {
+  if (count == static_cast<SizeType>(0)) {
+    return first;
+  }
+  return algo::details::Filler<OutputIt, Ty>{}(first, count, value);
 }
 
 namespace algo::details {

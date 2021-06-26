@@ -12,6 +12,7 @@ using std::weak_ptr;
 #include <heap.h>
 #include <allocator.hpp>
 #include <atomic.hpp>
+#include <compressed_pair.hpp>
 #include <functional.hpp>
 #include <memory_type_traits.hpp>
 #include <type_traits.hpp>

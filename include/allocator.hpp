@@ -10,7 +10,7 @@ using std::allocator_traits;
 #else
 #include <heap.h>
 #include <new_delete.h>
-#include <memory_tools.hpp>
+#include <memory_impl.hpp>
 #include <memory_type_traits.hpp>
 #include <type_traits.hpp>
 
@@ -305,5 +305,18 @@ struct allocator_traits {
 
   static void in_place_destroy(pointer ptr) { destroy_at(ptr); }
 };
+
+namespace alc::details {
+template <class Allocator>
+constexpr bool allocators_are_equal(
+    const Allocator& lhs,
+    const Allocator& rhs) noexcept(noexcept(lhs == rhs)) {
+  if constexpr (allocator_traits<Allocator>::is_always_equal::value) {
+    return true;
+  } else {
+    return lhs == rhs;
+  }
+}
+}  // namespace alc::details
 }  // namespace ktl
 #endif
