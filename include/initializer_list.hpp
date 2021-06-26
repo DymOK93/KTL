@@ -1,8 +1,7 @@
 #pragma once
 
 #ifdef KTL_NO_CXX_STANDARD_LIBRARY
-#ifndef _INITIALIZER_LIST_
-namespace std {
+namespace ktl {
 template <class Ty>
 class initializer_list {
  public:
@@ -43,10 +42,12 @@ template <class Ty>
 [[nodiscard]] constexpr const Ty* end(initializer_list<Ty> init_list) noexcept {
   return init_list.end();
 }
-}  // namespace std
-#endif
-#endif
 
-namespace ktl {
-    using std::initializer_list;
+#ifndef _INITIALIZER_LIST_
+namespace std {
+template <class Ty>
+using initializer_list = ktl::initializer_list<Ty>;
 }
+#endif
+}  // namespace ktl
+#endif

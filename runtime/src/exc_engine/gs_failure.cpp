@@ -1,0 +1,9 @@
+#include <../basic_types.h>
+#include <bugcheck.h>
+
+namespace ktl::crt::exc_engine {
+EXTERN_C [[noreturn]] void report_security_check_failure() {
+  set_termination_context({BugCheckReason::BufferSecurityCheckFailure});
+  terminate();
+}
+}  // namespace ktl::crt::exc_engine

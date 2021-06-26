@@ -16,6 +16,7 @@ set(
 set(
 	KTL_EXC_X64_SOURCE_FILES
 		"catch.cpp"
+		"cookie.cpp"
 		"throw.cpp"
 		"frame_handler3.cpp"
 		"frame_handler4.cpp"
@@ -24,6 +25,7 @@ set(
 set(
 	KTL_EXC_X64_ASM_FILES
 		"capture.asm"
+		"cookie.asm"
 )
 
 set(TARGET_LIB exc_x64)
