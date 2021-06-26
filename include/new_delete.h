@@ -1,7 +1,7 @@
 #pragma once
+#include <exception_impl.h>
 #include <heap.h>
 #include <placement_new.h>
-#include <exception_impl.h>
 
 namespace ktl {
 struct paged_new_tag_t {};
@@ -19,8 +19,6 @@ inline constexpr align_val_t DEFAULT_NEW_ALIGNMENT{
     crt::DEFAULT_ALLOCATION_ALIGNMENT};
 
 namespace mm::details {
-inline new_handler_t shared_new_handler;
-
 template <class AllocFunc>
 void* operator_new_impl(AllocFunc alloc_func,
                         size_t bytes_count,
@@ -30,8 +28,8 @@ void* operator_new_impl(AllocFunc alloc_func,
     allocated = alloc_func(bytes_count, alignment);
     if (allocated) {
       break;
-    } else if (auto new_handler = get_new_handler(); new_handler) {
-      new_handler();
+    } else if (auto handler = get_new_handler(); handler) {
+      handler();
     } else {
       throw bad_alloc{};
     }
@@ -39,7 +37,6 @@ void* operator_new_impl(AllocFunc alloc_func,
   return allocated;
 }
 }  // namespace mm::details
-
 }  // namespace ktl
 
 void* CRTCALL operator new(size_t bytes);  // throw ktl::bad_alloc if fails

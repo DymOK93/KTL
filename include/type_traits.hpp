@@ -75,19 +75,6 @@ using index_sequence_for = make_index_sequence<sizeof...(
     Types)>;  // sizeof...(arg_pack) вычисляет количество
               // аргументов variadic-шаблона
 
-template <bool Value>
-struct bool_tag {
-  using type = true_type;
-};
-
-template <>
-struct bool_tag<false> {
-  using type = false_type;
-};
-
-template <bool Value>
-using bool_tag_t = typename bool_tag<Value>::type;
-
 template <class Ty>
 struct identity {
   using type = Ty;
@@ -126,6 +113,23 @@ struct make_unsigned<long long> {
 
 template <class IntegralTy>
 using make_unsigned_t = typename make_unsigned<IntegralTy>::type;
+
+template <typename Ty>
+inline constexpr bool is_memcpyable_v =
+    is_trivially_copyable_v<Ty>&& is_trivially_destructible_v<Ty>;
+
+template <typename Ty>
+struct is_memcpyable : bool_constant<is_memcpyable_v<Ty>> {};
+
+template <class InputIt, class OutputIt>
+inline constexpr bool is_memcpyable_range_v = false;
+
+template <typename Ty>
+inline constexpr bool is_memcpyable_range_v<Ty*, Ty*> = is_memcpyable_v<Ty>;
+
+template <class InputIt, class OutputIt>
+struct is_memcpyable_range
+    : bool_constant<is_memcpyable_range_v<InputIt, OutputIt>> {};
 
 struct non_copyable {
   non_copyable() = default;

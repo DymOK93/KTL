@@ -22,6 +22,15 @@ constexpr remove_reference_t<Ty>&& move(Ty&& val) noexcept {
 }
 
 template <class Ty>
+constexpr conditional_t<!is_nothrow_move_constructible_v<Ty> &&
+                            is_copy_constructible_v<Ty>,
+                        Ty&&,
+                        const Ty&>
+move_if_noexcept(Ty& val) noexcept {
+  return move(val);
+}
+
+template <class Ty>
 constexpr Ty&& forward(remove_reference_t<Ty>& val) noexcept {
   return static_cast<Ty&&>(val);
 }
@@ -55,5 +64,26 @@ constexpr Ty* addressof(Ty& target) noexcept {
 
 template <class Ty>
 const Ty* addressof(const Ty&&) = delete;
+
+struct in_place_t {
+  explicit in_place_t() = default;
+};
+inline constexpr in_place_t in_place{};
+
+template <class Ty>
+struct in_place_type_t {
+  explicit in_place_type_t() noexcept = default;
+};
+
+template <class Ty>
+inline constexpr in_place_type_t<Ty> in_place_type{};
+
+template <size_t Idx>
+struct in_place_index_t {
+  explicit in_place_index_t() noexcept = default;
+};
+
+template <size_t Idx>
+inline constexpr in_place_index_t<Idx> in_place_index{};
 }  // namespace ktl
 #endif

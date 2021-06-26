@@ -68,16 +68,13 @@ class auto_lock {
 
 }  // namespace th::details
 
-// Copyright (c) Microsoft Corporation
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
 enum class memory_order : uint8_t {
   relaxed = 0,
   consume = 1,
   acquire = 2,
   release = 4,
-  acq_rel = 6,  // acquire | release
-  seq_cst = 14  // acq_rel | 8
+  acq_rel = acquire | release,  // 6
+  seq_cst = acq_rel | 8         // 14
 };
 
 inline constexpr memory_order memory_order_relaxed = memory_order::relaxed;
@@ -87,13 +84,61 @@ inline constexpr memory_order memory_order_release = memory_order::release;
 inline constexpr memory_order memory_order_acq_rel = memory_order::acq_rel;
 inline constexpr memory_order memory_order_seq_cst = memory_order::seq_cst;
 
+template <memory_order order>
+void atomic_thread_fence() noexcept {
+  th::details::make_compiler_barrier();
+}
+
+template <>
+inline void atomic_thread_fence<memory_order_relaxed>() noexcept {}
+
 namespace th::details {
+inline void increment_dummy_variable() noexcept {
+  volatile long guard;  // Not initialized to avoid an unnecessary operation;
+  [[maybe_unused]] auto value{
+      InterlockedIncrement(atomic_address_as<long>(guard))};
+}
+}  // namespace th::details
+
+template <>
+inline void atomic_thread_fence<memory_order_seq_cst>() noexcept {
+  th::details::make_compiler_barrier();
+  th::details::increment_dummy_variable();
+  th::details::make_compiler_barrier();
+}
+
+EXTERN_C inline void atomic_thread_fence(const memory_order order) noexcept {
+  if (order != memory_order_relaxed) {
+    return;
+  }
+  th::details::make_compiler_barrier();
+  if (order == memory_order_seq_cst) {
+    th::details::increment_dummy_variable();
+    th::details::make_compiler_barrier();
+  }
+}
+
+template <memory_order order>
+void atomic_signal_fence() noexcept {
+  th::details::make_compiler_barrier();
+}
+
+template <>
+inline void atomic_signal_fence<memory_order_relaxed>() noexcept {}
+
+EXTERN_C inline void atomic_signal_fence(const memory_order order) noexcept {
+  if (order != memory_order_relaxed) {
+    th::details::make_compiler_barrier();
+  }
+}
+
 template <class Ty>
 Ty kill_dependency(Ty arg) noexcept {  // "magic" template that kills
                                        // dependency ordering when called
   return arg;
 }
 
+namespace th::details {
 template <memory_order order, typename Dummy = memory_order>
 struct invalid_memory_order {
   invalid_memory_order() {
@@ -135,7 +180,7 @@ template <memory_order on_success, memory_order on_failure>
   //        |
   //     acq_rel
   //     /     \
-    // acquire  release
+  // acquire  release
   //    |       |
   // consume    |
   //     \     /
@@ -154,7 +199,8 @@ template <memory_order on_success, memory_order on_failure>
       {memory_order_seq_cst, memory_order_seq_cst, memory_order_seq_cst,
        memory_order_seq_cst, memory_order_seq_cst, memory_order_seq_cst}};
 
-  load_memory_order_checker<on_failure>{};
+  // We don't need check on_success
+  load_memory_order_checker<on_failure> mem_order_checker{};
   return COMBINED[static_cast<underlying_type_t<memory_order>>(on_success)]
                  [static_cast<underlying_type_t<memory_order>>(on_failure)];
 }
@@ -175,7 +221,7 @@ template <class IntegralTy, class Ty>
 
 template <memory_order order>
 void make_load_barrier() noexcept {
-  load_memory_order_checker<order>{};
+  load_memory_order_checker<order> mem_order_checker{};
   if constexpr (order != memory_order::relaxed) {
     make_compiler_barrier();
   }
@@ -183,7 +229,7 @@ void make_load_barrier() noexcept {
 
 template <memory_order order>
 void make_store_barrier() noexcept {
-  store_memory_order_checker<order>{};
+  store_memory_order_checker<order> mem_order_checker{};
   if constexpr (order != memory_order::relaxed) {
     make_compiler_barrier();
   }
@@ -882,7 +928,7 @@ class atomic : public atomic_base_t<Ty>,
       is_trivially_copyable_v<Ty> && is_copy_constructible_v<Ty> &&
           is_move_constructible_v<Ty> && is_copy_assignable_v<Ty> &&
           is_move_assignable_v<Ty>,
-      "atomic<Ty> requires T to be trivially copyable, copy constructible, "
+      "atomic<Ty> requires Ty to be trivially copyable, copy constructible, "
       "move constructible, copy assignable, and move assignable");
 
  public:

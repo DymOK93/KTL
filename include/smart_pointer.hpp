@@ -12,6 +12,7 @@ using std::weak_ptr;
 #include <heap.h>
 #include <allocator.hpp>
 #include <atomic.hpp>
+#include <compressed_pair.hpp>
 #include <functional.hpp>
 #include <memory_type_traits.hpp>
 #include <type_traits.hpp>
@@ -764,11 +765,12 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
             class Alloc,
             enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
   shared_ptr(U* ptr, Alloc&& alloc, custom_allocator_tag_t)
-      : MyBase(ptr,
-               make_special_ref_counter<
+      : MyBase(
+            ptr,
+            make_special_ref_counter<
                 mm::details::ref_counter_with_allocator_default_delete_itself>(
-                   ptr,
-                   forward<Alloc>(alloc))) {}
+                ptr,
+                forward<Alloc>(alloc))) {}
 
   template <class Dx>
   shared_ptr(nullptr_t, Dx&& deleter, custom_deleter_tag_t) {}
@@ -837,13 +839,13 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
   template <class OtherTy,
             enable_if_t<is_convertible_v<OtherTy*, Ty*>, int> = 0>
   shared_ptr& operator=(shared_ptr<OtherTy>&& other) {
-    MyBase::move_construct_from(move(other));
+    return MyBase::move_construct_from(move(other));
   }
 
   template <class U, class Dx>
   shared_ptr& operator=(unique_ptr<U, Dx>&& uptr) {
     auto* ptr{uptr.release()};
-    MyBase::move_construct_from(MyBase(
+    return MyBase::move_construct_from(MyBase(
         ptr,
         make_special_ref_counter<mm::details::ref_counter_with_custom_deleter>(
             ptr, move(uptr.get_deleter()))));
@@ -866,15 +868,15 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
   void swap(shared_ptr& other) noexcept { MyBase::swap(other); }
 
   pointer get() const noexcept { return MyBase::get_value_ptr(); }
-  add_lvalue_reference<element_type> operator*() const& {
+  add_lvalue_reference_t<element_type> operator*() const& {
     return *MyBase::get_value_ptr();
   }
-  add_rvalue_reference<element_type> operator*() const&& {
+  add_rvalue_reference_t<element_type> operator*() const&& {
     return move(*MyBase::get_value_ptr());
   }
   pointer operator->() const noexcept { return MyBase::get_value_ptr(); }
 
-  add_lvalue_reference<element_type> operator[](ptrdiff_t idx)
+  add_lvalue_reference_t<element_type> operator[](ptrdiff_t idx)
       const {  // UB, если хранится не массив или idx больше его длины!
     return *(MyBase::get_value_ptr() + idx);
   }
@@ -905,7 +907,7 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
 
  private:
   template <bool is_array, class U>
-  static ref_counter_t* make_ref_counter_and_share(U* ptr) noexcept {
+  static ref_counter_t* make_ref_counter_and_share(U* ptr) {
     if (ptr) {
       if constexpr (is_array) {
         return new mm::details::ref_counter_with_array_delete<U>(ptr);
@@ -917,9 +919,8 @@ class shared_ptr : public mm::details::PtrBase<Ty, shared_ptr<Ty> > {
   }
 
   template <template <class, class> class RefCounter, class U, class Destroyer>
-  static ref_counter_t*
-  make_special_ref_counter(U* ptr, Destroyer&& destroyer) noexcept(
-      is_nothrow_constructible_v<remove_reference_t<Destroyer>, Destroyer>) {
+  static ref_counter_t* make_special_ref_counter(U* ptr,
+                                                 Destroyer&& destroyer) {
     return new RefCounter<U, remove_reference_t<Destroyer> >(
         ptr,
         forward<Destroyer>(
@@ -1133,6 +1134,35 @@ void swap(weak_ptr<Ty>& lhs,
           weak_ptr<Ty>& rhs) noexcept(noexcept(lhs.swap(rhs))) {
   lhs.swap(rhs);
 }
-}  // namespace ktl
 
+namespace mm::details {
+template <class Alloc, typename SizeTy>
+struct alloc_temporary_guard_delete {
+  using allocator_type = Alloc;
+  using allocator_traits_type = allocator_traits<allocator_type>;
+  using value_type = typename allocator_traits<allocator_type>::value_type;
+  using pointer = typename allocator_traits_type::pointer;
+
+  alloc_temporary_guard_delete(Alloc& alc, SizeTy cnt)
+      : alloc{addressof(alc)}, count{cnt} {}
+
+  void operator()(pointer ptr) {
+    allocator_traits_type::deallocate(*alloc, ptr, count);
+  }
+
+  Alloc* const alloc;
+  SizeTy count;
+};
+}  // namespace mm::details
+
+template <class Ty, class Alloc, typename SizeTy>
+static constexpr auto make_alloc_temporary_guard(Ty* ptr,
+                                                 Alloc& alc,
+                                                 SizeTy count) {
+  using deleter_type = mm::details::alloc_temporary_guard_delete<Alloc, SizeTy>;
+  return unique_ptr<typename deleter_type::value_type, deleter_type>{
+      static_cast<typename deleter_type::pointer>(ptr),
+      deleter_type{alc, count}};
+}
+}  // namespace ktl
 #endif

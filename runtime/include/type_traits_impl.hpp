@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <crt_attributes.h>
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <type_traits>
@@ -84,6 +85,8 @@ using std::is_array;
 using std::is_function;
 using std::is_lvalue_reference;
 using std::is_lvalue_reference_v;
+using std::is_null_pointer;
+using std::is_null_pointer_v;
 using std::is_pointer;
 using std::is_pointer_v;
 using std::is_reference;
@@ -91,6 +94,13 @@ using std::is_reference_v;
 using std::is_rvalue_reference;
 using std::is_same;
 using std::is_same_v;
+
+using std::is_const;
+using std::is_const_v;
+using std::is_void;
+using std::is_void_v;
+using std::is_volatile;
+using std::is_volatile_v;
 
 using std::is_trivial;
 using std::is_trivial_v;
@@ -120,14 +130,6 @@ struct always_false {
 template <class... Dummy>
 inline constexpr bool always_false_v = always_false<Dummy...>::value;
 
-struct false_type {
-  static constexpr bool value = false;
-};
-
-struct true_type {
-  static constexpr bool value = true;
-};
-
 template <class...>
 using void_t = void;
 
@@ -146,7 +148,10 @@ struct integral_constant {
 };
 
 template <bool Value>
-struct bool_constant : integral_constant<bool, Value> {};
+using bool_constant = integral_constant<bool, Value>;
+
+using false_type = bool_constant<false>;
+using true_type = bool_constant<true>;
 
 template <bool enable, class Ty = void>
 struct enable_if {};
@@ -211,7 +216,7 @@ struct add_reference {
 
 template <class Ty>
 struct add_reference<Ty,
-                     void_t<Ty&> > {  //Для типов, на которые допустимы ссылки
+                     void_t<Ty&>> {  //Для типов, на которые допустимы ссылки
   using lvalue = Ty&;
   using rvalue = Ty&&;
 };
@@ -268,7 +273,7 @@ using remove_volatile_t = typename remove_volatile<Ty>::type;
 
 template <class Ty>
 struct remove_cv {
-  using type = remove_volatile_t<remove_const_t<Ty> >;
+  using type = remove_volatile_t<remove_const_t<Ty>>;
 };
 
 template <class Ty>
@@ -361,7 +366,7 @@ struct is_convertible : false_type {};
 template <class From, class To>
 struct is_convertible<From,
                       To,
-                      void_t<decltype(static_cast<To>(declval<From>()))> >
+                      void_t<decltype(static_cast<To>(declval<From>()))>>
     : true_type {};
 
 template <class From, class To>
@@ -434,7 +439,7 @@ inline constexpr bool is_nothrow_default_constructible_v =
 template <class Ty>
 struct is_copy_constructible {
   static constexpr bool value =
-      is_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty> > >;
+      is_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty>>>;
 };
 
 template <class Ty>
@@ -444,7 +449,7 @@ inline constexpr bool is_copy_constructible_v =
 template <class Ty>
 struct is_move_constructible {
   static constexpr bool value =
-      is_constructible_v<Ty, add_rvalue_reference_t<Ty> >;
+      is_constructible_v<Ty, add_rvalue_reference_t<Ty>>;
 };
 
 template <class Ty>
@@ -464,8 +469,8 @@ inline constexpr bool is_nothrow_constructible_v =
 template <class Ty>
 struct is_nothrow_copy_constructible {
   static constexpr bool value =
-      is_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty> > >&& noexcept(
-          Ty(declval<add_const_t<add_lvalue_reference_t<Ty> > >()));
+      is_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty>>>&& noexcept(
+          Ty(declval<add_const_t<add_lvalue_reference_t<Ty>>>()));
 };
 
 template <class Ty>
@@ -475,8 +480,8 @@ inline constexpr bool is_nothrow_copy_constructible_v =
 template <class Ty>
 struct is_nothrow_move_constructible {
   static constexpr bool value =
-      is_constructible_v<Ty, add_rvalue_reference_t<Ty> >&& noexcept(
-          Ty(declval<add_rvalue_reference_t<Ty> >()));
+      is_constructible_v<Ty, add_rvalue_reference_t<Ty>>&& noexcept(
+          Ty(declval<add_rvalue_reference_t<Ty>>()));
   ;
 };
 
@@ -491,7 +496,7 @@ template <class To, class From>
 struct is_assignable<
     To,
     From,
-    void_t<decltype(declval<add_lvalue_reference_t<To> >() = declval<From>())> >
+    void_t<decltype(declval<add_lvalue_reference_t<To>>() = declval<From>())>>
     : true_type {};
 
 template <class To, class From>
@@ -500,7 +505,7 @@ inline constexpr bool is_assignable_v = is_assignable<To, From>::value;
 template <class Ty>
 struct is_copy_assignable {
   static constexpr bool value =
-      is_assignable_v<Ty, add_const_t<add_lvalue_reference_t<Ty> > >;
+      is_assignable_v<Ty, add_const_t<add_lvalue_reference_t<Ty>>>;
 };
 
 template <class Ty>
@@ -508,8 +513,7 @@ inline constexpr bool is_copy_assignable_v = is_copy_assignable<Ty>::value;
 
 template <class Ty>
 struct is_move_assignable {
-  static constexpr bool value =
-      is_assignable_v<Ty, add_rvalue_reference_t<Ty> >;
+  static constexpr bool value = is_assignable_v<Ty, add_rvalue_reference_t<Ty>>;
 };
 
 template <class Ty>
@@ -518,7 +522,7 @@ inline constexpr bool is_move_assignable_v = is_move_assignable<Ty>::value;
 template <class To, class From>
 struct is_nothrow_assignable {
   static constexpr bool value = is_assignable_v<To, From>&& noexcept(
-      declval<add_lvalue_reference_t<To> >() = declval<From>());
+      declval<add_lvalue_reference_t<To>>() = declval<From>());
 };
 
 template <class To, class From>
@@ -528,8 +532,8 @@ inline constexpr bool is_nothrow_assignable_v =
 template <class Ty>
 struct is_nothrow_copy_assignable {
   static constexpr bool value = is_copy_assignable_v<Ty>&& noexcept(
-      declval<add_lvalue_reference_t<Ty> >() =
-          declval<add_const_t<add_lvalue_reference_t<Ty> > >());
+      declval<add_lvalue_reference_t<Ty>>() =
+          declval<add_const_t<add_lvalue_reference_t<Ty>>>());
 };
 
 template <class Ty>
@@ -539,8 +543,8 @@ inline constexpr bool is_nothrow_copy_assignable_v =
 template <class Ty>
 struct is_nothrow_move_assignable {
   static constexpr bool value = is_move_assignable_v<Ty>&& noexcept(
-      declval<add_lvalue_reference_t<Ty> >() =
-          declval<add_rvalue_reference_t<Ty> >());
+      declval<add_lvalue_reference_t<Ty>>() =
+          declval<add_rvalue_reference_t<Ty>>());
 };
 
 template <class Ty>
@@ -582,6 +586,15 @@ struct is_pointer<Ty*> : true_type {};
 
 template <class Ty>
 inline constexpr bool is_pointer_v = is_pointer<Ty>::value;
+
+template <class Ty>
+struct is_null_pointer : false_type {};
+
+template <>
+struct is_null_pointer<nullptr_t> : true_type {};
+
+template <class Ty>
+inline constexpr bool is_null_pointer_v = is_null_pointer<Ty>::value;
 
 template <class Ty>
 struct is_lvalue_reference : false_type {};
@@ -641,6 +654,15 @@ struct is_const<const Ty> : true_type {};
 template <class Ty>
 inline constexpr bool is_const_v = is_const<Ty>::value;
 
+template <class Ty>
+struct is_volatile : false_type {};
+
+template <class Ty>
+struct is_volatile<volatile Ty> : true_type {};
+
+template <class Ty>
+inline constexpr bool is_volatile_v = is_volatile<Ty>::value;
+
 template <class>
 inline constexpr bool is_array_v = false;
 
@@ -651,7 +673,7 @@ template <class Ty>
 inline constexpr bool is_array_v<Ty[]> = true;
 
 template <class Ty>
-struct is_array : bool_constant<is_array_v<Ty> > {};
+struct is_array : bool_constant<is_array_v<Ty>> {};
 
 template <class Ty>
 struct is_function {
@@ -800,7 +822,7 @@ template <class Ty>
 inline constexpr bool is_enum_v = is_enum<Ty>::value;
 
 namespace tt::details {
-template <class Ty, bool = is_enum_v<Ty> >
+template <class Ty, bool = is_enum_v<Ty>>
 struct underlying_type_impl {
   using type = __underlying_type(Ty);
 };
@@ -859,10 +881,10 @@ struct decay {
 
  public:
   using type = conditional_t<is_array_v<unref_t>,
-                             add_pointer_t<remove_extent_t<unref_t> >,
+                             add_pointer_t<remove_extent_t<unref_t>>,
                              conditional_t<is_function_v<unref_t>,
                                            add_pointer_t<unref_t>,
-                                           remove_cv_t<unref_t> > >;
+                                           remove_cv_t<unref_t>>>;
 };
 
 template <class Ty>
@@ -914,6 +936,433 @@ struct is_floating_point {
 template <class Ty>
 inline constexpr bool is_floating_point_v = is_floating_point<Ty>::value;
 
+template <class Ty>
+struct is_arithmetic {
+  static constexpr bool value = is_integral_v<Ty> || is_floating_point_v<Ty>;
+};
+
+template <class Ty>
+inline constexpr bool is_arithmetic_v = is_arithmetic<Ty>::value;
+
+namespace tt::details {
+template <class>
+struct is_member_object_pointer_impl {
+  static constexpr bool value = false;
+};
+
+template <class Ty, class ClassTy>
+struct is_member_object_pointer_impl<Ty ClassTy::*> {
+  static constexpr bool value = !is_function_v<Ty>;
+};
+
+template <class Ty, class ClassTy>
+struct is_member_object_pointer_impl<Ty ClassTy::*const> {
+  static constexpr bool value = !is_function_v<Ty>;
+};
+
+template <class Ty, class ClassTy>
+struct is_member_object_pointer_impl<Ty ClassTy::*volatile> {
+  static constexpr bool value = !is_function_v<Ty>;
+};
+
+template <class Ty, class ClassTy>
+struct is_member_object_pointer_impl<Ty ClassTy::*const volatile> {
+  static constexpr bool value = !is_function_v<Ty>;
+};
+}  // namespace tt::details
+
+template <class Ty>
+struct is_member_object_pointer {
+  static constexpr bool value =
+      tt::details::is_member_object_pointer_impl<remove_cv_t<Ty>>::value;
+};
+
+template <class Ty>
+inline constexpr bool is_member_object_pointer_v =
+    is_member_object_pointer<Ty>::value;
+
+template <class Ty>
+struct is_member_function_pointer : public false_type {};
+
+template <class Ty>
+struct is_member_function_pointer<const Ty>
+    : public is_member_function_pointer<Ty> {};
+
+template <class Ty>
+struct is_member_function_pointer<volatile Ty>
+    : public is_member_function_pointer<Ty> {};
+
+template <class Ty>
+struct is_member_function_pointer<const volatile Ty>
+    : public is_member_function_pointer<Ty> {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...)>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...)>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...) const>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...) const>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...) volatile>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...) volatile>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...)
+                                      const volatile> : public true_type {};
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...)
+                                      const volatile> : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...)&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...)&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...) const&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...) const&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...) volatile&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...) volatile&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...)
+                                      const volatile&> : public true_type {};
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...)
+                                      const volatile&> : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...) &&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...) &&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...) const&&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...) const&&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(
+    Types...) volatile&&> : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...) volatile&&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (THISCALL ClassTy::*)(Types...)
+                                      const volatile&&> : public true_type {};
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (ClassTy::*)(Types..., ...)
+                                      const volatile&&> : public true_type {};
+
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...)>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...)>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (CRTCALL ClassTy::*)(Types...)>
+    : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(Types...)>
+    : public true_type {};
+
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...) const>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...) const>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...) const>
+    : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(Types...) const>
+    : public true_type {};
+#endif
+
+// volatile:
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...) volatile>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...) volatile>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...) volatile>
+    : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(
+    Types...) volatile> : public true_type {};
+#endif
+
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...)
+                                      const volatile> : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...)
+                                      const volatile> : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...)
+                                      const volatile> : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(Types...)
+                                      const volatile> : public true_type {};
+#endif
+
+// reference qualified:
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...)&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...)&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...)&>
+    : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(Types...)&>
+    : public true_type {};
+#endif
+
+// const:
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...) const&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...) const&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...) const&>
+    : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(Types...) const&>
+    : public true_type {};
+#endif
+
+// volatile:
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...) volatile&>
+    : public true_type {};
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...) volatile&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...) volatile&>
+    : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(
+    Types...) volatile&> : public true_type {};
+#endif
+
+// const volatile:
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...)
+                                      const volatile&> : public true_type {};
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...)
+                                      const volatile&> : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...)
+                                      const volatile&> : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(Types...)
+                                      const volatile&> : public true_type {};
+#endif
+
+// rvalue reference qualified:
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...) &&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...) &&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...) &&>
+    : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(Types...) &&>
+    : public true_type {};
+#endif
+
+// const:
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...) const&&>
+    : public true_type {};
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...) const&&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...) const&&>
+    : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(Types...) const&&>
+    : public true_type {};
+#endif
+
+// volatile:
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...) volatile&&>
+    : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(
+    Types...) volatile&&> : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...) volatile&&>
+    : public true_type {};
+#endif
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(
+    Types...) volatile&&> : public true_type {};
+#endif
+
+// const volatile:
+#ifndef _M_AMD64
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (STDCALL ClassTy::*)(Types...)
+                                      const volatile&&> : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (FASTCALL ClassTy::*)(Types...)
+                                      const volatile&&> : public true_type {};
+
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (__cdecl ClassTy::*)(Types...)
+                                      const volatile&&> : public true_type {};
+#endif
+
+#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2) || defined(_M_X64))
+template <class Ret, class ClassTy, class... Types>
+struct is_member_function_pointer<Ret (VECTORCALL ClassTy::*)(Types...)
+                                      const volatile&&> : public true_type {};
+#endif
+#endif
+
+template <class Ty>
+inline constexpr bool is_member_function_pointer_v =
+    is_member_function_pointer<Ty>::value;
+
+template <class Ty>
+struct is_member_pointer {
+  static constexpr bool value =
+      is_member_object_pointer_v<Ty> || is_member_function_pointer_v<Ty>;
+};
+
+template <class Ty>
+inline constexpr bool is_member_pointer_v = is_member_pointer<Ty>::value;
+
+template <class Base, class Derived>
+inline constexpr bool is_base_of_v = __is_base_of(Base, Derived);
+
+template <class Base, class Derived>
+struct is_base_of : bool_constant<is_base_of_v<Base, Derived>> {};
+
+template <class Ty>
+struct is_scalar {
+  static constexpr bool value = is_arithmetic_v<Ty> || is_enum_v<Ty> ||
+                                is_pointer_v<Ty> || is_member_pointer_v<Ty> ||
+                                is_null_pointer_v<Ty>;
+};
+
+template <class Ty>
+inline constexpr bool is_scalar_v = is_scalar<Ty>::value;
+
 template <bool IsFirst, class Head, class... Tail>
 struct conjunction_impl {
   using type = Head;
@@ -933,5 +1382,24 @@ struct conjunction<Head, Tail...>
 
 template <class... Traits>
 inline constexpr bool conjunction_v = conjunction<Traits...>::value;
+
+template <class Trait>
+inline constexpr bool negation_v = !Trait::value;
+
+template <class Trait>
+struct negation : bool_constant<negation_v<Trait>> {};
+
+#define DEFINE_GET_NESTED_TYPE(NestedType)                       \
+  template <class Ty, class = void>                              \
+  struct get_##NestedType {};                                    \
+                                                                 \
+  template <class Ty>                                            \
+  struct get_##NestedType<Ty, void_t<typename Ty::NestedType>> { \
+    using type = typename Ty::NestedType;                        \
+  };                                                             \
+                                                                 \
+  template <class Ty>                                            \
+  using get_##NestedType##_t = typename get_##NestedType<Ty>::type;
+
 }  // namespace ktl
 #endif

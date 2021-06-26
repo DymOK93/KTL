@@ -1,6 +1,9 @@
 #pragma once
 #include <basic_types.h>
 #include <crt_attributes.h>
+#include <irql.h>
+
+#include <ntddk.h>
 
 namespace ktl {
 using terminate_handler_t = void (*)();
@@ -18,17 +21,10 @@ namespace crt {
 using bugcheck_code_t = uint32_t;
 using bugcheck_arg_t = int64_t;
 
-namespace details {
-inline terminate_handler_t shared_terminate_handler{nullptr};
-}  // namespace details
-
-inline constexpr auto KTL_FAILURE_BASE{
+inline constexpr auto KTL_FAILURE{
     static_cast<bugcheck_code_t>(0xEA9B0000)};  // 0xE, ('K' - 'A') % 10, ('T' -
                                                 // 'A') %
                                                 // 10, ('L' - 'A') % 10
-
-inline constexpr auto KTL_CRT_FAILURE{
-    static_cast<bugcheck_code_t>(KTL_FAILURE_BASE | 0xFFFF)};
 
 enum class BugCheckReason : bugcheck_code_t {
   UnwindOnUnsafeException,
@@ -46,9 +42,11 @@ enum class BugCheckReason : bugcheck_code_t {
   ExceptionSpecificationNotSupported,
   NoMatchingExceptionHandler,
 
+  BufferSecurityCheckFailure,
+
   AssertionFailure,
   ForbiddenCall,
-  StdTerminate,
+  StdAbort
 };
 
 bugcheck_code_t to_bucgcheck_code(BugCheckReason reason) noexcept;
@@ -57,6 +55,8 @@ struct Bsod {
   BugCheckReason reason;
   bugcheck_arg_t arg1{0}, arg2{0}, arg3{0}, arg4{0};
 };
+
+Bsod set_termination_context(const Bsod& bsod) noexcept;
 
 [[noreturn]] void bugcheck(BugCheckReason reason) noexcept;
 [[noreturn]] void bugcheck(const Bsod& bsod) noexcept;

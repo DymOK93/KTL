@@ -3,25 +3,27 @@
 #include <new_delete.h>
 #include <algorithm.hpp>
 #include <assert.hpp>
+#include <compressed_pair.hpp>
 #include <iterator.hpp>
 #include <limits.hpp>
+#include <string_algorithm_impl.hpp>
 #include <string_view.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
 #include <ntddk.h>
 
-namespace ktl::str::details {
+namespace ktl {
 template <size_t SsoBufferChCount,
           typename NativeStrTy,
           template <typename... CharT>
           class Traits,
-          template <typename... CharT>
           class Alloc>
 class basic_winnt_string {
  public:
   using native_string_type = NativeStrTy;
-  using native_string_traits_type = native_string_traits<NativeStrTy>;
+  using native_string_traits_type =
+      str::details::native_string_traits<NativeStrTy>;
   using string_view_type = basic_winnt_string_view<native_string_type, Traits>;
 
   using value_type = typename native_string_traits_type::value_type;
@@ -29,7 +31,7 @@ class basic_winnt_string {
 
   using traits_type = Traits<value_type>;
 
-  using allocator_type = Alloc<value_type>;
+  using allocator_type = Alloc;
   using allocator_traits_type = allocator_traits<allocator_type>;
 
   using difference_type = typename allocator_traits_type::difference_type;
@@ -42,6 +44,12 @@ class basic_winnt_string {
   using iterator = pointer;
   using const_iterator = const_pointer;
 
+ public:
+  static_assert(
+      is_same_v<value_type, typename allocator_traits_type::value_type>,
+      "Uncompatible allocator: typename allocator_traits_type::value_type must "
+      "be same with typename native_string_traits_type::value_type");
+
  private:
   template <class Ty>
   struct not_convertible_to_native_str {
@@ -49,6 +57,13 @@ class basic_winnt_string {
         !is_convertible_v<const Ty&, const_pointer> &&
         !is_convertible_v<const Ty&, native_string_type>;
   };
+
+  template <size_t BufferSize,
+            typename NtStrTy,
+            template <typename... CharT>
+            class ChTraits,
+            class ChAlloc>
+  friend class basic_winnt_string;
 
  public:
   static constexpr size_type SSO_BUFFER_CH_COUNT{SsoBufferChCount};
@@ -85,7 +100,6 @@ class basic_winnt_string {
   template <size_t BufferSize,
             template <typename... CharType>
             class ChTraits,
-            template <typename... CharType>
             class ChAlloc>
   basic_winnt_string(const basic_winnt_string<BufferSize,
                                               native_string_type,
@@ -98,7 +112,6 @@ class basic_winnt_string {
   template <size_t BufferSize,
             template <typename... CharType>
             class ChTraits,
-            template <typename... CharType>
             class ChAlloc>
   basic_winnt_string(const basic_winnt_string<BufferSize,
                                               native_string_type,
@@ -172,7 +185,6 @@ class basic_winnt_string {
   template <size_t BufferSize,
             template <typename... CharType>
             class ChTraits,
-            template <typename... CharType>
             class ChAlloc,
             enable_if_t<BufferSize != SSO_BUFFER_CH_COUNT, int> = 0>
   basic_winnt_string(const basic_winnt_string<BufferSize,
@@ -219,7 +231,6 @@ class basic_winnt_string {
   template <size_t BufferSize,
             template <typename... CharType>
             class ChTraits,
-            template <typename... CharType>
             class ChAlloc>
   basic_winnt_string& assign(const basic_winnt_string<BufferSize,
                                                       native_string_type,
@@ -235,7 +246,6 @@ class basic_winnt_string {
   template <size_t BufferSize,
             template <typename... CharType>
             class ChTraits,
-            template <typename... CharType>
             class ChAlloc>
   basic_winnt_string& assign(const basic_winnt_string<BufferSize,
                                                       native_string_type,
@@ -282,7 +292,6 @@ class basic_winnt_string {
   template <size_t BufferSize,
             template <typename... CharType>
             class ChTraits,
-            template <typename... CharType>
             class ChAlloc,
             enable_if_t<BufferSize != SSO_BUFFER_CH_COUNT, int> = 0>
   basic_winnt_string& operator=(const basic_winnt_string<BufferSize,
@@ -292,9 +301,8 @@ class basic_winnt_string {
     using propagate_on_copy_assignment_t =
         typename allocator_traits_type::propagate_on_container_copy_assignment;
 
-    if (this != addressof(other)) {
-      copy_assignment_impl<>(other, propagate_on_copy_assignment_t{});
-    }
+    // this != addressof(other)
+    copy_assignment_impl<>(other, propagate_on_copy_assignment_t{});
 
     return *this;
   }
@@ -447,7 +455,7 @@ class basic_winnt_string {
   }
 
   void reserve(size_type new_capacity = 0) {
-    grow_if_needed(new_capacity, &transfer_without_shift);
+    grow_if_needed(new_capacity, make_transfer_without_shift());
   }
 
   constexpr size_type capacity() const noexcept {
@@ -482,23 +490,23 @@ class basic_winnt_string {
   void push_back(value_type ch) {
     const size_type old_size{size()}, old_capacity{capacity()};
     if (old_capacity == old_size) {
-      grow(calc_growth(), &transfer_without_shift);
+      grow(calc_growth(), make_transfer_without_shift());
     }
     traits_type::assign(data()[old_size], ch);
     native_string_traits_type::increase_size(get_native_str(), 1);
   }
 
   constexpr void pop_back() noexcept {
-    native_string_traits_type::decrease_size(get_native_str(), m_str, 1);
+    native_string_traits_type::decrease_size(get_native_str(), 1);
   }
 
   basic_winnt_string& append(size_type count, value_type ch) {
-    concat_with_optimal_growth(make_fill_helper(), count, ch);
+    resize(size() + count, ch);
     return *this;
   }
 
   // traits_type must be equivalent
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& append(
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
           str) {
@@ -516,7 +524,7 @@ class basic_winnt_string {
   }
 
   // traits_type must be equivalent
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& append(
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
           str,
@@ -556,7 +564,7 @@ class basic_winnt_string {
   }
 
   // traits_type must be equivalent
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& operator+=(
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
           str) {
@@ -578,7 +586,7 @@ class basic_winnt_string {
     return *this += *static_cast<string_view_type>(value).raw_str();
   }
 
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   [[nodiscard]] constexpr int compare(
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
           other) const noexcept {
@@ -596,7 +604,7 @@ class basic_winnt_string {
         native_string_traits_type::get_size(native_str));
   }
 
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   [[nodiscard]] constexpr int compare(
       size_type my_pos,
       size_type my_count,
@@ -618,7 +626,7 @@ class basic_winnt_string {
         (min)(other_size - other_pos, other_count));
   }
 
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   [[nodiscard]] constexpr int compare(
       size_type my_pos,
       size_type my_count,
@@ -631,7 +639,9 @@ class basic_winnt_string {
 
   [[nodiscard]] constexpr int compare(
       const value_type* null_terminated_str) const {
-    return compare(0, size(), null_terminated_str);
+    return compare_unchecked(
+        data(), size(), null_terminated_str,
+        static_cast<size_type>(traits_type::length(null_terminated_str)));
   }
 
   [[nodiscard]] constexpr int compare(
@@ -648,11 +658,11 @@ class basic_winnt_string {
                                       const value_type* str,
                                       size_type other_count) const {
     const size_type current_size{size()};
-    throw_exception_if_not(my_pos < current_size);
+    throw_out_of_range_if(my_pos > current_size);
     const value_type* substr{data() + my_pos};
-    const size_type substr_length{(min)(current_size - my_pos, my_count)};
-    return native_string_traits_type::compare_unchecked(
-        substr, str, substr_length, other_count);
+    const auto substr_length{
+        (min)(static_cast<size_type>(current_size - my_pos), my_count)};
+    return compare_unchecked(substr, substr_length, str, other_count);
   }
 
   [[nodiscard]] constexpr int compare(
@@ -667,7 +677,7 @@ class basic_winnt_string {
                                       size_type other_count) const noexcept {
     const string_view_type view{native_str};
     const auto view_size{static_cast<size_type>(view.size())};
-    throw_out_of_range_if_not(other_pos < view_size);
+    throw_out_of_range_if(other_pos > view_size);
     return native_string_traits_type::compare_unchecked(
         data(), size(), view.data(), (min)(view_size - other_pos, other_count));
   }
@@ -712,7 +722,7 @@ class basic_winnt_string {
   }
 
   basic_winnt_string& insert(size_type index, size_type count, value_type ch) {
-    throw_out_of_range_if_not(index > size());
+    throw_out_of_range_if(index > size());
     insert(begin() + index, count, ch);
     return *this;
   }
@@ -721,7 +731,7 @@ class basic_winnt_string {
                              const value_type* str,
                              size_type count) {
     const size_type current_size{size()};
-    throw_out_of_range_if_not(index <= current_size);
+    throw_out_of_range_if(index > current_size);
     if (index == current_size) {
       return append(str, count);
     }
@@ -741,7 +751,7 @@ class basic_winnt_string {
                   native_string_traits_type::get_size(native_str));
   }
 
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& insert(
       size_type index,
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
@@ -749,7 +759,7 @@ class basic_winnt_string {
     return insert(*other.raw_str());
   }
 
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& insert(
       size_type index,
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
@@ -757,11 +767,11 @@ class basic_winnt_string {
       size_type other_pos,
       size_type other_count) {
     const size_type current_size{size()}, other_size{other.size()};
-    throw_out_of_range_if_not(index <= current_size);
+    throw_out_of_range_if(index > current_size);
     if (index == size()) {
       return append(other, other_pos, other_count);
     }
-    throw_out_of_range_if_not(other_pos <= other_size);
+    throw_out_of_range_if(other_pos > other_size);
     insert_impl(index, make_copy_helper(),
                 (min)(other_size - other_pos, other_count),
                 other.data() + other_pos);
@@ -777,8 +787,9 @@ class basic_winnt_string {
     if (pos == end()) {
       append(pos, count, ch);
     }
-    insert_impl(static_cast<size_type>(pos - begin()), make_fill_helper(),
-                count, ch);
+    const auto index{static_cast<size_type>(pos - begin())};
+    insert_impl(index, make_fill_helper(), count, ch);
+    return begin() + index + count;
   }
 
   template <class InputIt>
@@ -786,10 +797,12 @@ class basic_winnt_string {
     if (pos == end()) {
       append(first, last);
     }
-    insert_range_impl(
-        pos - begin(), first, last,
+    const auto index{static_cast<size_type>(pos - begin())};
+    const auto count{insert_range_impl(
+        index, first, last,
         is_same<typename iterator_traits<InputIt>::iterator_category,
-                random_access_iterator_tag>{});
+                random_access_iterator_tag>{})};
+    return begin() + index + count;
   }
 
   template <class Ty,
@@ -816,7 +829,7 @@ class basic_winnt_string {
 
   basic_winnt_string& erase(size_type index = 0, size_type count = npos) {
     const size_type old_size{size()};
-    throw_out_of_range_if_not(index <= old_size);
+    throw_out_of_range_if(index > old_size);
     erase_unchecked(index,
                     (min)(count, static_cast<size_type>(old_size - index)));
     return *this;
@@ -866,7 +879,7 @@ class basic_winnt_string {
     return static_cast<string_view_type>(*this).ends_with(null_terminated_str);
   }
 
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   constexpr bool contains(
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
           other) const noexcept {
@@ -898,14 +911,14 @@ class basic_winnt_string {
   [[nodiscard]] basic_winnt_string substr(size_type pos = 0,
                                           size_type count = npos) {
     size_type current_size{size()};
-    throw_out_of_range_if_not(pos < current_size);
+    throw_out_of_range_if(pos > current_size);
     return basic_winnt_string{
         data() + pos, (min)(static_cast<size_type>(current_size - pos), count)};
   }
 
   size_type copy(value_type* dst, size_type count, size_type pos = 0) const {
     const size_type current_size{size()};
-    throw_out_of_range_if_not(pos < current_size);
+    throw_out_of_range_if(pos > current_size);
     const auto copied{(min)(static_cast<size_type>(current_size - pos), count)};
     traits_type::copy(dst, data() + pos,
                       copied);  // Пользователь отвечает за то, что диапазоны не
@@ -917,28 +930,22 @@ class basic_winnt_string {
 
   void resize(size_type new_size, value_type ch) {
     reserve(new_size);
-    if (size() < new_size) {
-      traits_type::assign(data(), new_size - size(), ch);
+    const size_type current_size{size()};
+    if (current_size < new_size) {
+      traits_type::assign(data(), current_size, ch);
     }
     native_string_traits_type::set_size(get_native_str(), new_size);
   }
 
   void swap(basic_winnt_string& other) { ::swap(*this, other); }
 
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   constexpr size_type find(
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
           other,
       size_type my_pos) const noexcept {
-    const size_type current_size{size()};
-    if (my_pos > current_size) {
-      return npos;
-    }
-    const auto first{begin()}, last{end()};
-    const auto found_pos{find_subrange(first + my_pos, last, other.begin(),
-                                       other.end(), make_ch_comparator()) -
-                         first};
-    return found_pos == current_size ? npos : static_cast<size_type>(found_pos);
+    return str::details::find_substr<traits_type>(
+        data(), my_pos, size(), other.data(), other.size(), npos);
   }
 
   constexpr size_type find(const value_type* null_terminated_str,
@@ -953,18 +960,11 @@ class basic_winnt_string {
     return static_cast<string_view_type>(*this).find(null_terminated_str);
   }
 
-  constexpr size_type find(value_type ch, size_type pos = 0) const noexcept {
-    const size_type current_size{size()};
-    if (pos >= current_size) {
-      return npos;
-    }
-    const auto first{data() + pos};
-    const auto found_pos{traits_type::find(first, current_size - pos, ch) -
-                         first};
-    return found_pos == size() ? npos : static_cast<size_type>(found_pos);
+  constexpr size_type find(value_type ch, size_type my_pos = 0) const noexcept {
+    return str::details::find_ch<traits_type>(data(), ch, size(), my_pos, npos);
   }
 
-  template <size_t BufferSize, template <typename... CharType> class ChAlloc>
+  template <size_t BufferSize, class ChAlloc>
   constexpr size_type find_first_of(
       const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
           other,
@@ -1023,7 +1023,6 @@ class basic_winnt_string {
             size_t BufferSize,
             template <typename... CharType>
             class ChTraits,
-            template <typename... CharType>
             class ChAlloc>
   void append_by_pos_and_count(const basic_winnt_string<BufferSize,
                                                         native_string_type,
@@ -1032,7 +1031,7 @@ class basic_winnt_string {
                                size_type pos,
                                size_type count) {
     const size_type other_size{other.size()};
-    throw_out_of_range_if_not(pos < other_size);
+    throw_out_of_range_if(pos > other_size);
     const auto length{static_cast<size_type>(other_size - pos)};
     if constexpr (CalcOptimalGrowth) {
       concat_with_optimal_growth(make_copy_helper(), (min)(length, count),
@@ -1050,20 +1049,20 @@ class basic_winnt_string {
     }
   }
 
-  template <typename OptimalGrowthTag, class RandomAcceccIt>
-  void append_range_impl(RandomAcceccIt first, RandomAcceccIt last, true_type) {
+  template <typename OptimalGrowthTag, class RandomAccessIt>
+  void append_range_impl(RandomAccessIt first, RandomAccessIt last, true_type) {
     const auto range_length{static_cast<size_type>(distance(first, last))};
     append_range_by_random_access_iterators(first, last, range_length,
                                             OptimalGrowthTag{});
   }
 
-  template <class RandomAcceccIt>
+  template <class RandomAccessIt>
   void append_range_by_random_access_iterators(
-      RandomAcceccIt first,
-      [[maybe_unused]] RandomAcceccIt last,
+      RandomAccessIt first,
+      [[maybe_unused]] RandomAccessIt last,
       size_type range_length,
       false_type) {
-    if constexpr (is_pointer_v<RandomAcceccIt>) {
+    if constexpr (is_pointer_v<RandomAccessIt>) {
       concat(make_copy_helper(), range_length, first);
     } else {
       concat(make_copy_range_helper(), range_length, first, last);
@@ -1071,44 +1070,45 @@ class basic_winnt_string {
   }
 
   template <class InputIt>
-  void insert_range_impl(size_type index,
-                         InputIt first,
-                         InputIt last,
-                         false_type) {
+  size_type insert_range_impl(size_type index,
+                              InputIt first,
+                              InputIt last,
+                              false_type) {
     const basic_winnt_string proxy{first, last};
     insert(index, proxy);
+    return proxy.size();
   }
 
-  template <class RandomAcceccIt>
-  void insert_range_impl(size_type index,
-                         RandomAcceccIt first,
-                         RandomAcceccIt last,
-                         true_type) {
+  template <class RandomAccessIt>
+  size_type insert_range_impl(size_type index,
+                              RandomAccessIt first,
+                              RandomAccessIt last,
+                              true_type) {
     const auto range_length{static_cast<size_type>(distance(first, last))};
-    insert_range_by_random_access_iterators(first, last, range_length);
+    insert_range_by_random_access_iterators(index, first, last, range_length);
+    return range_length;
   }
 
-  template <class RandomAcceccIt>
+  template <class RandomAccessIt>
   void insert_range_by_random_access_iterators(
       size_type index,
-      RandomAcceccIt first,
-      [[maybe_unused]] RandomAcceccIt last,
-      size_type range_length,
-      false_type) {
-    if constexpr (is_pointer_v<RandomAcceccIt>) {
+      RandomAccessIt first,
+      [[maybe_unused]] RandomAccessIt last,
+      size_type range_length) {
+    if constexpr (is_pointer_v<RandomAccessIt>) {
       insert_impl(index, make_copy_helper(), range_length, first);
     } else {
       insert_impl(index, make_copy_range_helper(), range_length, first, last);
     }
   }
 
-  template <class RandomAcceccIt>
+  template <class RandomAccessIt>
   void append_range_by_random_access_iterators(
-      RandomAcceccIt first,
-      [[maybe_unused]] RandomAcceccIt last,
+      RandomAccessIt first,
+      [[maybe_unused]] RandomAccessIt last,
       size_type range_length,
       true_type) {
-    if constexpr (is_pointer_v<RandomAcceccIt>) {
+    if constexpr (is_pointer_v<RandomAccessIt>) {
       concat_with_optimal_growth(make_copy_helper(), range_length, first);
     } else {
       concat_with_optimal_growth(make_copy_range_helper(), range_length, first,
@@ -1119,7 +1119,6 @@ class basic_winnt_string {
   template <size_t BufferSize,
             template <typename... CharType>
             class ChTraits,
-            template <typename... CharType>
             class ChAlloc>
   void copy_assignment_impl(const basic_winnt_string<BufferSize,
                                                      native_string_type,
@@ -1136,7 +1135,6 @@ class basic_winnt_string {
   template <size_t BufferSize,
             template <typename... CharType>
             class ChTraits,
-            template <typename... CharType>
             class ChAlloc>
   void copy_assignment_impl(const basic_winnt_string<BufferSize,
                                                      native_string_type,
@@ -1182,7 +1180,11 @@ class basic_winnt_string {
                                   const Types&... args) {
     concat_impl(
         handler,
-        [this](size_type required) { reserve(calc_optimal_growth(required)); },
+        [this](size_type required) {
+          if (required > capacity()) {
+            grow(calc_optimal_growth(required), make_transfer_without_shift());
+          }
+        },
         count, args...);
   }
 
@@ -1224,16 +1226,15 @@ class basic_winnt_string {
     const auto old_size{size()},
         required{static_cast<size_type>(old_size + count)},
         need_to_shift{static_cast<size_type>(old_size - index)};
-    value_type* base{data() + index};
-    if (required > capacity()) {
+    if (value_type* base = data() + index; required > capacity()) {
       grow(calc_optimal_growth(required),
            make_shifter(make_copy_helper(), {index, count}));
     } else {
       constexpr auto shifter{make_move_helper()};
       shifter(base + count, need_to_shift, base);
+      native_string_traits_type::increase_size(get_native_str(), count);
     }
-    handler(base, count, args...);
-    native_string_traits_type::increase_size(get_native_str(), count);
+    handler(data() + index, count, args...);  // data() may changed
   }
 
   void erase_unchecked(size_type index, size_type count) {
@@ -1253,7 +1254,7 @@ class basic_winnt_string {
   template <class TransferPolicy>
   void grow(size_type new_capacity, TransferPolicy transfer_handler) {
     throw_exception_if_not<length_error>(new_capacity <= max_size(),
-                                         L"string too long");
+                                         L"string is too long");
     grow_unchecked(new_capacity, transfer_handler);
   }
 
@@ -1297,7 +1298,7 @@ class basic_winnt_string {
   static decltype(auto) at_index_verified(Buffer& buf,
                                           size_type size,
                                           size_type idx) {
-    throw_out_of_range_if_not(idx < size, "index is out of range");
+    throw_out_of_range_if(idx >= size, "index is out of range");
     return buf[idx];
   }
 
@@ -1327,11 +1328,11 @@ class basic_winnt_string {
         };
   }
 
-  static size_type transfer_without_shift(value_type* dst,
-                                          size_type count,
-                                          const value_type* src) noexcept {
-    make_copy_helper()(dst, count, src);
-    return count;
+  static constexpr auto make_transfer_without_shift() noexcept {
+    return [](value_type* dst, size_type count, const value_type* src) {
+      make_copy_helper()(dst, count, src);
+      return count;
+    };
   }
 
   static constexpr auto make_dummy_transfer() noexcept {
@@ -1369,12 +1370,6 @@ class basic_winnt_string {
     };
   }
 
-  static constexpr auto make_ch_comparator() noexcept {
-    return [](value_type lhs, value_type rhs) noexcept {
-      return traits_type::eq(lhs, rhs);
-    };
-  }
-
   static value_type* allocate_buffer(allocator_type& alc, size_type ch_count) {
     return allocator_traits_type::allocate(alc, ch_count);
   }
@@ -1402,9 +1397,9 @@ class basic_winnt_string {
   }
 
   template <class Ty>
-  static void throw_out_of_range_if_not(const Ty& cond) {
-    throw_exception_if_not<out_of_range>(cond, L"pos is out of range",
-                                         constexpr_message_tag{});
+  static void throw_out_of_range_if(const Ty& cond) {
+    throw_exception_if<out_of_range>(cond, L"pos is out of range",
+                                     constexpr_message_tag{});
   }
 
  private:
@@ -1417,9 +1412,7 @@ template <size_t LhsBufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class LhsChAlloc,
-          template <typename... CharType>
           class RhsChAlloc>
 auto operator+(
     const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
@@ -1443,7 +1436,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 auto operator+(
     const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
@@ -1458,7 +1450,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 auto operator+(
     const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
@@ -1473,7 +1464,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 auto operator+(
     basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&& lhs,
@@ -1489,7 +1479,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 auto operator+(
     basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&& lhs,
@@ -1504,7 +1493,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 auto operator+(
     typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
@@ -1519,7 +1507,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 auto operator+(
     typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
@@ -1534,7 +1521,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 auto operator+(
     typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
@@ -1547,7 +1533,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 auto operator+(
     typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
@@ -1561,9 +1546,7 @@ template <size_t LhsBufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class LhsChAlloc,
-          template <typename... CharType>
           class RhsChAlloc>
 auto operator+(
     basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&& lhs,
@@ -1579,9 +1562,7 @@ template <size_t LhsBufferSize,
           class RhsChTraits,
           template <typename... CharType>
           class LhsChTraits,
-          template <typename... CharType>
           class LhsChAlloc,
-          template <typename... CharType>
           class RhsChAlloc>
 auto operator+(
     const basic_winnt_string<LhsBufferSize,
@@ -1597,7 +1578,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 auto operator+(
     basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&& lhs,
@@ -1637,9 +1617,7 @@ template <size_t LhsBufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class LhsChAlloc,
-          template <typename... CharType>
           class RhsChAlloc>
 constexpr bool operator==(
     const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
@@ -1654,9 +1632,7 @@ template <size_t LhsBufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class LhsChAlloc,
-          template <typename... CharType>
           class RhsChAlloc>
 constexpr bool operator!=(
     const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
@@ -1671,9 +1647,7 @@ template <size_t LhsBufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class LhsChAlloc,
-          template <typename... CharType>
           class RhsChAlloc>
 constexpr bool operator<(
     const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
@@ -1688,9 +1662,7 @@ template <size_t LhsBufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class LhsChAlloc,
-          template <typename... CharType>
           class RhsChAlloc>
 constexpr bool operator>(
     const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
@@ -1705,9 +1677,7 @@ template <size_t LhsBufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class LhsChAlloc,
-          template <typename... CharType>
           class RhsChAlloc>
 constexpr bool operator<=(
     const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
@@ -1722,9 +1692,7 @@ template <size_t LhsBufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class LhsChAlloc,
-          template <typename... CharType>
           class RhsChAlloc>
 constexpr bool operator>=(
     const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
@@ -1738,7 +1706,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator==(
     const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
@@ -1751,7 +1718,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator==(
     typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
@@ -1765,7 +1731,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator!=(
     const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
@@ -1778,7 +1743,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator!=(
     typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
@@ -1792,7 +1756,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator<(
     const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
@@ -1805,7 +1768,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator<(
     typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
@@ -1819,7 +1781,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator>(
     const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
@@ -1832,7 +1793,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator>(
     typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
@@ -1846,7 +1806,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator<=(
     const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
@@ -1859,7 +1818,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator<=(
     typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
@@ -1873,7 +1831,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator>=(
     const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
@@ -1886,7 +1843,6 @@ template <size_t BufferSize,
           typename NativeStrTy,
           template <typename... CharType>
           class ChTraits,
-          template <typename... CharType>
           class ChAlloc>
 constexpr bool operator>=(
     typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
@@ -1895,4 +1851,4 @@ constexpr bool operator>=(
         rhs) noexcept {
   return !(null_terminated_str < rhs);
 }
-}  // namespace ktl::str::details
+}  // namespace ktl

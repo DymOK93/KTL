@@ -3,6 +3,7 @@
 #include <irql.h>
 #include <atomic.hpp>
 #include <chrono.hpp>
+#include <compressed_pair.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
@@ -440,6 +441,8 @@ class semaphore
   }
 };
 
+enum class cv_status : uint8_t { no_timeout, timeout };
+
 namespace th::details {
 using event_type = _EVENT_TYPE;
 template <event_type type>
@@ -454,14 +457,17 @@ class event : public sync_primitive_base<KEVENT> {
   enum class State { Active, Inactive };
 
  public:
-  event(State state = State::Inactive) {
+  event(State state = State::Inactive) noexcept {
     bool activated{state == State::Active};
     KeInitializeEvent(native_handle(), type, activated);
     update_state(state);
   }
-  event& operator=(State state) { update_state(state); }
+  event& operator=(State state) noexcept {
+    update_state(state);
+    return *this;
+  }
 
-  void wait() {
+  void wait() noexcept {
     KeWaitForSingleObject(native_handle(),
                           Executive,   // Wait reason
                           KernelMode,  // Processor mode
@@ -470,16 +476,19 @@ class event : public sync_primitive_base<KEVENT> {
     );
   }
 
-  void wait_for(duration_t us) {
+  cv_status wait_for(duration_t us) noexcept {
     LARGE_INTEGER wait_time;
     wait_time.QuadPart = us;
     wait_time.QuadPart *= -10;  // relative time in 100ns tics
-    KeWaitForSingleObject(native_handle(),
-                          Executive,   // Wait reason
-                          KernelMode,  // Processor mode
-                          false,
-                          addressof(wait_time)  // Indefinite waiting
-    );
+    NTSTATUS result{KeWaitForSingleObject(
+        native_handle(),
+        Executive,   // Wait reason
+        KernelMode,  // Processor mode
+        false,
+        addressof(wait_time)  // Indefinite waiting
+        )};
+    return result == STATUS_TIMEOUT ? cv_status::timeout
+                                    : cv_status::no_timeout;
   }
 
   void set() noexcept { update_state(State::Active); }
@@ -517,18 +526,19 @@ using notify_event =
     th::details::event<th::details::event_type::NotificationEvent>;
 
 namespace th::details {
-template <class Locable, class Duration, class = void>
+template <class Lockable, class Duration, class = void>
 struct has_try_lock_for : false_type {};
 
-template <class Locable, class Duration>
+template <class Lockable, class Duration>
 struct has_try_lock_for<
-    Locable,
+    Lockable,
     Duration,
-    void_t<decltype(declval<Locable>().try_lock_for(declval<Duration>()))>>
+    void_t<decltype(declval<Lockable>().try_lock_for(declval<Duration>()))>>
     : true_type {};
 
-template <class Locable, class Duration>
-inline constexpr bool has_try_lock_for_v = false;
+template <class Lockable, class Duration>
+inline constexpr bool has_try_lock_for_v =
+    has_try_lock_for<Lockable, Duration>::value;
 // has_try_lock_for<Locable, Duration>::value;
 
 }  // namespace th::details
@@ -574,6 +584,7 @@ class mutex_guard_base : non_copyable {
   mutex_guard_base& move_construct_from(mutex_guard_base&& other) noexcept {
     m_mtx = exchange(other.m_mtx, nullptr);
     m_owned = exchange(other.m_owned, false);
+    return *this;
   }
 
   void lock() {
@@ -590,6 +601,7 @@ class mutex_guard_base : non_copyable {
     static_assert(has_try_lock_for_v<mutex_t, duration_t>,
                   "Mutex doesn't support locking with timeout");
     m_owned = m_mtx->try_lock_for(timeout_duration);
+    return m_owned;
   }
 
   void unlock() {
@@ -657,21 +669,26 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
   unique_lock(const unique_lock& other) = delete;
   unique_lock operator=(const unique_lock& other) = delete;
 
-  unique_lock(unique_lock&& other) { MyBase::move_construct_from(move(other)); }
-
-  unique_lock operator=(unique_lock&& other) {
-    reset();
-    MyBase::move_construct_from(move(other));
+  unique_lock(unique_lock&& other) noexcept {
+    return MyBase::move_construct_from(move(other));
   }
 
-  ~unique_lock() { reset(); }
+  unique_lock& operator=(unique_lock&& other) noexcept {
+    reset_if_needed();
+    return MyBase::move_construct_from(move(other));
+  }
 
-  mutex_t* release() noexcept { return MyBase::release(); }
+  ~unique_lock() { reset_if_needed(); }
+
   operator bool() const noexcept { return MyBase::owns(); }
 
+  using MyBase::lock;
+  using MyBase::release;
+  using MyBase::unlock;
+
  private:
-  void reset() {
-    if (MyBase::owns()) {
+  void reset_if_needed() noexcept {
+    if (MyBase::owns_lock()) {
       MyBase::unlock();
     }
   }
@@ -719,20 +736,26 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
   shared_lock(const shared_lock& other) = delete;
   shared_lock operator=(const shared_lock& other) = delete;
 
-  shared_lock(shared_lock&& other) { MyBase::move_construct_from(move(other)); }
-
-  shared_lock operator=(shared_lock&& other) {
-    reset();
+  shared_lock(shared_lock&& other) noexcept {
     MyBase::move_construct_from(move(other));
   }
 
-  ~shared_lock() { reset(); }
+  shared_lock& operator=(shared_lock&& other) noexcept {
+    reset_if_needed();
+    return MyBase::move_construct_from(move(other));
+  }
 
-  mutex_t* release() noexcept { return MyBase::release(); }
+  ~shared_lock() { reset_if_needed(); }
+
   operator bool() const noexcept { return MyBase::owns_lock(); }
 
+  using MyBase::release;
+
+  void lock() { MyBase::lock_shared; }
+  void unlock() { MyBase::unlock_shared; }
+
  private:
-  void reset() {
+  void reset_if_needed() noexcept {
     if (MyBase::owns_lock()) {
       MyBase::unlock_shared();
     }

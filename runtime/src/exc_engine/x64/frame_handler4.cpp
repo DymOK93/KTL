@@ -66,6 +66,14 @@ static win::ExceptionDisposition frame_handler(
 
 static uint32_t read_unsigned(const uint8_t** data) noexcept;
 static int32_t read_int(const uint8_t** data) noexcept;
+
+static void destroy_objects(
+    const byte* image_base,
+    relative_virtual_address<const uint8_t> unwind_graph_rva,
+    byte* frame_ptr,
+    int32_t initial_state,
+    int32_t final_state) noexcept;
+
 static void load_exception_info(fh4::info& eh_info,
                                 const uint8_t* data,
                                 const byte* image_base,
@@ -85,15 +93,14 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* dispatcher_ctx) noexcept {
   if (exception_record) {
-    KdPrint(("SEH exception caught in CXX handler! Code: %x, address %p (in "
-             "function [%u - %u, unwind info: %u], module starts at %p)\n",
-             exception_record->code, exception_record->address,
-             dispatcher_ctx->fn->begin.value(), dispatcher_ctx->fn->end.value(),
-             dispatcher_ctx->fn->unwind_info.value(),
-            dispatcher_ctx->image_base));
+    KdPrint(
+        ("SEH exception caught in CXX handler! Code: %x, address %p (in "
+         "function [%u - %u, unwind info: %u], module starts at %p)\n",
+         exception_record->code, exception_record->address,
+         dispatcher_ctx->fn->begin.value(), dispatcher_ctx->fn->end.value(),
+         dispatcher_ctx->fn->unwind_info.value(), dispatcher_ctx->image_base));
     terminate_if_not(
         exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
-
     return win::ExceptionDisposition::ContinueSearch;
   }
   return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
@@ -135,14 +142,15 @@ static win::ExceptionDisposition frame_handler(
                       *dispatcher_context->fn);
 
   byte* primary_frame_ptr;
-  int32_t state;
+  int32_t initial_state;
 
   if (catch_info.primary_frame_ptr >= frame_ptr) {
     primary_frame_ptr = catch_info.primary_frame_ptr;
-    state = static_cast<int32_t>(catch_info.unwind_context);
+    initial_state = static_cast<int32_t>(catch_info.unwind_context);
   } else {
-    state = lookup_region(&eh_info, image_base, dispatcher_context->fn->begin,
-                          throw_frame->mach.rip);
+    initial_state =
+        lookup_region(&eh_info, image_base, dispatcher_context->fn->begin,
+                      throw_frame->mach.rip);
     if (eh_info.flags.has_any_of(fh4::Attributes::IsCatchFunclet))
       primary_frame_ptr = *(frame_ptr + eh_info.primary_frame_ptr);
     else
@@ -151,12 +159,13 @@ static win::ExceptionDisposition frame_handler(
 
   int32_t target_state = -1;
 
-  if (eh_info.try_blocks && state >= 0) {
+  if (eh_info.try_blocks && initial_state >= 0) {
     const auto* throw_info{catch_info.get_throw_info()};
 
     const uint8_t* p{image_base + eh_info.try_blocks};
     uint32_t try_block_count = read_unsigned(&p);
-    for (uint32_t i = 0; i != try_block_count; ++i) {
+    for (uint32_t try_block_idx = 0; try_block_idx != try_block_count;
+         ++try_block_idx) {
       uint32_t try_low = read_unsigned(&p);
       uint32_t try_high = read_unsigned(&p);
 
@@ -164,8 +173,8 @@ static win::ExceptionDisposition frame_handler(
 
       auto handlers{read_rva<const uint8_t>(&p)};
 
-      if (try_low > static_cast<uint32_t>(state) ||
-          static_cast<uint32_t>(state) > try_high) {
+      if (try_low > static_cast<uint32_t>(initial_state) ||
+          static_cast<uint32_t>(initial_state) > try_high) {
         continue;
       }
 
@@ -177,7 +186,8 @@ static win::ExceptionDisposition frame_handler(
       const uint8_t* q = image_base + handlers;
       uint32_t handler_count = read_unsigned(&q);
 
-      for (uint32_t idx = 0; idx != handler_count; ++idx) {
+      for (uint32_t handler_idx = 0; handler_idx != handler_count;
+           ++handler_idx) {
         flag_set<fh4::CatchBlockFlag> handler_flags{*q++};
 
         flag_set<CatchFlag> type_flags =
@@ -228,58 +238,9 @@ static win::ExceptionDisposition frame_handler(
     }
   }
 
-  if (target_state >= state) {
-    return win::ExceptionDisposition::CxxHandler;
-  }
-
-  const uint8_t* p = image_base + eh_info.unwind_graph;
-  uint32_t unwind_nodes = read_unsigned(&p);
-
-  terminate_if_not(state >= 0 && (uint32_t)state < unwind_nodes);
-
-  const uint8_t* target_edge_last = p;
-  for (int32_t i = 0; i != state; ++i) {
-    fh4::unwind_edge::skip(&p);
-    if (target_state + 1 == i)
-      target_edge_last = p;
-  }
-
-  if (target_state + 1 == state)
-    target_edge_last = p;
-
-  for (;;) {
-    const uint8_t* orig = p;
-
-    uint32_t target_offset_and_type = read_unsigned(&p);
-    uint32_t target_offset = target_offset_and_type >> 2;
-    terminate_if_not(target_offset != 0);
-
-    auto edge_type{
-        static_cast<fh4::unwind_edge::Type>(target_offset_and_type & 3)};
-
-    switch (edge_type) {
-      case fh4::unwind_edge::Type::Trivial: {
-        break;
-      }
-      case fh4::unwind_edge::Type::ObjectOffset: {
-        auto destroy_fn{image_base + read_rva<void(byte*)>(&p)};
-        byte* obj = frame_ptr + read_unsigned(&p);
-        destroy_fn(obj);
-      }; break;
-      case fh4::unwind_edge::Type::ObjectPtrOffset: {
-        auto destroy_fn = image_base + read_rva<void(byte*)>(&p);
-        byte* obj = *reinterpret_cast<byte**>(frame_ptr + read_unsigned(&p));
-        destroy_fn(obj);
-      }; break;
-      case fh4::unwind_edge::Type::Function: {
-        auto destroy_fn = image_base + read_rva<void(void*, byte*)>(&p);
-        destroy_fn(destroy_fn, frame_ptr);
-      }; break;
-    }
-
-    p = orig - target_offset;
-    if (orig - target_edge_last < target_offset)
-      break;
+  if (target_state < initial_state) {
+    destroy_objects(image_base, eh_info.unwind_graph, frame_ptr, initial_state,
+                    target_state);
   }
   return win::ExceptionDisposition::CxxHandler;
 }
@@ -407,5 +368,67 @@ static int32_t lookup_region(const fh4::info* eh_info,
   }
 
   return state;
+}
+
+void destroy_objects(const byte* image_base,
+                     relative_virtual_address<const uint8_t> unwind_graph_rva,
+                     byte* frame_ptr,
+                     int32_t initial_state,
+                     int32_t final_state) noexcept {
+  const uint8_t* unwind_graph{image_base + unwind_graph_rva};
+  uint32_t unwind_node_count = read_unsigned(&unwind_graph);
+  terminate_if_not(initial_state >= 0 &&
+                   static_cast<uint32_t>(initial_state) < unwind_node_count);
+
+  const uint8_t *current_edge{unwind_graph}, *last_edge{current_edge};
+  for (int32_t idx = 0; idx != initial_state; ++idx) {
+    fh4::unwind_edge::skip(&current_edge);
+    if (idx == final_state) {
+      last_edge = current_edge;
+    }
+  }
+  if (initial_state == final_state) {
+    last_edge = current_edge;
+  }
+
+  for (;;) {
+    const uint8_t* unwind_entry{current_edge};
+
+    uint32_t target_offset_and_type{read_unsigned(&unwind_entry)};
+    uint32_t target_offset{target_offset_and_type >> 2};
+    terminate_if_not(target_offset != 0);
+
+    auto edge_type{
+        static_cast<fh4::unwind_edge::Type>(target_offset_and_type & 3)};
+
+    switch (edge_type) {
+      case fh4::unwind_edge::Type::Trivial:
+        break;
+      case fh4::unwind_edge::Type::ObjectOffset: {
+        auto destroy_fn{image_base + read_rva<void(byte*)>(&unwind_entry)};
+        byte* obj{frame_ptr + read_unsigned(&unwind_entry)};
+        destroy_fn(obj);
+        break;
+      }
+      case fh4::unwind_edge::Type::ObjectPtrOffset: {
+        auto destroy_fn{image_base + read_rva<void(byte*)>(&unwind_entry)};
+        byte* obj{*reinterpret_cast<byte**>(frame_ptr +
+                                            read_unsigned(&unwind_entry))};
+        destroy_fn(obj);
+        break;
+      }
+      case fh4::unwind_edge::Type::Function: {
+        auto destroy_fn{image_base +
+                        read_rva<void(void*, byte*)>(&unwind_entry)};
+        destroy_fn(destroy_fn, frame_ptr);
+        break;
+      }
+    }
+
+    if (current_edge - last_edge < target_offset) {
+      break;
+    }
+    current_edge -= target_offset;
+  }
 }
 }  // namespace ktl::crt::exc_engine::x64
