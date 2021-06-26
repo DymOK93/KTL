@@ -393,28 +393,69 @@ class uninitialized_construct_helper
 template <class ForwardIt>
 uninitialized_construct_helper(ForwardIt)
     -> uninitialized_construct_helper<ForwardIt>;
+
+template <class Ty>
+inline constexpr bool memset_zeroying_is_safe_v =
+    is_scalar_v<Ty> && !is_member_pointer_v<Ty> && !is_volatile_v<Ty>;
+
+template <class Ty>
+bool all_bits_are_zeroes(const Ty& value) {
+  static_assert(is_scalar_v<Ty> && !is_member_pointer_v<Ty>);
+  constexpr Ty reference{};
+  return memcmp(addressof(value), addressof(reference), sizeof(Ty)) == 0;
+}
+
+template <class ForwardIt, class Ty>
+ForwardIt uninitialized_fill_impl(ForwardIt first,
+                                  ForwardIt last,
+                                  const Ty& val) {
+  mm::details::uninitialized_construct_helper uconh(first);
+  uconh.fill_range(last, val);
+  return uconh.release();
+}
+
+template <class ForwardIt, class Ty>
+ForwardIt uninitialized_fill_n_impl(ForwardIt first,
+                                    size_t count,
+                                    const Ty& val) {
+  mm::details::uninitialized_construct_helper uconh(first);
+  uconh.fill_n(count, val);
+  return uconh.release();
+}
 }  // namespace mm::details
 
 template <class ForwardIt, class Ty>
-ForwardIt uninitialized_fill(ForwardIt first, ForwardIt last, const Ty& val) {
+ForwardIt uninitialized_fill(ForwardIt first, ForwardIt last, const Ty& value) {
   if constexpr (mm::details::memset_is_safe_v<Ty> && is_pointer_v<ForwardIt>) {
     return static_cast<ForwardIt>(
-        memset(first, static_cast<int>(val), distance(first, last)));
+        memset(first, static_cast<int>(value), distance(first, last)));
   } else {
-    mm::details::uninitialized_construct_helper uconh(first);
-    uconh.fill_range(last, val);
-    return uconh.release();
+    if constexpr (!mm::details::memset_zeroying_is_safe_v<Ty>) {
+      return mm::details::uninitialized_fill_impl(first, last, value);
+    } else {
+      if (mm::details::all_bits_are_zeroes(value)) {
+        return static_cast<ForwardIt>(
+            memset(first, 0, static_cast<size_t>(last - first) * sizeof(Ty)));
+      }
+      return mm::details::uninitialized_fill_impl(first, last, value);
+    }
   }
 }
 
 template <class ForwardIt, class Ty>
-ForwardIt uninitialized_fill_n(ForwardIt first, size_t count, const Ty& val) {
+ForwardIt uninitialized_fill_n(ForwardIt first, size_t count, const Ty& value) {
   if constexpr (mm::details::memset_is_safe_v<Ty> && is_pointer_v<ForwardIt>) {
-    return static_cast<ForwardIt>(memset(first, static_cast<int>(val), count));
+    return static_cast<ForwardIt>(
+        memset(first, static_cast<int>(value), count * sizeof(Ty)));
   } else {
-    mm::details::uninitialized_construct_helper uconh(first);
-    uconh.fill_n(count, val);
-    return uconh.release();
+    if constexpr (!mm::details::memset_zeroying_is_safe_v<Ty>) {
+      return mm::details::uninitialized_fill_n_impl(first, count, value);
+    } else {
+      if (mm::details::all_bits_are_zeroes(value)) {
+        return static_cast<ForwardIt>(memset(first, 0, count * sizeof(Ty)));
+      }
+      return mm::details::uninitialized_fill_n_impl(first, count, value);
+    }
   }
 }
 

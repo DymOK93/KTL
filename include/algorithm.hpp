@@ -8,6 +8,7 @@ using std::min;
 }  // namespace ktl
 #else
 #include <algorithm_impl.hpp>
+#include <memory_tools.hpp>
 #include <memory_type_traits.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
@@ -237,17 +238,6 @@ OutputIt move(InputIt first, InputIt last, OutputIt d_first) {
 }
 
 namespace algo::details {
-template <class Ty>
-inline constexpr bool memset_zeroying_is_safe_v =
-    is_scalar_v<Ty> && !is_member_pointer_v<Ty> && !is_volatile_v<Ty>;
-
-template <class Ty>
-bool all_bits_are_zeroes(const Ty& value) {
-  static_assert(is_scalar_v<Ty> && !is_member_pointer_v<Ty>);
-  constexpr Ty reference{};
-  return memcmp(addressof(value), addressof(reference), sizeof(Ty)) == 0;
-}
-
 template <class ForwardIt, class Ty>
 struct FillerBase {
   void
@@ -271,7 +261,8 @@ template <class Ty>
 class Filler<Ty*, Ty, true> {
  public:
   void operator()(Ty* first, Ty* last, Ty value) const noexcept {
-    memset(first, value, static_cast<size_t>(last - first) * sizeof(Ty));
+    memset(first, static_cast<int>(value),
+           static_cast<size_t>(last - first) * sizeof(Ty));
   }
 };
 
@@ -281,10 +272,10 @@ struct Filler<Ty*, Ty, false> : FillerBase<Ty*, Ty> {
 
   void operator()(Ty* first, Ty* last, const Ty& value) const
       noexcept(is_nothrow_assignable_v<Ty, Ty>) {
-    if constexpr (!memset_zeroying_is_safe_v<Ty>) {
+    if constexpr (!mm::details::memset_zeroying_is_safe_v<Ty>) {
       MyBase::operator()(first, last, value);
     } else {
-      if (!all_bits_are_zeroes(value)) {
+      if (!mm::details::all_bits_are_zeroes(value)) {
         MyBase::operator()(first, last, value);
       } else {
         memset(first, 0, static_cast<size_t>(last - first) * sizeof(Ty));

@@ -93,7 +93,7 @@ class vector {
       : m_impl{one_then_variadic_args{}, move(alloc)} {}
 
   template <class Alloc = allocator_type,
-            enable_if_t<is_constructible_v<allocator_type, Alloc>, int> = 1>
+            enable_if_t<is_constructible_v<allocator_type, Alloc>, int> = 0>
   vector(Alloc&& alloc = Alloc{}) noexcept(
       is_nothrow_constructible_v<allocator_type, Alloc>)
       : m_impl{one_then_variadic_args{}, forward<Alloc>(alloc)} {}
