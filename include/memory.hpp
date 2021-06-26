@@ -740,7 +740,8 @@ ForwardIt uninitialized_fill(ForwardIt first, ForwardIt last, const Ty& value) {
 
   if constexpr (mm::details::wmemset_is_safe_v<value_type> &&
                 is_pointer_v<ForwardIt>) {
-    return wmemset(first, value, static_cast<size_t>(last - first));
+    return wmemset(first, static_cast<wchar_t>(value),
+                   static_cast<size_t>(last - first));
   } else {
     if (mm::details::is_memset_safe<value_type, ForwardIt>(value)) {
       return static_cast<ForwardIt>(
@@ -761,7 +762,8 @@ ForwardIt uninitialized_fill(ForwardIt first,
 
   if constexpr (mm::details::enable_wmemset_with_allocator_v<
                     value_type, ForwardIt, Allocator>) {
-    return wmemset(first, value, static_cast<size_t>(last - first));
+    return wmemset(first, static_cast<wchar_t>(value),
+                   static_cast<size_t>(last - first));
   } else {
     if (mm::details::is_memset_safe_with_allocator<value_type, ForwardIt,
                                                    Allocator>(value)) {
@@ -781,7 +783,7 @@ ForwardIt uninitialized_fill_n(ForwardIt first, size_t count, const Ty& value) {
 
   if constexpr (mm::details::wmemset_is_safe_v<value_type> &&
                 is_pointer_v<ForwardIt>) {
-    return wmemset(first, value, count);
+    return wmemset(first, static_cast<wchar_t>(value), count);
   } else {
     if (mm::details::is_memset_safe<value_type, ForwardIt>(value)) {
       return static_cast<ForwardIt>(
@@ -801,7 +803,7 @@ ForwardIt uninitialized_fill_n(ForwardIt first,
 
   if constexpr (mm::details::enable_wmemset_with_allocator_v<
                     value_type, ForwardIt, Allocator>) {
-    return wmemset(first, value, count);
+    return wmemset(first, static_cast<wchar_t>(value), count);
   } else {
     if (mm::details::is_memset_safe_with_allocator<value_type, ForwardIt,
                                                    Allocator>(value)) {
