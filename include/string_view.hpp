@@ -293,14 +293,8 @@ class basic_winnt_string_view {
   constexpr basic_winnt_string_view substr_unchecked(
       size_type pos,
       size_type count) const noexcept {
-    return basic_winnt_string_view(data() + pos,
-                                   calc_segment_length(pos, count));
-  }
-
-  constexpr size_type calc_segment_length(
-      size_type pos,
-      size_type count) const noexcept {  // In characters
-    return (min)(size(), static_cast<size_type>(count + pos));
+    const auto rest{static_cast<size_type>(size() - pos)};
+    return {data() + pos, (min)(rest, count)};
   }
 
   static constexpr int compare_unchecked(const value_type* lhs,
