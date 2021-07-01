@@ -359,15 +359,15 @@ class vector {
   }
 
   iterator erase(const_iterator pos) {
-    auto range_end{end()};
-    if (pos == range_end) {
-      return range_end;
-    }
+    assert_with_msg(pos != end(), L"can't dereference end iterator");
     return erase_impl(pos - begin(), 1);
   }
 
   iterator erase(const_iterator first, const_iterator last) {
+    assert_with_msg(first <= last, L"transposed iterator range");
     auto my_first{begin()};
+    assert_with_msg(first >= my_first && last <= end(),
+                    L"iterator range does not belong to the vector");
     const auto offset{static_cast<size_type>(first - my_first)},
         count{static_cast<size_type>(last - first)};
     if (first == last) {
@@ -649,7 +649,6 @@ class vector {
   }
 
   iterator erase_impl(size_type offset, size_type count) {
-    assert_with_msg(offset < size(), L"iterator does not belong to the vector");
     pointer buffer{data()};
     shift_left(buffer + offset, buffer + size(), count);
     get_size() -= count;
