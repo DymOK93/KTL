@@ -113,6 +113,8 @@ class common_optional_base : optional_storage<Ty> {
   using value_type = typename MyBase::value_type;
 
  public:
+  using MyBase::MyBase;
+
   constexpr explicit operator bool() const noexcept { return has_value(); }
   constexpr bool has_value() const noexcept { return this->m_initialized; }
 
@@ -443,6 +445,7 @@ class optional : public opt::details::optional_base_selector_t<Ty> {
  public:
   using value_type = typename MyBase::value_type;
 
+ public:
   using MyBase::MyBase;
 
   using MyBase::operator=;
