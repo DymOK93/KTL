@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <container_helpers.h>
 #include <exception.h>
 #include <new_delete.h>
 #include <algorithm.hpp>
@@ -370,11 +371,11 @@ class basic_winnt_string {
   }
 
   value_type& at(size_type idx) {
-    return at_index_verified(data(), size(), idx);
+    return cont::details::at_index_verified(data(), idx, size());
   }
 
   value_type& at(size_type idx) const {
-    return at_index_verified(data(), size(), idx);
+    return cont::details::at_index_verified(data(), idx, size());
   }
 
   constexpr value_type& operator[](size_type idx) noexcept {
@@ -597,7 +598,7 @@ class basic_winnt_string {
                                       size_type my_count,
                                       native_string_type native_str) const {
     const size_type current_size{size()};
-    throw_exception_if_not(my_pos < current_size);
+    cont::details::throw_if_index_greater_than_size(my_pos, current_size);
     return native_string_traits_type::compare_unchecked(
         data() + my_pos, (min)(my_count, current_size - my_pos),
         native_string_traits_type::get_buffer(native_str),
@@ -619,7 +620,7 @@ class basic_winnt_string {
                                       size_type other_pos,
                                       size_type other_count = npos) const {
     const size_type other_size{native_string_traits_type::get_size(native_str)};
-    throw_exception_if_not(other_pos < other_size);
+    cont::details::throw_if_index_greater_than_size(other_pos, other_size);
     return native_string_traits_type::compare_unchecked(
         data(), my_pos, my_count,
         native_string_traits_type::get_buffer(native_str) + other_pos,
@@ -658,7 +659,7 @@ class basic_winnt_string {
                                       const value_type* str,
                                       size_type other_count) const {
     const size_type current_size{size()};
-    throw_out_of_range_if(my_pos > current_size);
+    cont::details::throw_if_index_greater_than_size(my_pos, current_size);
     const value_type* substr{data() + my_pos};
     const auto substr_length{
         (min)(static_cast<size_type>(current_size - my_pos), my_count)};
@@ -677,7 +678,7 @@ class basic_winnt_string {
                                       size_type other_count) const noexcept {
     const string_view_type view{native_str};
     const auto view_size{static_cast<size_type>(view.size())};
-    throw_out_of_range_if(other_pos > view_size);
+    cont::details::throw_if_index_greater_than_size(other_pos, view_size);
     return native_string_traits_type::compare_unchecked(
         data(), size(), view.data(), (min)(view_size - other_pos, other_count));
   }
@@ -722,7 +723,7 @@ class basic_winnt_string {
   }
 
   basic_winnt_string& insert(size_type index, size_type count, value_type ch) {
-    throw_out_of_range_if(index > size());
+    cont::details::throw_if_index_greater_than_size(index, size());
     insert(begin() + index, count, ch);
     return *this;
   }
@@ -731,7 +732,7 @@ class basic_winnt_string {
                              const value_type* str,
                              size_type count) {
     const size_type current_size{size()};
-    throw_out_of_range_if(index > current_size);
+    cont::details::throw_if_index_greater_than_size(index, current_size);
     if (index == current_size) {
       return append(str, count);
     }
@@ -767,11 +768,11 @@ class basic_winnt_string {
       size_type other_pos,
       size_type other_count) {
     const size_type current_size{size()}, other_size{other.size()};
-    throw_out_of_range_if(index > current_size);
+    cont::details::throw_if_index_greater_than_size(index, current_size);
     if (index == size()) {
       return append(other, other_pos, other_count);
     }
-    throw_out_of_range_if(other_pos > other_size);
+    cont::details::throw_if_index_greater_than_size(other_pos, other_size);
     insert_impl(index, make_copy_helper(),
                 (min)(other_size - other_pos, other_count),
                 other.data() + other_pos);
@@ -829,7 +830,7 @@ class basic_winnt_string {
 
   basic_winnt_string& erase(size_type index = 0, size_type count = npos) {
     const size_type old_size{size()};
-    throw_out_of_range_if(index > old_size);
+    cont::details::throw_if_index_greater_than_size(index, old_size);
     erase_unchecked(index,
                     (min)(count, static_cast<size_type>(old_size - index)));
     return *this;
@@ -911,14 +912,14 @@ class basic_winnt_string {
   [[nodiscard]] basic_winnt_string substr(size_type pos = 0,
                                           size_type count = npos) {
     size_type current_size{size()};
-    throw_out_of_range_if(pos > current_size);
+    cont::details::throw_if_index_greater_than_size(pos, current_size);
     return basic_winnt_string{
         data() + pos, (min)(static_cast<size_type>(current_size - pos), count)};
   }
 
   size_type copy(value_type* dst, size_type count, size_type pos = 0) const {
     const size_type current_size{size()};
-    throw_out_of_range_if(pos > current_size);
+    cont::details::throw_if_index_greater_than_size(pos, current_size);
     const auto copied{(min)(static_cast<size_type>(current_size - pos), count)};
     traits_type::copy(dst, data() + pos,
                       copied);  // Пользователь отвечает за то, что диапазоны не
@@ -1031,7 +1032,7 @@ class basic_winnt_string {
                                size_type pos,
                                size_type count) {
     const size_type other_size{other.size()};
-    throw_out_of_range_if(pos > other_size);
+    cont::details::throw_if_index_greater_than_size(pos, other_size);
     const auto length{static_cast<size_type>(other_size - pos)};
     if constexpr (CalcOptimalGrowth) {
       concat_with_optimal_growth(make_copy_helper(), (min)(length, count),
@@ -1294,14 +1295,6 @@ class basic_winnt_string {
     return (max)(calc_growth(), required);
   }
 
-  template <class Buffer>
-  static decltype(auto) at_index_verified(Buffer& buf,
-                                          size_type size,
-                                          size_type idx) {
-    throw_out_of_range_if(idx >= size, "index is out of range");
-    return buf[idx];
-  }
-
   template <class Handler>
   static void shift_right_helper(
       Handler handler,
@@ -1394,12 +1387,6 @@ class basic_winnt_string {
       cmp_result = lhs_count < rhs_count ? -1 : 1;
     }
     return cmp_result;
-  }
-
-  template <class Ty>
-  static void throw_out_of_range_if(const Ty& cond) {
-    throw_exception_if<out_of_range>(cond, L"pos is out of range",
-                                     constexpr_message_tag{});
   }
 
  private:

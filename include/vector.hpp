@@ -7,6 +7,7 @@ using std::vector;
 }
 #else
 #include <basic_types.h>
+#include <container_helpers.h>
 #include <exception.h>
 #include <algorithm.hpp>
 #include <allocator.hpp>
@@ -211,10 +212,12 @@ class vector {
 
   const allocator_type& get_allocator() const noexcept { return get_alloc(); }
 
-  reference at(size_type idx) { return at_index_verified(data(), size(), idx); }
+  reference at(size_type idx) {
+    return cont::details::at_index_verified(data(), idx, size());
+  }
 
   const_reference at(size_type idx) const {
-    return at_index_verified(data(), size(), idx);
+    return cont::details::at_index_verified(data(), idx, size());
   }
 
   reference operator[](size_type idx) noexcept {
@@ -883,15 +886,6 @@ class vector {
         allocator_traits_type::deallocate(alc, buffer, obj_count);
       }
     }
-  }
-
-  template <class ValueTy>
-  static decltype(auto) at_index_verified(ValueTy* data,
-                                          size_type size,
-                                          size_type idx) {
-    throw_exception_if_not<out_of_range>(idx < size, L"index is out of range",
-                                         constexpr_message_tag{});
-    return data[idx];
   }
 
  private:

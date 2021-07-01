@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <string_view>
 #else
+#include <container_helpers.h>
 #include <exception.h>
 #include <algorithm.hpp>
 #include <assert.hpp>
@@ -18,7 +19,8 @@ template <typename NativeStrTy, template <typename... CharT> class Traits>
 class basic_winnt_string_view {
  public:
   using native_string_type = NativeStrTy;
-  using native_string_traits_type = str::details::native_string_traits<NativeStrTy>;
+  using native_string_traits_type =
+      str::details::native_string_traits<NativeStrTy>;
 
   using value_type = typename native_string_traits_type::value_type;
   using size_type = typename native_string_traits_type::size_type;
@@ -75,8 +77,7 @@ class basic_winnt_string_view {
 
  public:
   value_type& at(size_type idx) const {
-    throw_out_of_range_if_not(idx < size, "index is out of range");
-    return data()[idx];
+    return cont::details::at_index_verified(data(), idx, size());
   }
 
   constexpr const value_type& operator[](size_type idx) const noexcept {
@@ -126,7 +127,7 @@ class basic_winnt_string_view {
   constexpr basic_winnt_string_view substr(
       size_type pos,
       size_type count = npos) const noexcept {
-    throw_out_of_range_if_not(pos < size());
+    cont::details::throw_if_index_greater_than_size(pos, size());
     return substr_unchecked(pos, count);
   }
 
@@ -269,7 +270,7 @@ class basic_winnt_string_view {
 
   size_type copy(value_type* dst, size_type count, size_type pos = 0) {
     const size_type current_size{size()};
-    throw_out_of_range_if_not(pos <= current_size);
+    cont::details::throw_if_index_greater_than_size(pos, current_size);
     const auto copied{(min)(static_cast<size_type>(current_size - pos), count)};
     traits_type::copy(dst, data() + pos,
                       copied);  // Пользователь отвечает за то, что диапазоны не
@@ -317,12 +318,6 @@ class basic_winnt_string_view {
     return [](value_type lhs, value_type rhs) noexcept {
       return traits_type::eq(lhs, rhs);
     };
-  }
-
-  template <class Ty>
-  static void throw_out_of_range_if_not(const Ty& cond) {
-    throw_exception_if_not<out_of_range>(cond, L"pos is out of range",
-                                         constexpr_message_tag{});
   }
 
  private:
