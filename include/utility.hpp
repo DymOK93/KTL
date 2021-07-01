@@ -123,6 +123,9 @@ struct pair {
 };
 
 template <typename Ty1, typename Ty2>
+pair(Ty1&&, Ty2&&) -> pair<remove_reference_t<Ty1>, remove_reference_t<Ty2>>;
+
+template <typename Ty1, typename Ty2>
 void swap(pair<Ty1, Ty2>& a, pair<Ty1, Ty2>& b) noexcept(
     noexcept(declval<pair<Ty1, Ty2>&>().swap(declval<pair<Ty1, Ty2>&>()))) {
   a.swap(b);
