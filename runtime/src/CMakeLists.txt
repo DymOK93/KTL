@@ -15,6 +15,7 @@ set(
 		"exception_impl.cpp"
 		"irql.cpp"
 		"heap.cpp"
+		"object_management.cpp"
 		"placement_new.cpp"
 		"preload_initializer.cpp"
 		"type_info.cpp"

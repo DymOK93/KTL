@@ -1,19 +1,37 @@
 #pragma once
 #include <crt_attributes.h>
 
+#ifdef KTL_MINIFILTER
+#include <fltkernel.h>
+#else 
 #include <ntddk.h>
+#endif
+
+#ifndef KTL_MINIFILTER
+EXTERN_C NTSTATUS STDCALL DriverEntry(DRIVER_OBJECT* driver_object,
+                                      UNICODE_STRING* registry_path) noexcept;
+
+EXTERN_C NTSTATUS STDCALL
+KtlDriverEntry(DRIVER_OBJECT* driver_object,
+               UNICODE_STRING* registry_path) noexcept;
+
+#else
+EXTERN_C NTSTATUS STDCALL
+FilterEntry(DRIVER_OBJECT* driver_object,
+            UNICODE_STRING* registry_path,
+            FLT_REGISTRATION& filter_registration) noexcept;
+
+EXTERN_C NTSTATUS STDCALL
+KtlFilterEntry(DRIVER_OBJECT* driver_object,
+               UNICODE_STRING* registry_path) noexcept;
+#endif
 
 namespace ktl::crt {
-using handler_t = void(CRTCALL*)(void);
-using driver_unload_t = void(CRTCALL*)(DRIVER_OBJECT*);
+DRIVER_OBJECT* get_driver_object() noexcept;
+
+#ifdef KTL_MINIFILTER
+extern const NTSTATUS NO_START_FILTERING;
+NTSTATUS try_start_filtering() noexcept;
+void stop_filtering() noexcept;
+#endif
 }  // namespace ktl::crt
-
-EXTERN_C int CRTCALL atexit(ktl::crt::handler_t destructor);
-
-EXTERN_C NTSTATUS DriverEntry(DRIVER_OBJECT* driver_object,
-                              UNICODE_STRING* registry_path) noexcept;
-
-EXTERN_C NTSTATUS KtlDriverEntry(DRIVER_OBJECT* driver_object,
-                                 UNICODE_STRING* registry_path) noexcept;
-
-EXTERN_C void KtlDriverUnload(DRIVER_OBJECT* driver_object) noexcept;

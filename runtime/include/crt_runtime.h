@@ -3,7 +3,7 @@
 See http://www.zer0mem.sk/?p=517
 and http://www.hollistech.com/Resources/Cpp/kernel_c_runtime_library.htm
 ***************************************************************************/
-#include <basic_runtime.h>
+#include <object_management.h>
 
 #define CRTALLOC(x) __declspec(allocate(x))
 
