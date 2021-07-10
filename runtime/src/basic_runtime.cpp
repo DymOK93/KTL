@@ -1,6 +1,5 @@
 #include <fltkernel.h>
 
-#include <basic_runtime.h>
 #include <basic_types.h>
 #include <crt_assert.h>
 #include <crt_runtime.h>
@@ -8,12 +7,16 @@
 #include <object_management.h>
 #include <preload_initializer.h>
 
-EXTERN_C NTSTATUS STDCALL DriverEntry(DRIVER_OBJECT* driver_object,
-                                      UNICODE_STRING* registry_path) noexcept;
 EXTERN_C NTSTATUS STDCALL
-FilterEntry(DRIVER_OBJECT* driver_object,
-            UNICODE_STRING* registry_path,
-            FLT_REGISTRATION& filter_registration) noexcept;
+DriverEntry([[maybe_unused]] DRIVER_OBJECT* driver_object,
+            [[maybe_unused]] UNICODE_STRING* registry_path) noexcept;
+#pragma comment(linker, "/alternatename:DriverEntry=DummyDriverEntry") 
+
+EXTERN_C NTSTATUS STDCALL
+FilterEntry([[maybe_unused]] DRIVER_OBJECT* driver_object,
+            [[maybe_unused]] UNICODE_STRING* registry_path,
+            [[maybe_unused]] FLT_REGISTRATION& filter_registration) noexcept;
+#pragma comment(linker, "/alternatename:FilterEntry=DummyFilterEntry")
 
 static void STDCALL KtlDriverUnload(DRIVER_OBJECT* driver_object) noexcept;
 static NTSTATUS STDCALL KtlFilterUnload(FLT_FILTER_UNLOAD_FLAGS flags) noexcept;
@@ -58,7 +61,7 @@ KtlDriverEntry(DRIVER_OBJECT* driver_object,
             *driver_object, *registry_path);
     BREAK_ON_FAIL(init_status)
 
-    // init_status = DriverEntry(driver_object, registry_path);
+    init_status = DriverEntry(driver_object, registry_path);
     BREAK_ON_FAIL(init_status)
 
     ktl::crt::details::custom_driver_unload = driver_object->DriverUnload;
@@ -91,7 +94,7 @@ KtlFilterEntry(DRIVER_OBJECT* driver_object,
             *driver_object, *registry_path);
     BREAK_ON_FAIL(init_status)
 
-    FLT_REGISTRATION filter_registration;
+    FLT_REGISTRATION filter_registration{};
     init_status =
         FilterEntry(driver_object, registry_path, filter_registration);
     BREAK_ON_FAIL(init_status)
@@ -128,6 +131,7 @@ NTSTATUS STDCALL KtlFilterUnload(FLT_FILTER_UNLOAD_FLAGS flags) noexcept {
         NT_SUCCESS(unload_status),
         L"can't return error status - filter was already unregistered");
     unload_status = STATUS_SUCCESS;
+    ktl::crt::force_filter_unload();
   } else if (NT_SUCCESS(unload_status)) {
     ktl::crt::stop_filtering();
     ktl::crt::force_filter_unload();
@@ -172,3 +176,5 @@ void stop_filtering() noexcept {
   filter = nullptr;
 }
 }  // namespace ktl::crt
+
+

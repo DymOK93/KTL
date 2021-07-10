@@ -37,8 +37,8 @@ void CRTCALL invoke_destructors() noexcept {
 
 int CRTCALL atexit(ktl::crt::handler_t destructor) {
   if (auto& dtor_count = ktl::crt::details::destructor_count; destructor) {
-    const auto idx{static_cast<uint32_t>(
-        InterlockedIncrement(reinterpret_cast<volatile long*>(&dtor_count)))};
+    auto* idx_addr{reinterpret_cast<volatile long*>(&dtor_count)};
+    const auto idx{static_cast<uint32_t>(InterlockedIncrement(idx_addr) - 1)};
     bool registration_allowed(idx < ktl::crt::MAX_DESTRUCTOR_COUNT);
 
     if (registration_allowed) {

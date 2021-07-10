@@ -1,11 +1,12 @@
 #pragma once
-#include <crt_attributes.h>
-
 #ifdef KTL_MINIFILTER
 #include <fltkernel.h>
-#else 
+#else
 #include <ntddk.h>
 #endif
+
+#include <crt_assert.h>
+#include <crt_attributes.h>
 
 #ifndef KTL_MINIFILTER
 EXTERN_C NTSTATUS STDCALL DriverEntry(DRIVER_OBJECT* driver_object,
@@ -14,7 +15,6 @@ EXTERN_C NTSTATUS STDCALL DriverEntry(DRIVER_OBJECT* driver_object,
 EXTERN_C NTSTATUS STDCALL
 KtlDriverEntry(DRIVER_OBJECT* driver_object,
                UNICODE_STRING* registry_path) noexcept;
-
 #else
 EXTERN_C NTSTATUS STDCALL
 FilterEntry(DRIVER_OBJECT* driver_object,

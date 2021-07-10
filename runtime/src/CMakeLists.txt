@@ -11,6 +11,7 @@ set(
 		"assert.cpp"
 		"basic_runtime.cpp"
 		"bugcheck.cpp"
+		"dummy_runtime.cpp"
 		"exception_base.cpp"
 		"exception_impl.cpp"
 		"irql.cpp"
