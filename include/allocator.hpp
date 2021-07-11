@@ -286,6 +286,14 @@ struct allocator_traits {
     }
   }
 
+  static constexpr size_type max_size(const allocator_type& alloc) noexcept {
+    if constexpr (mm::details::has_max_size_v<allocator_type>) {
+      return alloc.max_size();
+    } else {
+      return (numeric_limits<size_type>::max)() / sizeof(value_type);
+    }
+  }
+
  private:
   template <class... Types>
   static pointer alloc_construct(allocator_type& alloc,

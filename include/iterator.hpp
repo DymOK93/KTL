@@ -215,16 +215,16 @@ class back_insert_iterator {
 
  public:
   explicit constexpr back_insert_iterator(Container& cont) noexcept
-      : m_container{addressof(cont)} {}
+      : container{addressof(cont)} {}
 
   constexpr back_insert_iterator& operator=(
       const containter_value_type& value) {
-    m_container->push_back(value);
+    container->push_back(value);
     return *this;
   }
 
   constexpr back_insert_iterator& operator=(containter_value_type&& value) {
-    m_container->push_back(move(value));
+    container->push_back(move(value));
     return *this;
   }
 
@@ -232,8 +232,8 @@ class back_insert_iterator {
   constexpr back_insert_iterator& operator++() noexcept { return *this; }
   constexpr back_insert_iterator operator++(int) noexcept { return *this; }
 
- private:
-  container_type* const m_container;
+ protected:
+  container_type* container;
 };
 }  // namespace ktl
 
