@@ -25,6 +25,7 @@ set(
 		"irql.h"
 		"limits_impl.hpp"
 		"memory_type_traits_impl.hpp"
+		"object_management.h"
 		"placement_new.h"
 		"preload_initializer.h"
 		"type_info.h"
