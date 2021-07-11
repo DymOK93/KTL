@@ -10,7 +10,7 @@
 EXTERN_C NTSTATUS STDCALL
 DriverEntry([[maybe_unused]] DRIVER_OBJECT* driver_object,
             [[maybe_unused]] UNICODE_STRING* registry_path) noexcept;
-#pragma comment(linker, "/alternatename:DriverEntry=DummyDriverEntry") 
+#pragma comment(linker, "/alternatename:DriverEntry=DummyDriverEntry")
 
 EXTERN_C NTSTATUS STDCALL
 FilterEntry([[maybe_unused]] DRIVER_OBJECT* driver_object,
@@ -99,13 +99,13 @@ KtlFilterEntry(DRIVER_OBJECT* driver_object,
         FilterEntry(driver_object, registry_path, filter_registration);
     BREAK_ON_FAIL(init_status)
 
-    crt_assert_with_msg(
-        !driver_object->DriverUnload,
-        L"Legacy DriverUnload won't be called when the filter is unloaded");
+    ktl::crt::details::custom_driver_unload = driver_object->DriverUnload;
+    driver_object->DriverUnload = &KtlDriverUnload;
+    ktl::crt::details::driver_object = driver_object;
+
     ktl::crt::details::custom_filter_unload =
         filter_registration.FilterUnloadCallback;
     filter_registration.FilterUnloadCallback = &KtlFilterUnload;
-    ktl::crt::details::driver_object = driver_object;
     init_status =
         ktl::crt::install_filter(driver_object, filter_registration,
                                  init_status != ktl::crt::NO_START_FILTERING);
@@ -131,10 +131,8 @@ NTSTATUS STDCALL KtlFilterUnload(FLT_FILTER_UNLOAD_FLAGS flags) noexcept {
         NT_SUCCESS(unload_status),
         L"can't return error status - filter was already unregistered");
     unload_status = STATUS_SUCCESS;
-    ktl::crt::force_filter_unload();
   } else if (NT_SUCCESS(unload_status)) {
     ktl::crt::stop_filtering();
-    ktl::crt::force_filter_unload();
   }
   return unload_status;
 }
@@ -176,5 +174,3 @@ void stop_filtering() noexcept {
   filter = nullptr;
 }
 }  // namespace ktl::crt
-
-
