@@ -82,6 +82,7 @@ using std::is_swappable;
 using std::is_swappable_v;
 
 using std::is_array;
+using std::is_class;
 using std::is_function;
 using std::is_lvalue_reference;
 using std::is_lvalue_reference_v;
@@ -674,6 +675,12 @@ inline constexpr bool is_array_v<Ty[]> = true;
 
 template <class Ty>
 struct is_array : bool_constant<is_array_v<Ty>> {};
+
+template <class Ty>
+inline constexpr bool is_class_v = __is_class(Ty);
+
+template <class Ty>
+struct is_class : bool_constant<is_class_v<Ty>> {};
 
 template <class Ty>
 struct is_function {

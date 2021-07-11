@@ -199,6 +199,42 @@ constexpr auto operator>=(const move_iterator<LhsIt>& lhs,
     -> decltype(is_convertible_v<bool, decltype(lhs.base() >= rhs.base())>) {
   return static_cast<bool>(lhs.base() >= rhs.base());
 }
+
+template <class Container>
+class back_insert_iterator {
+ public:
+  using iterator_category = output_iterator_tag;
+  using value_type = void;
+  using difference_type = ptrdiff_t;
+  using pointer = void;
+  using reference = void;
+  using container_type = Container;
+
+ private:
+  using containter_value_type = typename Container::value_type;
+
+ public:
+  explicit constexpr back_insert_iterator(Container& cont) noexcept
+      : m_container{addressof(cont)} {}
+
+  constexpr back_insert_iterator& operator=(
+      const containter_value_type& value) {
+    m_container->push_back(value);
+    return *this;
+  }
+
+  constexpr back_insert_iterator& operator=(containter_value_type&& value) {
+    m_container->push_back(move(value));
+    return *this;
+  }
+
+  constexpr back_insert_iterator& operator*() noexcept { return *this; }
+  constexpr back_insert_iterator& operator++() noexcept { return *this; }
+  constexpr back_insert_iterator operator++(int) noexcept { return *this; }
+
+ private:
+  container_type* const m_container;
+};
 }  // namespace ktl
 
 // TODO: ktl::reverse_iterator
