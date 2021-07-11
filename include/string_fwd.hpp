@@ -7,11 +7,19 @@ using native_ansi_str_t = ANSI_STRING;
 using native_unicode_str_t = UNICODE_STRING;
 
 namespace str::details {
+template <typename NativeStrTy, class = void>
+class native_string_traits;
+
 template <typename NativeStrTy>
-class native_string_traits_base {
+class native_string_traits<
+    NativeStrTy,
+    void_t<decltype(declval<NativeStrTy>().Buffer),
+           decltype(declval<NativeStrTy>().Length),
+           decltype(declval<NativeStrTy>().MaximumLength)>> {
  public:
-  using value_type = remove_pointer_t<decltype(NativeStrTy{}.Buffer)>;
-  using size_type = decltype(NativeStrTy{}.Length);
+  using string_type = NativeStrTy;
+  using value_type = remove_pointer_t<decltype(declval<NativeStrTy>().Buffer)>;
+  using size_type = decltype(declval<NativeStrTy>().Length);
 
  public:
   static constexpr value_type* get_buffer(NativeStrTy& str) noexcept {
@@ -70,77 +78,83 @@ class native_string_traits_base {
   }
 };
 
-template <typename NativeStrTy>
-struct native_string_traits;
+template <typename CharT>
+struct native_string_traits_selector;
 
 template <>
-struct native_string_traits<native_unicode_str_t>
-    : public native_string_traits_base<native_unicode_str_t> {};
+struct native_string_traits_selector<char>
+    : public native_string_traits<native_ansi_str_t> {};
 
 template <>
-struct native_string_traits<native_ansi_str_t>
-    : public native_string_traits_base<native_ansi_str_t> {};
+struct native_string_traits_selector<wchar_t>
+    : public native_string_traits<native_unicode_str_t> {};
 
 inline constexpr size_t DEFAULT_SSO_CH_BUFFER_COUNT{16};
 }  // namespace str::details
 
-template <
-    size_t SsoBufferChCount,
-    typename NativeStrTy,
-    template <typename... CharT> class Traits = char_traits,
-    class Alloc = basic_paged_allocator<
-        typename str::details::native_string_traits<NativeStrTy>::value_type>>
-class basic_winnt_string;
-
-template <typename NativeStrTy,
-          template <typename... CharT> class Traits = char_traits>
+template <typename CharT, class Traits = char_traits<CharT>>
 class basic_winnt_string_view;
 
-template <template <typename... CharT> class Traits>
-using basic_ansi_string_view =
-    basic_winnt_string_view<native_ansi_str_t, Traits>;
+template <class Traits>
+using basic_ansi_string_view = basic_winnt_string_view<char, Traits>;
 
-using ansi_string_view = basic_ansi_string_view<char_traits>;
+template <class Traits>
+using basic_unicode_string_view = basic_winnt_string_view<wchar_t, Traits>;
 
-template <template <typename... CharT> class Traits>
-using basic_unicode_string_view =
-    basic_winnt_string_view<native_unicode_str_t, Traits>;
+using ansi_string_view = basic_ansi_string_view<char_traits<char>>;
+using unicode_string_view = basic_unicode_string_view<char_traits<wchar_t>>;
 
-using unicode_string_view = basic_unicode_string_view<char_traits>;
+template <typename CharT,
+          size_t SsoBufferChCount = str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
+          class Traits = char_traits<CharT>,
+          class Alloc = basic_paged_allocator<
+              typename str::details::native_string_traits_selector<
+                  CharT>::value_type>>
+class basic_winnt_string;
+
+template <typename CharT,
+          size_t SsoBufferChCount,
+          class Traits = char_traits<CharT>,
+          class Alloc = basic_non_paged_allocator<
+              typename str::details::native_string_traits_selector<
+                  CharT>::value_type>>
+class basic_winnt_string_non_paged;
+
+template <
+    size_t SsoBufferChCount,
+    class Traits = char_traits<char>,
+    class Alloc = basic_paged_allocator<
+        typename str::details::native_string_traits_selector<char>::value_type>>
+using basic_ansi_string =
+    basic_winnt_string<char, SsoBufferChCount, Traits, Alloc>;
 
 template <size_t SsoBufferChCount,
-          template <typename... CharT> class Traits = char_traits,
-          class Alloc =
-              basic_paged_allocator<typename str::details::native_string_traits<
-                  native_ansi_str_t>::value_type>>
-using basic_ansi_string =
-    basic_winnt_string<SsoBufferChCount, native_ansi_str_t, Traits, Alloc>;
+          class Traits = char_traits<wchar_t>,
+          class Alloc = basic_paged_allocator<
+              typename str::details::native_string_traits_selector<
+                  wchar_t>::value_type>>
+using basic_unicode_string =
+    basic_winnt_string<wchar_t, SsoBufferChCount, Traits, Alloc>;
 
 using ansi_string =
     basic_ansi_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT>;
 
-using ansi_string_non_paged = basic_ansi_string<
-    str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
-    char_traits,
-    basic_non_paged_allocator<typename str::details::native_string_traits<
-        native_ansi_str_t>::value_type>>;
-
-template <size_t SsoBufferChCount,
-          template <typename... CharT> class Traits = char_traits,
-          class Alloc =
-              basic_paged_allocator<typename str::details::native_string_traits<
-                  native_unicode_str_t>::value_type>>
-using basic_unicode_string =
-    basic_winnt_string<SsoBufferChCount, native_unicode_str_t, Traits, Alloc>;
+using ansi_string_non_paged =
+    basic_ansi_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
+                      char_traits<char>,
+                      basic_non_paged_allocator<
+                          typename str::details::native_string_traits_selector<
+                              char>::value_type>>;
 
 using unicode_string =
     basic_unicode_string<str::details::DEFAULT_SSO_CH_BUFFER_COUNT>;
 
 using unicode_string_non_paged = basic_unicode_string<
     str::details::DEFAULT_SSO_CH_BUFFER_COUNT,
-    char_traits,
-    basic_non_paged_allocator<typename str::details::native_string_traits<
-        native_unicode_str_t>::value_type>>;
+    char_traits<wchar_t>,
+    basic_non_paged_allocator<
+        typename str::details::native_string_traits_selector<
+            wchar_t>::value_type>>;
 
 inline namespace literals {
 inline namespace string_literals {

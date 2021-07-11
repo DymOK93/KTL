@@ -1401,5 +1401,15 @@ struct negation : bool_constant<negation_v<Trait>> {};
   template <class Ty>                                            \
   using get_##NestedType##_t = typename get_##NestedType<Ty>::type;
 
+#define DEFINE_HAS_NESTED_TYPE(NestedType)                                     \
+  template <class Ty, class = void>                                            \
+  struct has_##NestedType : false_type {};                                     \
+                                                                               \
+  template <class Ty>                                                          \
+  struct has_##NestedType<Ty, void_t<typename Ty::NestedType>> : true_type {}; \
+                                                                               \
+  template <class Ty>                                                          \
+  inline constexpr bool has_##NestedType##_v =                                 \
+      typename has_##NestedType<Ty>::value;
 }  // namespace ktl
 #endif

@@ -15,22 +15,18 @@
 #include <ntddk.h>
 
 namespace ktl {
-template <size_t SsoBufferChCount,
-          typename NativeStrTy,
-          template <typename... CharT>
-          class Traits,
-          class Alloc>
+template <typename CharT, size_t SsoBufferChCount, class Traits, class Alloc>
 class basic_winnt_string {
  public:
-  using native_string_type = NativeStrTy;
   using native_string_traits_type =
-      str::details::native_string_traits<NativeStrTy>;
-  using string_view_type = basic_winnt_string_view<native_string_type, Traits>;
+      str::details::native_string_traits_selector<CharT>;
+  using native_string_type = typename native_string_traits_type::string_type;
+  using string_view_type = basic_winnt_string_view<CharT, Traits>;
 
   using value_type = typename native_string_traits_type::value_type;
   using size_type = typename native_string_traits_type::size_type;
 
-  using traits_type = Traits<value_type>;
+  using traits_type = Traits;
 
   using allocator_type = Alloc;
   using allocator_traits_type = allocator_traits<allocator_type>;
@@ -59,11 +55,7 @@ class basic_winnt_string {
         !is_convertible_v<const Ty&, native_string_type>;
   };
 
-  template <size_t BufferSize,
-            typename NtStrTy,
-            template <typename... CharT>
-            class ChTraits,
-            class ChAlloc>
+  template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
   friend class basic_winnt_string;
 
  public:
@@ -98,28 +90,18 @@ class basic_winnt_string {
     concat_without_transfer_old_data(make_fill_helper(), count, ch);
   }
 
-  template <size_t BufferSize,
-            template <typename... CharType>
-            class ChTraits,
-            class ChAlloc>
-  basic_winnt_string(const basic_winnt_string<BufferSize,
-                                              native_string_type,
-                                              ChTraits,
-                                              ChAlloc>& other,
-                     size_type pos)
+  template <size_t BufferSize, class ChTraits, class ChAlloc>
+  basic_winnt_string(
+      const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& other,
+      size_type pos)
       : basic_winnt_string(other, pos, other.size() - pos) {
   }  // Переполнение беззнакового числа допустимо
 
-  template <size_t BufferSize,
-            template <typename... CharType>
-            class ChTraits,
-            class ChAlloc>
-  basic_winnt_string(const basic_winnt_string<BufferSize,
-                                              native_string_type,
-                                              ChTraits,
-                                              ChAlloc>& other,
-                     size_type pos,
-                     size_type count)
+  template <size_t BufferSize, class ChTraits, class ChAlloc>
+  basic_winnt_string(
+      const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& other,
+      size_type pos,
+      size_type count)
       : m_str{one_then_variadic_args{},
               allocator_traits_type::select_on_container_copy_construction(
                   other.get_alloc())} {
@@ -184,14 +166,11 @@ class basic_winnt_string {
   }
 
   template <size_t BufferSize,
-            template <typename... CharType>
             class ChTraits,
             class ChAlloc,
             enable_if_t<BufferSize != SSO_BUFFER_CH_COUNT, int> = 0>
-  basic_winnt_string(const basic_winnt_string<BufferSize,
-                                              native_string_type,
-                                              ChTraits,
-                                              ChAlloc>& other)
+  basic_winnt_string(
+      const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& other)
       : basic_winnt_string(
             *other.raw_str(),
             allocator_traits_type::select_on_container_copy_construction(
@@ -229,14 +208,9 @@ class basic_winnt_string {
     return *this;
   }
 
-  template <size_t BufferSize,
-            template <typename... CharType>
-            class ChTraits,
-            class ChAlloc>
-  basic_winnt_string& assign(const basic_winnt_string<BufferSize,
-                                                      native_string_type,
-                                                      ChTraits,
-                                                      ChAlloc>& other) {
+  template <size_t BufferSize, class ChTraits, class ChAlloc>
+  basic_winnt_string& assign(
+      const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& other) {
     return assign(*other.raw_str());  // Not a full equialent to *this = other
   }
 
@@ -244,16 +218,11 @@ class basic_winnt_string {
     return *this = move(other);
   }
 
-  template <size_t BufferSize,
-            template <typename... CharType>
-            class ChTraits,
-            class ChAlloc>
-  basic_winnt_string& assign(const basic_winnt_string<BufferSize,
-                                                      native_string_type,
-                                                      ChTraits,
-                                                      ChAlloc>& other,
-                             size_type pos,
-                             size_type count = npos) {
+  template <size_t BufferSize, class ChTraits, class ChAlloc>
+  basic_winnt_string& assign(
+      const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& other,
+      size_type pos,
+      size_type count = npos) {
     clear();
     append_by_pos_and_count<false>(other, pos, count);
     return *this;
@@ -291,14 +260,11 @@ class basic_winnt_string {
   }
 
   template <size_t BufferSize,
-            template <typename... CharType>
             class ChTraits,
             class ChAlloc,
             enable_if_t<BufferSize != SSO_BUFFER_CH_COUNT, int> = 0>
-  basic_winnt_string& operator=(const basic_winnt_string<BufferSize,
-                                                         native_string_type,
-                                                         ChTraits,
-                                                         ChAlloc>& other) {
+  basic_winnt_string& operator=(
+      const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& other) {
     using propagate_on_copy_assignment_t =
         typename allocator_traits_type::propagate_on_container_copy_assignment;
 
@@ -416,12 +382,7 @@ class basic_winnt_string {
     return native_string_traits_type::get_buffer(get_native_str());
   }
 
-  // constexpr operator string_view_type() const noexcept { return {*raw_str()};
-  // }
-  constexpr operator basic_winnt_string_view<native_string_type, Traits>()
-      const noexcept {
-    return {*raw_str()};
-  }
+  constexpr operator string_view_type() const noexcept { return {*raw_str()}; }
 
   constexpr native_string_type* raw_str() noexcept {
     return addressof(get_native_str());
@@ -509,8 +470,7 @@ class basic_winnt_string {
   // traits_type must be equivalent
   template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& append(
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          str) {
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& str) {
     return append(*str.raw_str());
   }
 
@@ -527,8 +487,7 @@ class basic_winnt_string {
   // traits_type must be equivalent
   template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& append(
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          str,
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& str,
       size_type pos,
       size_type count) {
     append_by_pos_and_count<true>(str, pos, count);
@@ -567,8 +526,7 @@ class basic_winnt_string {
   // traits_type must be equivalent
   template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& operator+=(
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          str) {
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& str) {
     return append(str);
   }
 
@@ -589,8 +547,8 @@ class basic_winnt_string {
 
   template <size_t BufferSize, class ChAlloc>
   [[nodiscard]] constexpr int compare(
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          other) const noexcept {
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other)
+      const noexcept {
     return compare_unchecked(data(), size(), other.data(), other.size());
   }
 
@@ -609,8 +567,8 @@ class basic_winnt_string {
   [[nodiscard]] constexpr int compare(
       size_type my_pos,
       size_type my_count,
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          other) const {
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other)
+      const {
     return compare(my_pos, my_count, other.raw_str());
   }
 
@@ -631,8 +589,7 @@ class basic_winnt_string {
   [[nodiscard]] constexpr int compare(
       size_type my_pos,
       size_type my_count,
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          other,
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other,
       size_type other_pos,
       size_type other_count = npos) const {
     return compare(my_pos, my_count, *other.raw_str(), other_pos, other_count);
@@ -755,16 +712,14 @@ class basic_winnt_string {
   template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& insert(
       size_type index,
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          other) {
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other) {
     return insert(*other.raw_str());
   }
 
   template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& insert(
       size_type index,
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          other,
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other,
       size_type other_pos,
       size_type other_count) {
     const size_type current_size{size()}, other_size{other.size()};
@@ -882,8 +837,8 @@ class basic_winnt_string {
 
   template <size_t BufferSize, class ChAlloc>
   constexpr bool contains(
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          other) const noexcept {
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other)
+      const noexcept {
     return find(other, 0) != npos;
   }
 
@@ -942,8 +897,7 @@ class basic_winnt_string {
 
   template <size_t BufferSize, class ChAlloc>
   constexpr size_type find(
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          other,
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other,
       size_type my_pos) const noexcept {
     return str::details::find_substr<traits_type>(
         data(), my_pos, size(), other.data(), other.size(), npos);
@@ -967,8 +921,7 @@ class basic_winnt_string {
 
   template <size_t BufferSize, class ChAlloc>
   constexpr size_type find_first_of(
-      const basic_winnt_string<BufferSize, native_string_type, Traits, ChAlloc>&
-          other,
+      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other,
       size_type my_pos) const noexcept {
     return find(other, my_pos);
   }
@@ -1022,15 +975,12 @@ class basic_winnt_string {
 
   template <bool CalcOptimalGrowth,
             size_t BufferSize,
-            template <typename... CharType>
             class ChTraits,
             class ChAlloc>
-  void append_by_pos_and_count(const basic_winnt_string<BufferSize,
-                                                        native_string_type,
-                                                        ChTraits,
-                                                        ChAlloc>& other,
-                               size_type pos,
-                               size_type count) {
+  void append_by_pos_and_count(
+      const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& other,
+      size_type pos,
+      size_type count) {
     const size_type other_size{other.size()};
     cont::details::throw_if_index_greater_than_size(pos, other_size);
     const auto length{static_cast<size_type>(other_size - pos)};
@@ -1117,15 +1067,10 @@ class basic_winnt_string {
     }
   }
 
-  template <size_t BufferSize,
-            template <typename... CharType>
-            class ChTraits,
-            class ChAlloc>
-  void copy_assignment_impl(const basic_winnt_string<BufferSize,
-                                                     native_string_type,
-                                                     ChTraits,
-                                                     ChAlloc>& other,
-                            true_type) {
+  template <size_t BufferSize, class ChTraits, class ChAlloc>
+  void copy_assignment_impl(
+      const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& other,
+      true_type) {
     destroy();
     become_small();
     get_alloc() = other.get_alloc();
@@ -1133,15 +1078,10 @@ class basic_winnt_string {
                                      other.data());
   }
 
-  template <size_t BufferSize,
-            template <typename... CharType>
-            class ChTraits,
-            class ChAlloc>
-  void copy_assignment_impl(const basic_winnt_string<BufferSize,
-                                                     native_string_type,
-                                                     ChTraits,
-                                                     ChAlloc>& other,
-                            false_type) {
+  template <size_t BufferSize, class ChTraits, class ChAlloc>
+  void copy_assignment_impl(
+      const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& other,
+      false_type) {
     clear();
     concat_without_transfer_old_data(make_copy_helper(), other.size(),
                                      other.data());
@@ -1394,181 +1334,130 @@ class basic_winnt_string {
   value_type m_buffer[SsoBufferChCount];
 };
 
-template <size_t LhsBufferSize,
+template <class CharT>
+basic_winnt_string(const CharT*) -> basic_winnt_string<CharT>;
+
+template <class NativeStrTy,
+          enable_if_t<cont::details::has_value_type_v<
+                          str::details::native_string_traits<NativeStrTy> >,
+                      int> = 0>
+basic_winnt_string(NativeStrTy) -> basic_winnt_string<
+    typename str::details::native_string_traits<NativeStrTy>::value_type>;
+
+template <typename CharT,
+          size_t LhsBufferSize,
           size_t RhsBufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
           class ChTraits,
           class LhsChAlloc,
           class RhsChAlloc>
 auto operator+(
-    const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
-        lhs,
-    const basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc>&
-        rhs) {
+    const basic_winnt_string<CharT, LhsBufferSize, ChTraits, LhsChAlloc>& lhs,
+    const basic_winnt_string<CharT, RhsBufferSize, ChTraits, RhsChAlloc>& rhs) {
   if constexpr (LhsBufferSize >= RhsBufferSize) {
-    basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc> str{
-        lhs};
+    basic_winnt_string<CharT, LhsBufferSize, ChTraits, LhsChAlloc> str{lhs};
     str += rhs;
     return str;
   } else {
-    basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc> str{
-        rhs};
+    basic_winnt_string<CharT, RhsBufferSize, ChTraits, RhsChAlloc> str{rhs};
     str += lhs;
     return str;
   }
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 auto operator+(
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str) {
-  basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc> str{lhs};
+    const basic_winnt_string<typename CharT, BufferSize, ChTraits, ChAlloc>&
+        lhs,
+    const CharT* null_terminated_str) {
+  basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc> str{lhs};
   str += null_terminated_str;
   return str;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 auto operator+(
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        value_type ch) {
-  basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc> str{lhs};
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    CharT ch) {
+  basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc> str{lhs};
   str.push_back(ch);
   return str;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
-auto operator+(
-    basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&& lhs,
-    const typename basic_winnt_string<BufferSize,
-                                      NativeStrTy,
-                                      ChTraits,
-                                      ChAlloc>::value_type*
-        null_terminated_str) {
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+auto operator+(basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&& lhs,
+               const CharT* null_terminated_str) {
   return move(lhs += null_terminated_str);
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
-auto operator+(
-    basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&& lhs,
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        value_type ch) {
-  basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc> str{move(lhs)};
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+auto operator+(basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&& lhs,
+               CharT ch) {
+  basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc> str{move(lhs)};
   str.push_back(ch);
   return str;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 auto operator+(
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str,
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& rhs) {
-  basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc> str{rhs};
+    const CharT* null_terminated_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& rhs) {
+  basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc> str{rhs};
   str += null_terminated_str;
   return str;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 auto operator+(
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        value_type ch,
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& rhs) {
-  basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc> str{rhs};
+    CharT ch,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& rhs) {
+  basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc> str{rhs};
   str.push_back(ch);
   return str;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
-auto operator+(
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str,
-    basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&& rhs) {
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+auto operator+(const CharT* null_terminated_str,
+               basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&& rhs) {
   return move(rhs.insert(0, null_terminated_str));
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 auto operator+(
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
         value_type ch,
-    basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&& rhs) {
+    basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&& rhs) {
   return move(rhs.insert(0, 1, ch));
 }
 
-template <size_t LhsBufferSize,
+template <typename CharT,
+          size_t LhsBufferSize,
           size_t RhsBufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
           class ChTraits,
           class LhsChAlloc,
           class RhsChAlloc>
 auto operator+(
-    basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&& lhs,
-    const basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc>&
-        rhs) {
+    basic_winnt_string<CharT, LhsBufferSize, ChTraits, LhsChAlloc>&& lhs,
+    const basic_winnt_string<CharT, RhsBufferSize, ChTraits, RhsChAlloc>& rhs) {
   return move(lhs += rhs);
 }
 
-template <size_t LhsBufferSize,
+template <typename CharT,
+          size_t LhsBufferSize,
           size_t RhsBufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
           class RhsChTraits,
-          template <typename... CharType>
           class LhsChTraits,
           class LhsChAlloc,
           class RhsChAlloc>
 auto operator+(
-    const basic_winnt_string<LhsBufferSize,
-                             NativeStrTy,
-                             LhsChTraits,
-                             LhsChAlloc>& lhs,
-    basic_winnt_string<RhsBufferSize, NativeStrTy, RhsChTraits, RhsChAlloc>&&
-        rhs) {
+    const basic_winnt_string<CharT, LhsBufferSize, LhsChTraits, LhsChAlloc>&
+        lhs,
+    basic_winnt_string<CharT, RhsBufferSize, RhsChTraits, RhsChAlloc>&& rhs) {
   return move(rhs += lhs);
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
-auto operator+(
-    basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&& lhs,
-    basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&& rhs) {
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+auto operator+(basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&& lhs,
+               basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&& rhs) {
   using string_type =
       basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>;
   using size_type = typename string_type::size_type;
@@ -1583,14 +1472,10 @@ auto operator+(
   const size_type lhs_size{lhs.size()}, rhs_size{rhs.size()},
       lhs_capacity{lhs.capacity()}, rhs_capacity{rhs.capacity()};
 
-  if (lhs_capacity >= rhs_capacity) {
-    if (lhs_capacity >= lhs_size + rhs_size) {
-      return move(lhs += rhs);
-    }
-  } else {
-    if (rhs_capacity >= lhs_size + rhs_size) {
-      return move(rhs += lhs);
-    }
+  if (lhs_capacity >= lhs_size + rhs_size) {
+    return move(lhs += rhs);
+  } else if (rhs_capacity >= lhs_size + rhs_size) {
+    return move(rhs += lhs);
   }
   string_type str{};
   str.reserve(lhs_size + rhs_size);
@@ -1599,243 +1484,273 @@ auto operator+(
   return str;
 }
 
-template <size_t LhsBufferSize,
+template <typename CharT,
+          size_t LhsBufferSize,
           size_t RhsBufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
           class ChTraits,
           class LhsChAlloc,
           class RhsChAlloc>
 constexpr bool operator==(
-    const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
-        lhs,
-    const basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc>&
+    const basic_winnt_string<CharT, LhsBufferSize, ChTraits, LhsChAlloc>& lhs,
+    const basic_winnt_string<CharT, RhsBufferSize, ChTraits, RhsChAlloc>&
         rhs) noexcept {
   return lhs.compare(rhs) == 0;
 }
 
-template <size_t LhsBufferSize,
+template <typename CharT,
+          size_t LhsBufferSize,
           size_t RhsBufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
           class ChTraits,
           class LhsChAlloc,
           class RhsChAlloc>
 constexpr bool operator!=(
-    const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
-        lhs,
-    const basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc>&
+    const basic_winnt_string<CharT, LhsBufferSize, ChTraits, LhsChAlloc>& lhs,
+    const basic_winnt_string<CharT, RhsBufferSize, ChTraits, RhsChAlloc>&
         rhs) noexcept {
   return !(lhs == rhs);
 }
 
-template <size_t LhsBufferSize,
+template <typename CharT,
+          size_t LhsBufferSize,
           size_t RhsBufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
           class ChTraits,
           class LhsChAlloc,
           class RhsChAlloc>
 constexpr bool operator<(
-    const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
-        lhs,
-    const basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc>&
+    const basic_winnt_string<CharT, LhsBufferSize, ChTraits, LhsChAlloc>& lhs,
+    const basic_winnt_string<CharT, RhsBufferSize, ChTraits, RhsChAlloc>&
         rhs) noexcept {
   return lhs.compare(rhs) < 0;
 }
 
-template <size_t LhsBufferSize,
+template <typename CharT,
+          size_t LhsBufferSize,
           size_t RhsBufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
           class ChTraits,
           class LhsChAlloc,
           class RhsChAlloc>
 constexpr bool operator>(
-    const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
-        lhs,
-    const basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc>&
+    const basic_winnt_string<CharT, LhsBufferSize, ChTraits, LhsChAlloc>& lhs,
+    const basic_winnt_string<CharT, RhsBufferSize, ChTraits, RhsChAlloc>&
         rhs) noexcept {
   return lhs.compare(rhs) > 0;
 }
 
-template <size_t LhsBufferSize,
+template <typename CharT,
+          size_t LhsBufferSize,
           size_t RhsBufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
           class ChTraits,
           class LhsChAlloc,
           class RhsChAlloc>
 constexpr bool operator<=(
-    const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
-        lhs,
-    const basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc>&
+    const basic_winnt_string<CharT, LhsBufferSize, ChTraits, LhsChAlloc>& lhs,
+    const basic_winnt_string<CharT, RhsBufferSize, ChTraits, RhsChAlloc>&
         rhs) noexcept {
   return !(lhs > rhs);
 }
 
-template <size_t LhsBufferSize,
+template <typename CharT,
+          size_t LhsBufferSize,
           size_t RhsBufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
           class ChTraits,
           class LhsChAlloc,
           class RhsChAlloc>
 constexpr bool operator>=(
-    const basic_winnt_string<LhsBufferSize, NativeStrTy, ChTraits, LhsChAlloc>&
-        lhs,
-    const basic_winnt_string<RhsBufferSize, NativeStrTy, ChTraits, RhsChAlloc>&
+    const basic_winnt_string<CharT, LhsBufferSize, ChTraits, LhsChAlloc>& lhs,
+    const basic_winnt_string<CharT, RhsBufferSize, ChTraits, RhsChAlloc>&
         rhs) noexcept {
   return !(rhs > lhs);
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator==(
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str) noexcept {
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    const CharT* null_terminated_str) noexcept {
   return lhs.compare(null_terminated_str) == 0;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator==(
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str,
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&
+    const CharT* null_terminated_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
         rhs) noexcept {
   return rhs.compare(null_terminated_str) == 0;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator!=(
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str) noexcept {
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    const CharT* null_terminated_str) noexcept {
   return !(lhs == null_terminated_str);
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator!=(
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str,
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&
+    const CharT* null_terminated_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
         rhs) noexcept {
   return !(null_terminated_str == rhs);
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator<(
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str) noexcept {
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    const CharT* null_terminated_str) noexcept {
   return lhs.compare(null_terminated_str) < 0;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator<(
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str,
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&
+    const CharT* null_terminated_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
         rhs) noexcept {
   return rhs.compare(null_terminated_str) > 0;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator>(
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str) noexcept {
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    const CharT* null_terminated_str) noexcept {
   return lhs.compare(null_terminated_str) > 0;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator>(
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str,
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&
+    const CharT* null_terminated_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
         rhs) noexcept {
   return rhs.compare(null_terminated_str) < 0;
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator<=(
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str) noexcept {
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    const CharT* null_terminated_str) noexcept {
   return !(lhs > null_terminated_str);
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator<=(
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str,
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&
+    const CharT* null_terminated_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
         rhs) noexcept {
   return !(null_terminated_str > rhs);
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator>=(
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>& lhs,
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str) noexcept {
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    const CharT* null_terminated_str) noexcept {
   return !(lhs < null_terminated_str);
 }
 
-template <size_t BufferSize,
-          typename NativeStrTy,
-          template <typename... CharType>
-          class ChTraits,
-          class ChAlloc>
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 constexpr bool operator>=(
-    typename basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>::
-        const_pointer null_terminated_str,
-    const basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>&
+    const CharT* null_terminated_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
         rhs) noexcept {
   return !(null_terminated_str < rhs);
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator==(
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str) noexcept {
+  return lhs == native_str;
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator==(
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
+        rhs) noexcept {
+  return native_str == rhs;
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator!=(
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str) noexcept {
+  return !(lhs == native_str);
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator!=(
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
+        rhs) noexcept {
+  return !(native_str == rhs);
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator<(
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str) noexcept {
+  return lhs.compare(native_str) < 0;
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator<(
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
+        rhs) noexcept {
+  return rhs.compare(native_str) > 0;
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator>(
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str) noexcept {
+  return lhs.compare(native_str) > 0;
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator>(
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
+        rhs) noexcept {
+  return rhs.compare(native_str) < 0;
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator<=(
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str) noexcept {
+  return !(lhs > native_str);
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator<=(
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
+        rhs) noexcept {
+  return !(native_str > rhs);
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator>=(
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& lhs,
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str) noexcept {
+  return !(lhs < native_str);
+}
+
+template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
+constexpr bool operator>=(
+    typename basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>::
+        native_string_type native_str,
+    const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&
+        rhs) noexcept {
+  return !(native_str < rhs);
 }
 }  // namespace ktl

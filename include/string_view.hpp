@@ -15,17 +15,17 @@
 #include <utility.hpp>
 
 namespace ktl {
-template <typename NativeStrTy, template <typename... CharT> class Traits>
+template <typename CharT, class Traits>
 class basic_winnt_string_view {
  public:
-  using native_string_type = NativeStrTy;
   using native_string_traits_type =
-      str::details::native_string_traits<NativeStrTy>;
+      str::details::native_string_traits_selector<CharT>;
+  using native_string_type = typename native_string_traits_type::string_type;
 
   using value_type = typename native_string_traits_type::value_type;
   using size_type = typename native_string_traits_type::size_type;
 
-  using traits_type = Traits<value_type>;
+  using traits_type = Traits;
 
   using difference_type = ptrdiff_t;
 
@@ -318,214 +318,206 @@ class basic_winnt_string_view {
   native_string_type m_str{};
 };
 
-template <class NativeStrTy, template <typename...> class ChTraits>
+template <class CharT>
+basic_winnt_string_view(const CharT*) -> basic_winnt_string_view<CharT>;
+
+template <class NativeStrTy,
+          enable_if_t<cont::details::has_value_type_v<
+                          str::details::native_string_traits<NativeStrTy> >,
+                      int> = 0>
+basic_winnt_string_view(NativeStrTy) -> basic_winnt_string_view<
+    typename str::details::native_string_traits<NativeStrTy>::value_type>;
+
+template <class CharT, class ChTraits>
 constexpr bool operator==(
-    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+    const basic_winnt_string_view<CharT, ChTraits> lhs,
+    const basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
   return lhs.compare(rhs) == 0;
 }
 
-template <class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          class Ty,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
-constexpr bool operator==(
-    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    const Ty& rhs) noexcept {
-  return lhs == basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+template <
+    class CharT,
+    class ChTraits,
+    class Ty,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
+constexpr bool operator==(const basic_winnt_string_view<CharT, ChTraits> lhs,
+                          const Ty& rhs) noexcept {
+  return lhs == basic_winnt_string_view<CharT, ChTraits>{rhs};
 }
 
-template <class Ty,
-          class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
+template <
+    class Ty,
+    class CharT,
+    class ChTraits,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
 constexpr bool operator==(
     const Ty& lhs,
-    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
-  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} == rhs;
+    const basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<CharT, ChTraits>{lhs} == rhs;
 }
 
-template <class NativeStrTy, template <typename...> class ChTraits>
+template <class CharT, class ChTraits>
 constexpr bool operator!=(
-    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+    basic_winnt_string_view<CharT, ChTraits> lhs,
+    basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
   return lhs.compare(rhs) != 0;
 }
 
-template <class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          class Ty,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
-constexpr bool operator!=(
-    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    const Ty& rhs) noexcept {
-  return lhs != basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+template <
+    class CharT,
+    class ChTraits,
+    class Ty,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
+constexpr bool operator!=(const basic_winnt_string_view<CharT, ChTraits> lhs,
+                          const Ty& rhs) noexcept {
+  return lhs != basic_winnt_string_view<CharT, ChTraits>{rhs};
 }
 
-template <class Ty,
-          class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
+template <
+    class Ty,
+    class CharT,
+    class ChTraits,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
 constexpr bool operator!=(
     const Ty& lhs,
-    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
-  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} != rhs;
+    const basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<CharT, ChTraits>{lhs} != rhs;
 }
 
-template <class NativeStrTy, template <typename...> class ChTraits>
+template <class CharT, class ChTraits>
 constexpr bool operator<(
-    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+    basic_winnt_string_view<CharT, ChTraits> lhs,
+    basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
   return lhs.compare(rhs) < 0;
 }
 
-template <class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          class Ty,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
-constexpr bool operator<(
-    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    const Ty& rhs) noexcept {
-  return lhs < basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+template <
+    class CharT,
+    class ChTraits,
+    class Ty,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
+constexpr bool operator<(const basic_winnt_string_view<CharT, ChTraits> lhs,
+                         const Ty& rhs) noexcept {
+  return lhs < basic_winnt_string_view<CharT, ChTraits>{rhs};
 }
 
-template <class Ty,
-          class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
+template <
+    class Ty,
+    class CharT,
+    class ChTraits,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
 constexpr bool operator<(
     const Ty& lhs,
-    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
-  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} < rhs;
+    const basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<CharT, ChTraits>{lhs} < rhs;
 }
 
-template <class NativeStrTy, template <typename...> class ChTraits>
+template <class CharT, class ChTraits>
 constexpr bool operator<=(
-    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+    basic_winnt_string_view<CharT, ChTraits> lhs,
+    basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
   return !(lhs > rhs);
 }
 
-template <class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          class Ty,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
-constexpr bool operator<=(
-    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    const Ty& rhs) noexcept {
-  return lhs <= basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+template <
+    class CharT,
+    class ChTraits,
+    class Ty,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
+constexpr bool operator<=(const basic_winnt_string_view<CharT, ChTraits> lhs,
+                          const Ty& rhs) noexcept {
+  return lhs <= basic_winnt_string_view<CharT, ChTraits>{rhs};
 }
 
-template <class Ty,
-          class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
+template <
+    class Ty,
+    class CharT,
+    class ChTraits,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
 constexpr bool operator<=(
     const Ty& lhs,
-    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
-  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} <= rhs;
+    const basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<CharT, ChTraits>{lhs} <= rhs;
 }
 
-template <class NativeStrTy, template <typename...> class ChTraits>
+template <class CharT, class ChTraits>
 constexpr bool operator>(
-    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+    basic_winnt_string_view<CharT, ChTraits> lhs,
+    basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
   return lhs.compare(rhs) > 0;
 }
 
-template <class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          class Ty,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
-constexpr bool operator>(
-    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    const Ty& rhs) noexcept {
-  return lhs > basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+template <
+    class CharT,
+    class ChTraits,
+    class Ty,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
+constexpr bool operator>(const basic_winnt_string_view<CharT, ChTraits> lhs,
+                         const Ty& rhs) noexcept {
+  return lhs > basic_winnt_string_view<CharT, ChTraits>{rhs};
 }
 
-template <class Ty,
-          class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
+template <
+    class Ty,
+    class CharT,
+    class ChTraits,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
 constexpr bool operator>(
     const Ty& lhs,
-    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
-  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} > rhs;
+    const basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<CharT, ChTraits>{lhs} > rhs;
 }
 
-template <class NativeStrTy, template <typename...> class ChTraits>
+template <class CharT, class ChTraits>
 constexpr bool operator>=(
-    basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
+    basic_winnt_string_view<CharT, ChTraits> lhs,
+    basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
   return !(lhs < rhs);
 }
 
-template <class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          class Ty,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
-constexpr bool operator>=(
-    const basic_winnt_string_view<NativeStrTy, ChTraits> lhs,
-    const Ty& rhs) noexcept {
-  return lhs >= basic_winnt_string_view<NativeStrTy, ChTraits>{rhs};
+template <
+    class CharT,
+    class ChTraits,
+    class Ty,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
+constexpr bool operator>=(const basic_winnt_string_view<CharT, ChTraits> lhs,
+                          const Ty& rhs) noexcept {
+  return lhs >= basic_winnt_string_view<CharT, ChTraits>{rhs};
 }
 
-template <class Ty,
-          class NativeStrTy,
-          template <typename...>
-          class ChTraits,
-          enable_if_t<
-              is_convertible_v<const Ty&,
-                               basic_winnt_string_view<NativeStrTy, ChTraits> >,
-              int> = 0>
+template <
+    class Ty,
+    class CharT,
+    class ChTraits,
+    enable_if_t<
+        is_convertible_v<const Ty&, basic_winnt_string_view<CharT, ChTraits> >,
+        int> = 0>
 constexpr bool operator>=(
     const Ty& lhs,
-    const basic_winnt_string_view<NativeStrTy, ChTraits> rhs) noexcept {
-  return basic_winnt_string_view<NativeStrTy, ChTraits>{lhs} >= rhs;
+    const basic_winnt_string_view<CharT, ChTraits> rhs) noexcept {
+  return basic_winnt_string_view<CharT, ChTraits>{lhs} >= rhs;
 }
 
 inline namespace literals {

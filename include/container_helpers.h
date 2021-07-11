@@ -16,4 +16,7 @@ static decltype(auto) at_index_verified(ValueTy* data,
                                        constexpr_message_tag{});
   return data[idx];
 }
+
+DEFINE_HAS_NESTED_TYPE(value_type)
+DEFINE_HAS_NESTED_TYPE(size_type)
 }  // namespace ktl::cont::details
