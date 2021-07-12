@@ -1458,8 +1458,7 @@ auto operator+(
 template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
 auto operator+(basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&& lhs,
                basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&& rhs) {
-  using string_type =
-      basic_winnt_string<BufferSize, NativeStrTy, ChTraits, ChAlloc>;
+  using string_type = basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>;
   using size_type = typename string_type::size_type;
 
   assert_with_msg(
