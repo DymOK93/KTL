@@ -23,10 +23,16 @@ set(
 		/Ob3	# Aggressive inlining
 		/Oi     # Enable intrinsics
 		/Ot     # Prefer fast code
+		/Oy		# Omit frame pointers
+		/Gy		# Using COMDAT folding for functions
+		/Gw		# Using COMDAT folding for variables
+		/GL		# Enable link time code generation
 )
 set(
 	RELEASE_LINK_OPTIONS
-		/OPT:REF # Eliminate unused code
+		/OPT:REF			# Eliminate unused code
+		/OPT:ICF			# Enable COMDAT folding
+		/LTCG:INCREMENTAL	# Force fast link timecode generation
 )
 
 add_subdirectory(runtime)
