@@ -36,11 +36,20 @@ wdk_add_library(
 		${KTL_RUNTIME_SOURCE_FILES}
 		EXTENDED_CPP_FEATURES
 )
+target_compile_options(
+	${RUNTIME_LIB} PRIVATE
+		${BASIC_COMPILE_OPTIONS}
+		$<$<CONFIG:Release>:${RELEASE_COMPILE_OPTIONS}>
+)
 target_compile_definitions(
 	${RUNTIME_LIB} PRIVATE
 		KTL_RUNTIME_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
 		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
+)
+target_link_options(
+	${RUNTIME_LIB} PRIVATE
+		$<$<CONFIG:Release>:${RELEASE_LINK_OPTIONS}>
 )
 target_link_libraries(
 	${RUNTIME_LIB} 
@@ -68,11 +77,20 @@ wdk_add_library(
 		${KTL_RUNTIME_HEADER_FILES}	
 		${KTL_MINIFILTER_RUNTIME_SOURCE_FILES}
 )
+target_compile_options(
+	${MINIFILTER_LIB} PRIVATE
+		${BASIC_COMPILE_OPTIONS}
+		$<$<CONFIG:Release>:${RELEASE_COMPILE_OPTIONS}>
+)
 target_compile_definitions(
 	${MINIFILTER_LIB} PRIVATE
-		KTL_RUNTIME_DBG
+		$<$<CONFIG:Debug>:KTL_RUNTIME_DBG>
 		KTL_NO_CXX_STANDARD_LIBRARY
 		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
+)
+target_link_options(
+	${MINIFILTER_LIB} PRIVATE
+		$<$<CONFIG:Release>:${RELEASE_LINK_OPTIONS}>
 )
 target_link_libraries(
 	${MINIFILTER_LIB} 
