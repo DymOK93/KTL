@@ -268,7 +268,7 @@ class basic_winnt_string_view {
     return find(null_terminated_str, my_pos);
   }
 
-  size_type copy(value_type* dst, size_type count, size_type pos = 0) {
+  size_type copy(value_type* dst, size_type count, size_type pos = 0) const {
     const size_type current_size{size()};
     cont::details::throw_if_index_greater_than_size(pos, current_size);
     const auto copied{(min)(static_cast<size_type>(current_size - pos), count)};
