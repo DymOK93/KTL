@@ -1,5 +1,6 @@
 #pragma once
 #include <limits.h>
+#include <wchar.h>
 
 namespace ktl {
 enum float_denorm_style {  // constants for different IEEE float denormalization

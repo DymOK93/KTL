@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(KTL_RUNTIME_INCLUDE_DIR "${KTL_RUNTIME_DIR}/include")
+set(KTL_MINIFILTER_RUNTIME_INCLUDE_DIR ${KTL_RUNTIME_INCLUDE_DIR})
 
 set(
 	KTL_RUNTIME_HEADER_FILES
@@ -33,21 +34,33 @@ set(
 		"utility_impl.hpp"
 )
 
-set(TARGET_LIB basic_runtime_interface)
+set(
+	KTL_MINIFILTER_RUNTIME_HEADER_FILES
+		"minifilter.h"
+)
+
+set(RUNTIME_LIB basic_runtime_interface)
+set(MINIFILTER_LIB minifilter_runtime_interface)
 
 add_subdirectory(exc_engine)
 
-add_library(${TARGET_LIB} INTERFACE)
+add_library(${RUNTIME_LIB} INTERFACE)
 target_include_directories(
-	${TARGET_LIB} 
+	${RUNTIME_LIB} 
 		INTERFACE ${KTL_RUNTIME_INCLUDE_DIR}
 )
 target_link_libraries(
-	${TARGET_LIB} 
+	${RUNTIME_LIB} 
 		INTERFACE exc_engine_interface
 )
 target_compile_definitions(
-	${TARGET_LIB}  INTERFACE 
+	${RUNTIME_LIB} INTERFACE 
 		KTL_ENABLE_EXTENDED_ALIGNED_STORAGE
 		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
+)
+
+add_library(${MINIFILTER_LIB} INTERFACE)
+target_include_directories(
+	${MINIFILTER_LIB} 
+		INTERFACE ${KTL_MINIFILTER_RUNTIME_INCLUDE_DIR}
 )
