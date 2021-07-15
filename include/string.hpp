@@ -806,13 +806,12 @@ class basic_winnt_string {
     return begin() + index;
   }
 
-  constexpr bool starts_with(value_type ch) const noexcept {
-    return static_cast<string_view_type>(*this).starts_with(ch);
+  constexpr bool starts_with(string_view_type str) const noexcept {
+    return static_cast<string_view_type>(*this).starts_with(str);
   }
 
-  constexpr bool starts_with(const value_type* str,
-                             size_type length) const noexcept {
-    return static_cast<string_view_type>(*this).starts_with(str, length);
+  constexpr bool starts_with(value_type ch) const noexcept {
+    return static_cast<string_view_type>(*this).starts_with(ch);
   }
 
   constexpr bool starts_with(
@@ -821,21 +820,12 @@ class basic_winnt_string {
         null_terminated_str);
   }
 
-  constexpr bool starts_with(native_string_type native_str) const noexcept {
-    return static_cast<string_view_type>(*this).starts_with(native_str);
-  }
-
-  constexpr bool starts_with(string_view_type str) const noexcept {
-    return static_cast<string_view_type>(*this).starts_with(str);
+  constexpr bool ends_with(string_view_type str) const noexcept {
+    return static_cast<string_view_type>(*this).ends_with(str);
   }
 
   constexpr bool ends_with(value_type ch) const noexcept {
     return static_cast<string_view_type>(*this).ends_with(ch);
-  }
-
-  constexpr bool ends_with(const value_type* str,
-                           size_type length) const noexcept {
-    return static_cast<string_view_type>(*this).ends_with(str, length);
   }
 
   constexpr bool ends_with(
@@ -843,41 +833,17 @@ class basic_winnt_string {
     return static_cast<string_view_type>(*this).ends_with(null_terminated_str);
   }
 
-  constexpr bool ends_with(native_string_type native_str) const noexcept {
-    return static_cast<string_view_type>(*this).ends_with(native_str);
-  }
-
-  constexpr bool ends_with(string_view_type str) const noexcept {
-    return static_cast<string_view_type>(*this).ends_with(str);
-  }
-
-  template <size_t BufferSize, class ChAlloc>
-  constexpr bool contains(
-      const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other)
-      const noexcept {
-    return find(other, 0) != npos;
-  }
-
-  constexpr bool contains(native_string_type native_str) const noexcept {
-    return find(native_str) != npos;
-  }
-
-  constexpr bool contains(
-      const value_type* null_terminated_str) const noexcept {
-    return find(null_terminated_str) != npos;
+  constexpr bool contains(string_view_type str) const noexcept {
+    return static_cast<string_view_type>(*this).contains(str);
   }
 
   constexpr bool contains(value_type ch) const noexcept {
     return find(ch) != npos;
   }
 
-  template <class Ty,
-            class Allocator = allocator_type,
-            enable_if_t<is_convertible_v<Ty, string_view_type> &&
-                            not_convertible_to_native_str<Ty>::value,
-                        int> = 0>
-  constexpr bool contains(const Ty& value) const noexcept {
-    return contains(*static_cast<string_view_type>(value).raw_str());
+  constexpr bool contains(
+      const value_type* null_terminated_str) const noexcept {
+    return find(null_terminated_str) != npos;
   }
 
   [[nodiscard]] basic_winnt_string substr(size_type pos = 0,

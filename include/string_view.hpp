@@ -167,14 +167,6 @@ class basic_winnt_string_view {
         .compare(basic_winnt_string_view(other + other_pos, other_count));
   }
 
-  constexpr bool starts_with(value_type ch) const noexcept {
-    return !empty() && traits_type::eq(front(), ch);
-  }
-
-  constexpr bool starts_with(const value_type* null_terminated_str) {
-    return starts_with(basic_winnt_string_view{null_terminated_str});
-  }
-
   constexpr bool starts_with(basic_winnt_string_view other) const noexcept {
     const size_type other_size{other.size()};
     if (other_size > size()) {
@@ -183,13 +175,12 @@ class basic_winnt_string_view {
     return compare_unchecked(data(), other_size, other.data(), other_size) == 0;
   }
 
-  constexpr bool ends_with(value_type ch) const noexcept {
-    return !empty() && traits_type::eq(back(), ch);
+  constexpr bool starts_with(value_type ch) const noexcept {
+    return !empty() && traits_type::eq(front(), ch);
   }
 
-  constexpr bool ends_with(
-      const value_type* null_terminated_str) const noexcept {
-    return ends_with(basic_winnt_string_view{null_terminated_str});
+  constexpr bool starts_with(const value_type* null_terminated_str) {
+    return starts_with(basic_winnt_string_view{null_terminated_str});
   }
 
   constexpr bool ends_with(basic_winnt_string_view other) const noexcept {
@@ -201,12 +192,17 @@ class basic_winnt_string_view {
         .compare(other);
   };
 
-  constexpr bool contains(basic_winnt_string_view other) const noexcept {
-    return find(other) != npos;
+  constexpr bool ends_with(value_type ch) const noexcept {
+    return !empty() && traits_type::eq(back(), ch);
   }
 
-  constexpr bool contains(native_string_type native_str) const noexcept {
-    return find(native_str) != npos;
+  constexpr bool ends_with(
+      const value_type* null_terminated_str) const noexcept {
+    return ends_with(basic_winnt_string_view{null_terminated_str});
+  }
+
+  constexpr bool contains(basic_winnt_string_view other) const noexcept {
+    return find(other) != npos;
   }
 
   constexpr bool contains(value_type ch) const noexcept {
