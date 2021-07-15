@@ -821,6 +821,14 @@ class basic_winnt_string {
         null_terminated_str);
   }
 
+  constexpr bool starts_with(native_string_type native_str) const noexcept {
+    return static_cast<string_view_type>(*this).starts_with(native_str);
+  }
+
+  constexpr bool starts_with(string_view_type str) const noexcept {
+    return static_cast<string_view_type>(*this).starts_with(str);
+  }
+
   constexpr bool ends_with(value_type ch) const noexcept {
     return static_cast<string_view_type>(*this).ends_with(ch);
   }
@@ -833,6 +841,14 @@ class basic_winnt_string {
   constexpr bool ends_with(
       const value_type* null_terminated_str) const noexcept {
     return static_cast<string_view_type>(*this).ends_with(null_terminated_str);
+  }
+
+  constexpr bool ends_with(native_string_type native_str) const noexcept {
+    return static_cast<string_view_type>(*this).ends_with(native_str);
+  }
+
+  constexpr bool ends_with(string_view_type str) const noexcept {
+    return static_cast<string_view_type>(*this).ends_with(str);
   }
 
   template <size_t BufferSize, class ChAlloc>
