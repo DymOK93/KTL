@@ -880,7 +880,7 @@ class basic_winnt_string {
   template <size_t BufferSize, class ChAlloc>
   constexpr size_type find(
       const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other,
-      size_type my_pos) const noexcept {
+      size_type my_pos = 0) const noexcept {
     return str::details::find_substr<traits_type>(
         data(), my_pos, size(), other.data(), other.size(), npos);
   }
