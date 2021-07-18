@@ -74,8 +74,8 @@ It includes **3 static libraries**:
     find_package(KTL REQUIRED)
 
     wdk_add_driver(
-        ${DRIVER_NAME} minifilter.cpp
-            CUSTOM_ENTRY_POINT KtlDriverEntry   # Required for C and C++ Runtime initialization and destruction
+      ${DRIVER_NAME} minifilter.cpp
+        CUSTOM_ENTRY_POINT KtlDriverEntry   # Required for C and C++ Runtime initialization and destruction
 		    EXTENDED_CPP_FEATURES               # Exceptions handling enabled
     )
     target_include_directories(
@@ -86,10 +86,10 @@ It includes **3 static libraries**:
 		    ${CMAKE_INCLUDE_CURRENT_DIR}
     )
     target_link_libraries(
-        ${DRIVER_NAME} PRIVATE
-            ktl::basic_runtime
-            ktl::minifilter_runtime
-            ktl::cpp_runtime
+      ${DRIVER_NAME} PRIVATE
+        ktl::basic_runtime
+        ktl::minifilter_runtime
+        ktl::cpp_runtime
     )
     wdk_sign_driver(        # Driver signing (in this example - using given certificate)
 	    ${DRIVER_NAME}
