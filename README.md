@@ -1,6 +1,18 @@
 # KTL
 Kernel Template Library is open-source library providing CRT environment, STL-style containers and RAII tools for Windows Kernel programming.
 
+* [Features](#features)
+  * [C Runtime environment](#build-requirements)
+  * [C++ Standard Library implementation](#C++-standard-library-implementation)
+  * [CMake](#cmake)
+* [Installation & Usage](#installation-&-Usage)
+  * [Build requirements](#build-requirements)
+* [Examples](#samples)
+  * [CMakeLists.txt to build with a pre-built KTL](#cmakelists.txt-to-build-with-a-pre-built-ktl)
+* [Roadmap for the near future](#roadmap-for-the-near-future)
+* [License](#license)
+
+
 # Features
 
 * C Runtime environment
@@ -12,7 +24,7 @@ Kernel Template Library is open-source library providing CRT environment, STL-st
     * Filesystem Mini-Filter support routines
 
 
-* C++ Tools
+* C++ Standard Library implementation
     * `<atomic>` (now for x86 and x64 only)
     * Optimized, C++ Standard compatible `<algorithm>` library
     * `<allocator>` with standard allocators for different pool types
@@ -38,6 +50,7 @@ Kernel Template Library is open-source library providing CRT environment, STL-st
 
 _Complete documentation in progress_.
 
+
 # Installation & Usage
 You can use KTL directly as driver CMake project subdirectory or link with pre-built KTL binaries applying `find_package()`.
 
@@ -46,9 +59,15 @@ It includes **3 static libraries**:
 * `cpp_runtime.lib` (C++ tools)
 * `minifilter_runtime.lib` (optional Filesystem Mini-Filter support)
 
+### Build requirements:
+* WDK10
+* Visual Studio 2019 (not tested on older versions)
+* CMake 3.0 and higher
+* [FindWDK](https://github.com/DymOK93/FindWDK/tree/develop) (used as a Git submodule)
+
 # Examples
 ### CMakeLists.txt to build with a pre-built KTL:
-```
+```cmake
     project(MyDriver CXX)
 
     find_package(WDK REQUIRED)  # Windows Driver Kit
