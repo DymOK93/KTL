@@ -6,9 +6,9 @@ Kernel Template Library is open-source library providing CRT environment, STL-st
   * [C++ Standard Library implementation](#C++-standard-library-implementation)
   * [CMake](#cmake)
 * [Installation & Usage](#installation-&-Usage)
+  * [CMakeLists.txt to build with a pre-built KTL](#cmakelists.txt-to-build-with-a-pre-built-ktl)
   * [Build requirements](#build-requirements)
 * [Examples](#samples)
-  * [CMakeLists.txt to build with a pre-built KTL](#cmakelists.txt-to-build-with-a-pre-built-ktl)
 * [Roadmap for the near future](#roadmap-for-the-near-future)
 * [License](#license)
 
@@ -29,7 +29,7 @@ Kernel Template Library is open-source library providing CRT environment, STL-st
     * Optimized, C++ Standard compatible `<algorithm>` library
     * `<allocator>` with standard allocators for different pool types
     * Boost-based implementation of the `compressed_pair`
-    * Exceptions objects hierarchy (`std::exception` analogue optimized for use in the kernel)
+    * Exceptions objects hierarchy (`std::exception` analog optimized for use in the kernel)
     * Iterators
     * MSVC-intrinsic-based coroutines
     * Mutexes, events and condition variables based on kernel synchronization primitives with RAII wrappers
@@ -59,13 +59,6 @@ It includes **3 static libraries**:
 * `cpp_runtime.lib` (C++ tools)
 * `minifilter_runtime.lib` (optional Filesystem Mini-Filter support)
 
-### Build requirements:
-* WDK10
-* Visual Studio 2019 (not tested on older versions)
-* CMake 3.0 and higher
-* [FindWDK](https://github.com/DymOK93/FindWDK/tree/develop) (used as a Git submodule)
-
-# Examples
 ### CMakeLists.txt to build with a pre-built KTL:
 ```cmake
     project(MyDriver CXX)
@@ -98,6 +91,15 @@ It includes **3 static libraries**:
 		    TIMESTAMP_SERVER ${YOUR_TIMESTAMP_SERVER} # Default is timestamp.verisign.com
     )
 ```
+
+### Build requirements:
+* WDK10
+* Visual Studio 2019 (not tested on older versions)
+* CMake 3.0 and higher
+* [FindWDK](https://github.com/DymOK93/FindWDK/tree/develop) (used as a Git submodule)
+
+# Examples
+_Examples will be avaliable soon_
 
 # Roadmap for the near future 
 * Introduction of [fmt](https://github.com/fmtlib/fmt/)-based string formatted library
