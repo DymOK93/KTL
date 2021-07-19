@@ -40,6 +40,7 @@ Kernel Template Library is open-source library providing CRT environment, STL-st
     * `unordered_node_map`, `unordered_node_set`, `unordered_flat_map` and `unordered_flat_set` using [robin-hood-hashing](https://github.com/martinus/robin-hood-hashing)
     * `vector`
     * Lock-free queue, `node_allocator` and some auxiliary algorithms 
+    * [fmt](https://github.com/fmtlib/fmt/) as a string formatting library 
     * Designed in C++17, feel free to build with C++20
 
 
@@ -102,7 +103,6 @@ It includes **3 static libraries**:
 _Examples will be avaliable soon_
 
 # Roadmap for the near future 
-* Introduction of [fmt](https://github.com/fmtlib/fmt/)-based string formatted library
 * Linked lists and Red-Black-Tree containers
 * Intrusive smart pointers and intrusive containers
 * Thread support library
