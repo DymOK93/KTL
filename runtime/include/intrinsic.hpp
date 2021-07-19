@@ -2,14 +2,17 @@
 #include <basic_types.h>
 #include <crt_attributes.h>
 
-EXTERN_C void* CRTCALL memcpy(void* dst, const void* src, size_t size);
-#pragma intrinsic(memcpy)
+EXTERN_C unsigned char _addcarry_u32(unsigned char c_in,
+                                     unsigned int src1,
+                                     unsigned int src2,
+                                     unsigned int* sum_out);
+#pragma intrinsic(_addcarry_u32)
 
-EXTERN_C void* CRTCALL memset(void* lhs, int pattern, size_t size);
-#pragma intrinsic(memset)
-
-EXTERN_C int CRTCALL memcmp(const void* lhs, const void* rhs, size_t size);
-#pragma intrinsic(memcmp)
+EXTERN_C unsigned char _addcarry_u64(unsigned char c_in,
+                                     unsigned __int64 src1,
+                                     unsigned __int64 src2,
+                                     unsigned __int64* sum_out);
+#pragma intrinsic(_addcarry_u64)
 
 EXTERN_C unsigned char _BitScanForward(unsigned long* index,
                                        unsigned long mask);
@@ -84,3 +87,12 @@ EXTERN_C inline char _InterlockedAdd16(volatile short* target, short value);
 #ifndef InterlockedAdd16
 #define InterlockedAdd16 _InterlockedAdd16
 #endif
+
+EXTERN_C void* CRTCALL memcpy(void* dst, const void* src, size_t size);
+#pragma intrinsic(memcpy)
+
+EXTERN_C void* CRTCALL memset(void* lhs, int pattern, size_t size);
+#pragma intrinsic(memset)
+
+EXTERN_C int CRTCALL memcmp(const void* lhs, const void* rhs, size_t size);
+#pragma intrinsic(memcmp)

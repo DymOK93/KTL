@@ -44,7 +44,9 @@ target_include_directories(
 target_compile_options(
 	${TARGET_LIB} PRIVATE
 		${BASIC_COMPILE_OPTIONS}
-		$<$<CONFIG:Release>:${RELEASE_COMPILE_OPTIONS}>
+		$<$<CONFIG:Release>:${RELEASE_COMPILE_OPTIONS}>	# Unfortunately, __GSHandlerCheck_EH* 
+														# and some other parts of the exception engine 
+														# can't be compiled with LTO enabled
 )
 target_compile_definitions(
 	${TARGET_LIB} PRIVATE

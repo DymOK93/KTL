@@ -40,6 +40,7 @@ target_compile_options(
 	${RUNTIME_LIB} PRIVATE
 		${BASIC_COMPILE_OPTIONS}
 		$<$<CONFIG:Release>:${RELEASE_COMPILE_OPTIONS}>
+		$<$<CONFIG:Release>:${LTO_COMPILE_OPTIONS}>
 )
 target_compile_definitions(
 	${RUNTIME_LIB} PRIVATE
@@ -50,6 +51,7 @@ target_compile_definitions(
 target_link_options(
 	${RUNTIME_LIB} PRIVATE
 		$<$<CONFIG:Release>:${RELEASE_LINK_OPTIONS}>
+		$<$<CONFIG:Release>:${LTO_LINK_OPTIONS}>
 )
 target_link_libraries(
 	${RUNTIME_LIB} 
@@ -81,6 +83,7 @@ target_compile_options(
 	${MINIFILTER_LIB} PRIVATE
 		${BASIC_COMPILE_OPTIONS}
 		$<$<CONFIG:Release>:${RELEASE_COMPILE_OPTIONS}>
+		$<$<CONFIG:Release>:${LTO_COMPILE_OPTIONS}>
 )
 target_compile_definitions(
 	${MINIFILTER_LIB} PRIVATE
@@ -91,6 +94,7 @@ target_compile_definitions(
 target_link_options(
 	${MINIFILTER_LIB} PRIVATE
 		$<$<CONFIG:Release>:${RELEASE_LINK_OPTIONS}>
+		$<$<CONFIG:Release>:${LTO_LINK_OPTIONS}>
 )
 target_link_libraries(
 	${MINIFILTER_LIB} 

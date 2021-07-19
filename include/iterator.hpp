@@ -1,5 +1,6 @@
 #pragma once
 #include <iterator_impl.hpp>
+#include <utility.hpp>
 
 namespace ktl {
 template <class Container>
@@ -235,6 +236,11 @@ class back_insert_iterator {
  protected:
   container_type* container;
 };
+
+template <class Container>
+back_insert_iterator<Container> back_inserter(Container& cont) {
+  return back_insert_iterator<Container>{cont};
+}
 }  // namespace ktl
 
 // TODO: ktl::reverse_iterator

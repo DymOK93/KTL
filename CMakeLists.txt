@@ -24,6 +24,9 @@ set(
 		/Oi     # Enable intrinsics
 		/Ot     # Prefer fast code
 		/Oy		# Omit frame pointers
+)
+set(
+	LTO_COMPILE_OPTIONS
 		/Gy		# Using COMDAT folding for functions
 		/Gw		# Using COMDAT folding for variables
 		/GL		# Enable link time code generation
@@ -31,6 +34,9 @@ set(
 set(
 	RELEASE_LINK_OPTIONS
 		/OPT:REF			# Eliminate unused code
+)
+set(
+	LTO_LINK_OPTIONS
 		/OPT:ICF			# Enable COMDAT folding
 		/LTCG:INCREMENTAL	# Force fast link timecode generation
 )
