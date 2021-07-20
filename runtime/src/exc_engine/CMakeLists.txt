@@ -31,10 +31,21 @@ target_include_directories(
 	${TARGET_LIB} 
 		PUBLIC ${KTL_EXC_ENGINE_SOURCE_DIR}
 )
+target_compile_options(
+	${TARGET_LIB} PRIVATE
+		${BASIC_COMPILE_OPTIONS}
+		$<$<CONFIG:Release>:${RELEASE_COMPILE_OPTIONS}>
+		$<$<CONFIG:Release>:${LTO_COMPILE_OPTIONS}>
+)
 target_compile_definitions(
 	${TARGET_LIB} PRIVATE
-		KTL_RUNTIME_DBG
+		$<$<CONFIG:Debug>:KTL_RUNTIME_DBG>
 		KTL_NO_CXX_STANDARD_LIBRARY
+)
+target_link_options(
+	${TARGET_LIB} PRIVATE
+		$<$<CONFIG:Release>:${RELEASE_LINK_OPTIONS}>
+		$<$<CONFIG:Release>:${LTO_LINK_OPTIONS}>
 )
 target_link_libraries(
 	${TARGET_LIB} 

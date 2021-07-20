@@ -63,4 +63,5 @@ using max_align_t = double;  // Most aligned type
 namespace ktl {
 using byte = unsigned char;
 using std::align_val_t;
+using ::nullptr_t;
 }  // namespace ktl
