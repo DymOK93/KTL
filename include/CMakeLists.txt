@@ -18,6 +18,7 @@ set(
 		"exception.h"
 		"functional.hpp"
 		"initializer_list.hpp"
+		"intrusive_ptr.hpp"
 		"iterator.hpp"
 		"limits.hpp"
 		"memory.hpp"
