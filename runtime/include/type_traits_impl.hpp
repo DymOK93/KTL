@@ -1,5 +1,4 @@
 ﻿#pragma once
-#include <crt_attributes.h>
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <type_traits>
@@ -122,6 +121,8 @@ using std::conjunction;
 using std::conjunction_v;
 }  // namespace ktl
 #else
+#include <crt_attributes.h>
+
 namespace ktl {
 template <class... Dummy>
 struct always_false {
