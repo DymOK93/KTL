@@ -33,7 +33,6 @@
 #ifndef FMT_FORMAT_H_
 #define FMT_FORMAT_H_
 
-// #include <cmath>         // ktl::signbit
 #include <basic_types.h>  // uint32_t
 #include <exception.h>    // ktl::runtime_error
 #include <limits.hpp>     // ktl::numeric_limits
@@ -166,7 +165,7 @@ FMT_END_NAMESPACE
 #endif
 
 #if FMT_MSC_VER
-// #include <intrin.h>  // _BitScanReverse[64], _BitScanForward[64], _umul128
+#include <intrinsic.hpp>  // _BitScanReverse[64], _BitScanForward[64], _umul128
 #endif
 
 // Some compilers masquerade as both MSVC and GCC-likes or otherwise support

@@ -9,6 +9,7 @@
 #define FMT_WCHAR_H_
 
 #include <char_traits.hpp>
+#include <initializer_list.hpp>
 #include <tuple.hpp>
 
 #include "format.h"
@@ -99,7 +100,8 @@ template <typename S,
           typename... Args,
           typename Char = char_t<S>,
           FMT_ENABLE_IF(!ktl::is_same<Char, char>::value)>
-auto format(const S& format_str, Args&&... args) -> ktl::basic_winnt_string<Char> {
+auto format(const S& format_str, Args&&... args)
+    -> ktl::basic_winnt_string<Char> {
   const auto& vargs = fmt::make_args_checked<Args...>(format_str, args...);
   return vformat(to_string_view(format_str), vargs);
 }
@@ -246,7 +248,7 @@ inline auto formatted_size(const S& fmt, Args&&... args) -> size_t {
   return buf.count();
 }
 
-//inline void vprint(ktl::FILE* f, wstring_view fmt, wformat_args args) {
+// inline void vprint(ktl::FILE* f, wstring_view fmt, wformat_args args) {
 //  wmemory_buffer buffer;
 //  detail::vformat_to(buffer, fmt, args);
 //  buffer.push_back(L'\0');
@@ -254,22 +256,23 @@ inline auto formatted_size(const S& fmt, Args&&... args) -> size_t {
 //    FMT_THROW(system_error(errno, FMT_STRING("cannot write to file")));
 //}
 
-//inline void vprint(wstring_view fmt, wformat_args args) {
+// inline void vprint(wstring_view fmt, wformat_args args) {
 //  vprint(stdout, fmt, args);
 //}
 //
-//template <typename... T>
-//void print(ktl::FILE* f, wformat_string<T...> fmt, T&&... args) {
+// template <typename... T>
+// void print(ktl::FILE* f, wformat_string<T...> fmt, T&&... args) {
 //  return vprint(f, wstring_view(fmt), make_wformat_args(args...));
 //}
 //
-//template <typename... T>
-//void print(wformat_string<T...> fmt, T&&... args) {
+// template <typename... T>
+// void print(wformat_string<T...> fmt, T&&... args) {
 //  return vprint(wstring_view(fmt), make_wformat_args(args...));
 //}
 
 /**
-  Converts *value* to ``ktl::unicode_string`` using the default format for type *T*.
+  Converts *value* to ``ktl::unicode_string`` using the default format for type
+  *T*.
  */
 template <typename T>
 inline auto to_wstring(const T& value) -> ktl::unicode_string {
