@@ -28,6 +28,21 @@ constexpr const Ty& as_const(Ty& val) {
 }
 
 template <class Container>
+constexpr auto data(Container& cont) -> decltype(cont.data()) {
+  return cont.data();
+}
+
+template <class Container>
+constexpr auto data(const Container& cont) -> decltype(cont.data()) {
+  return cont.data();
+}
+
+template <class Ty, size_t N>
+constexpr Ty* data(Ty (&array)[N]) noexcept {
+  return array;
+}
+
+template <class Container>
 constexpr auto size(const Container& cont) -> decltype(cont.size()) {
   return cont.size();
 }
