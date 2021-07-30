@@ -105,7 +105,7 @@ class optional_storage<Ty, true> {
 #undef INTERNAL_STORAGE
 
 template <class Ty>
-class common_optional_base : optional_storage<Ty> {
+class common_optional_base : public optional_storage<Ty> {
  private:
   using MyBase = optional_storage<Ty>;
 
@@ -113,6 +113,8 @@ class common_optional_base : optional_storage<Ty> {
   using value_type = typename MyBase::value_type;
 
  public:
+  using MyBase::MyBase;
+
   constexpr explicit operator bool() const noexcept { return has_value(); }
   constexpr bool has_value() const noexcept { return this->m_initialized; }
 
@@ -183,7 +185,7 @@ class trivial_optional_base : public common_optional_base<Ty> {
     if (!other.has_value()) {
       reset();
     } else {
-      MyBase::construct_from_value(other.get_ref());
+      MyBase::construct_from_value(*other);
     }
     return *this;
   }
@@ -240,14 +242,14 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
   non_trivial_optional_base(const non_trivial_optional_base& other) noexcept(
       is_nothrow_copy_constructible_v<Ty>) {
     if (other.has_value()) {
-      MyBase::construct_from_args(other.get_ref());
+      MyBase::construct_from_args(*other);
     }
   }
 
   non_trivial_optional_base(non_trivial_optional_base&& other) noexcept(
       is_nothrow_move_constructible_v<Ty>) {
     if (other.has_value()) {
-      MyBase::construct_from_args(move(other.get_ref()));
+      MyBase::construct_from_args(*move(other));
     }
   }
 
@@ -257,7 +259,7 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
   non_trivial_optional_base(const non_trivial_optional_base<U>& other) noexcept(
       is_nothrow_constructible_v<Ty, add_lvalue_reference_t<U>>) {
     if (other.has_value()) {
-      MyBase::construct_from_value(other.get_ref());
+      MyBase::construct_from_value(*other);
     }
   }
 
@@ -267,7 +269,7 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
   non_trivial_optional_base(non_trivial_optional_base<U>&& other) noexcept(
       is_nothrow_constructible_v<Ty, add_rvalue_reference_t<U>>) {
     if (other.has_value()) {
-      MyBase::construct_from_value(move(other.get_ref()));
+      MyBase::construct_from_value(*move(other));
     }
   }
 
@@ -282,7 +284,7 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
       is_nothrow_copy_constructible_v<Ty>&& is_nothrow_copy_assignable_v<Ty>) {
     if (addressof(other) != this) {
       if (other.has_value()) {
-        assign_or_emplace(other.get_ref());
+        assign_or_emplace(*other);
       } else {
         reset();
       }
@@ -311,7 +313,7 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
       is_nothrow_convertible_v<U, Ty>) {
     if (addressof(other) != this) {
       if (other.has_value()) {
-        emplace(other.get_ref());
+        emplace(*other);
       } else {
         reset();
       }
@@ -327,7 +329,7 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
       is_nothrow_convertible_v<U, Ty>) {
     if (addressof(other) != this) {
       if (other.has_value()) {
-        emplace(move(other.get_ref()));
+        emplace(*move(other));
       } else {
         reset();
       }
@@ -443,6 +445,7 @@ class optional : public opt::details::optional_base_selector_t<Ty> {
  public:
   using value_type = typename MyBase::value_type;
 
+ public:
   using MyBase::MyBase;
 
   using MyBase::operator=;

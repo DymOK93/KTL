@@ -44,7 +44,7 @@ constexpr SizeType find_substr(const CharT* str,
   if (substr_length > str_length) {
     return npos;
   }
-  const CharT str_end{str + str_length};
+  const CharT* str_end{str + str_length};
   const auto found_ptr{find_subrange(
       str + str_start_pos, str_end, substr, substr + substr_length,
       [](CharT lhs, CharT rhs) { return Traits::eq(lhs, rhs); })};

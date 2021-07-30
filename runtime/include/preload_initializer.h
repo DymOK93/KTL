@@ -5,15 +5,11 @@
 
 namespace ktl {
 namespace crt {
-class preload_registry;
-
-class preload_initializer {
- public:
+struct preload_initializer {
   preload_initializer() noexcept;
   virtual NTSTATUS run(DRIVER_OBJECT& driver_object,
                        UNICODE_STRING& registry_path) noexcept = 0; // TODO: int purecall()
 
- private:
 };
 
 class preload_initializer_registry {

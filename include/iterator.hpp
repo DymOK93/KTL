@@ -1,5 +1,6 @@
 #pragma once
 #include <iterator_impl.hpp>
+#include <utility.hpp>
 
 namespace ktl {
 template <class Container>
@@ -198,6 +199,47 @@ constexpr auto operator>=(const move_iterator<LhsIt>& lhs,
                           const move_iterator<RhsIt>& rhs)
     -> decltype(is_convertible_v<bool, decltype(lhs.base() >= rhs.base())>) {
   return static_cast<bool>(lhs.base() >= rhs.base());
+}
+
+template <class Container>
+class back_insert_iterator {
+ public:
+  using iterator_category = output_iterator_tag;
+  using value_type = void;
+  using difference_type = ptrdiff_t;
+  using pointer = void;
+  using reference = void;
+  using container_type = Container;
+
+ private:
+  using containter_value_type = typename Container::value_type;
+
+ public:
+  explicit constexpr back_insert_iterator(Container& cont) noexcept
+      : container{addressof(cont)} {}
+
+  constexpr back_insert_iterator& operator=(
+      const containter_value_type& value) {
+    container->push_back(value);
+    return *this;
+  }
+
+  constexpr back_insert_iterator& operator=(containter_value_type&& value) {
+    container->push_back(move(value));
+    return *this;
+  }
+
+  constexpr back_insert_iterator& operator*() noexcept { return *this; }
+  constexpr back_insert_iterator& operator++() noexcept { return *this; }
+  constexpr back_insert_iterator operator++(int) noexcept { return *this; }
+
+ protected:
+  container_type* container;
+};
+
+template <class Container>
+back_insert_iterator<Container> back_inserter(Container& cont) {
+  return back_insert_iterator<Container>{cont};
 }
 }  // namespace ktl
 

@@ -95,7 +95,7 @@ class BulkPoolAllocator {
       is_nothrow_move_constructible_v<allocator_type>)
       : m_bytes_alc{move(other.m_bytes_alc)},
         mHead{exchange(other.mHead, nullptr)},
-        mListForFree{(other.mListForFree, nullptr)} {}
+        mListForFree{exchange(other.mListForFree, nullptr)} {}
 
   BulkPoolAllocator& operator=(BulkPoolAllocator&& other) noexcept(
       is_nothrow_move_assignable_v<allocator_type>) {

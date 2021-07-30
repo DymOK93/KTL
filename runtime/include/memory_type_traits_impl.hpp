@@ -272,6 +272,16 @@ template <class Alloc, class Pointer>
 inline constexpr bool has_destroy_v = has_destroy<Alloc, Pointer>::value;
 
 template <class Alloc, class = void>
+struct has_max_size : false_type {};
+
+template <class Alloc>
+struct has_max_size<Alloc, void_t<decltype(declval<Alloc>().max_size())>>
+    : true_type {};
+
+template <class Alloc>
+inline constexpr bool has_max_size_v = has_max_size<Alloc>::value;
+
+template <class Alloc, class = void>
 struct has_select_on_container_copy_construction : false_type {};
 
 template <class Alloc>

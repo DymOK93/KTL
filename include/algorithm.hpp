@@ -356,11 +356,12 @@ struct LexicographicalComparator {
   }
 };
 
-template <int ExpectedMemcmpResult, class Ty, class LengthCompare>
+template <class Ty, class UnaryPredicate, class LengthCompare>
 bool compare_integral_impl(const Ty* lhs_first,
                            const Ty* lhs_last,
                            const Ty* rhs_first,
                            const Ty* rhs_last,
+                           UnaryPredicate pred,
                            LengthCompare lc) {
   const ptrdiff_t first_length{lhs_last - lhs_first},
       second_length{rhs_last - rhs_first};
@@ -369,7 +370,7 @@ bool compare_integral_impl(const Ty* lhs_first,
 
   const int result{memcmp(lhs_first, rhs_first, cmp_length)};
   if (result != 0) {
-    return result == ExpectedMemcmpResult;
+    return pred(result);
   }
   return lc(first_length, second_length);
 }
@@ -379,8 +380,9 @@ bool compare_integral_less(const Ty* lhs_first,
                            const Ty* lhs_last,
                            const Ty* rhs_first,
                            const Ty* rhs_last) {
-  return compare_integral_impl<-1>(lhs_first, lhs_last, rhs_first, rhs_last,
-                                   less<>{});
+  return compare_integral_impl(
+      lhs_first, lhs_last, rhs_first, rhs_last,
+      [](int result) { return result < 0; }, less<>{});
 }
 
 template <class Ty>
@@ -388,8 +390,9 @@ bool compare_integral_greater(const Ty* lhs_first,
                               const Ty* lhs_last,
                               const Ty* rhs_first,
                               const Ty* rhs_last) {
-  return compare_integral_impl<1>(lhs_first, lhs_last, rhs_first, rhs_last,
-                                  greater<>{});
+  return compare_integral_impl<1>(
+      lhs_first, lhs_last, rhs_first, rhs_last,
+      [](int result) { return result > 0; }, greater<>{});
 }
 
 template <class Ty, class... Types>

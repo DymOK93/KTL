@@ -7,6 +7,7 @@ using std::vector;
 }
 #else
 #include <basic_types.h>
+#include <container_helpers.h>
 #include <exception.h>
 #include <algorithm.hpp>
 #include <allocator.hpp>
@@ -211,10 +212,12 @@ class vector {
 
   const allocator_type& get_allocator() const noexcept { return get_alloc(); }
 
-  reference at(size_type idx) { return at_index_verified(data(), size(), idx); }
+  reference at(size_type idx) {
+    return cont::details::at_index_verified(data(), idx, size());
+  }
 
   const_reference at(size_type idx) const {
-    return at_index_verified(data(), size(), idx);
+    return cont::details::at_index_verified(data(), idx, size());
   }
 
   reference operator[](size_type idx) noexcept {
@@ -356,15 +359,15 @@ class vector {
   }
 
   iterator erase(const_iterator pos) {
-    auto range_end{end()};
-    if (pos == range_end) {
-      return range_end;
-    }
+    assert_with_msg(pos != end(), L"can't dereference end iterator");
     return erase_impl(pos - begin(), 1);
   }
 
   iterator erase(const_iterator first, const_iterator last) {
+    assert_with_msg(first <= last, L"transposed iterator range");
     auto my_first{begin()};
+    assert_with_msg(first >= my_first && last <= end(),
+                    L"iterator range does not belong to the vector");
     const auto offset{static_cast<size_type>(first - my_first)},
         count{static_cast<size_type>(last - first)};
     if (first == last) {
@@ -646,7 +649,6 @@ class vector {
   }
 
   iterator erase_impl(size_type offset, size_type count) {
-    assert_with_msg(offset < size(), L"iterator does not belong to the vector");
     pointer buffer{data()};
     shift_left(buffer + offset, buffer + size(), count);
     get_size() -= count;
@@ -883,15 +885,6 @@ class vector {
         allocator_traits_type::deallocate(alc, buffer, obj_count);
       }
     }
-  }
-
-  template <class ValueTy>
-  static decltype(auto) at_index_verified(ValueTy* data,
-                                          size_type size,
-                                          size_type idx) {
-    throw_exception_if_not<out_of_range>(idx < size, L"index is out of range",
-                                         constexpr_message_tag{});
-    return data[idx];
   }
 
  private:

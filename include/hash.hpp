@@ -75,23 +75,17 @@ size_t hash_array(const Ty* data, size_t obj_count) noexcept {
 template <class Ty, typename Enable = void>
 struct hash;
 
-template <size_t BufferSize,
-          class NativeStrTy,
-          template <typename... CharT>
-          class Traits,
-          class Alloc>
-struct hash<basic_winnt_string<BufferSize, NativeStrTy, Traits, Alloc>> {
-  size_t operator()(
-      const basic_winnt_string<BufferSize, NativeStrTy, Traits, Alloc>& str)
-      const noexcept {
-   return hash_array(str.data(), str.size());
+template <typename CharT, size_t BufferSize, class Traits, class Alloc>
+struct hash<basic_winnt_string<CharT, BufferSize, Traits, Alloc>> {
+  size_t operator()(const basic_winnt_string<CharT, BufferSize, Traits, Alloc>&
+                        str) const noexcept {
+    return hash_array(str.data(), str.size());
   }
 };
 
-template <typename NativeStrTy, template <typename... CharT> class Traits>
-struct hash<basic_winnt_string_view<NativeStrTy, Traits>> {
-  size_t operator()(
-      basic_winnt_string_view<NativeStrTy, Traits> sv) const noexcept {
+template <typename CharT, class Traits>
+struct hash<basic_winnt_string_view<CharT, Traits>> {
+  size_t operator()(basic_winnt_string_view<CharT, Traits> sv) const noexcept {
     return hash_array(sv.data(), sv.size());
   }
 };

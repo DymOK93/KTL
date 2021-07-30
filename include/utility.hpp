@@ -28,6 +28,21 @@ constexpr const Ty& as_const(Ty& val) {
 }
 
 template <class Container>
+constexpr auto data(Container& cont) -> decltype(cont.data()) {
+  return cont.data();
+}
+
+template <class Container>
+constexpr auto data(const Container& cont) -> decltype(cont.data()) {
+  return cont.data();
+}
+
+template <class Ty, size_t N>
+constexpr Ty* data(Ty (&array)[N]) noexcept {
+  return array;
+}
+
+template <class Container>
 constexpr auto size(const Container& cont) -> decltype(cont.size()) {
   return cont.size();
 }
@@ -121,6 +136,9 @@ struct pair {
   Ty1 first;   // NOLINTy(misc-non-private-member-variables-in-classes)
   Ty2 second;  // NOLINTy(misc-non-private-member-variables-in-classes)
 };
+
+template <typename Ty1, typename Ty2>
+pair(Ty1&&, Ty2&&) -> pair<remove_reference_t<Ty1>, remove_reference_t<Ty2>>;
 
 template <typename Ty1, typename Ty2>
 void swap(pair<Ty1, Ty2>& a, pair<Ty1, Ty2>& b) noexcept(

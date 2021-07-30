@@ -6,4 +6,5 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(KTL_MODULES_DIR "${KTL_DIR}/modules")
 
+add_subdirectory(fmt)
 add_subdirectory(lockfree)

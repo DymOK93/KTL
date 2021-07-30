@@ -24,8 +24,8 @@ constexpr remove_reference_t<Ty>&& move(Ty&& val) noexcept {
 template <class Ty>
 constexpr conditional_t<!is_nothrow_move_constructible_v<Ty> &&
                             is_copy_constructible_v<Ty>,
-                        Ty&&,
-                        const Ty&>
+                        const Ty&,
+                        Ty&&>
 move_if_noexcept(Ty& val) noexcept {
   return move(val);
 }

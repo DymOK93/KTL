@@ -1,5 +1,4 @@
 ﻿#pragma once
-#include <crt_attributes.h>
 
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <type_traits>
@@ -82,6 +81,7 @@ using std::is_swappable;
 using std::is_swappable_v;
 
 using std::is_array;
+using std::is_class;
 using std::is_function;
 using std::is_lvalue_reference;
 using std::is_lvalue_reference_v;
@@ -121,6 +121,8 @@ using std::conjunction;
 using std::conjunction_v;
 }  // namespace ktl
 #else
+#include <crt_attributes.h>
+
 namespace ktl {
 template <class... Dummy>
 struct always_false {
@@ -674,6 +676,12 @@ inline constexpr bool is_array_v<Ty[]> = true;
 
 template <class Ty>
 struct is_array : bool_constant<is_array_v<Ty>> {};
+
+template <class Ty>
+inline constexpr bool is_class_v = __is_class(Ty);
+
+template <class Ty>
+struct is_class : bool_constant<is_class_v<Ty>> {};
 
 template <class Ty>
 struct is_function {
@@ -1389,6 +1397,15 @@ inline constexpr bool negation_v = !Trait::value;
 template <class Trait>
 struct negation : bool_constant<negation_v<Trait>> {};
 
+template <class Ty, template <class...> class Template>
+inline constexpr bool is_specialization_v = false;
+
+template <template <class...> class Template, class... Types>
+inline constexpr bool is_specialization_v<Template<Types...>, Template> = true;
+
+template <class Ty, template <class...> class Template>
+struct is_specialization : bool_constant<is_specialization_v<Ty, Template>> {};
+
 #define DEFINE_GET_NESTED_TYPE(NestedType)                       \
   template <class Ty, class = void>                              \
   struct get_##NestedType {};                                    \
@@ -1401,5 +1418,14 @@ struct negation : bool_constant<negation_v<Trait>> {};
   template <class Ty>                                            \
   using get_##NestedType##_t = typename get_##NestedType<Ty>::type;
 
+#define DEFINE_HAS_NESTED_TYPE(NestedType)                                     \
+  template <class Ty, class = void>                                            \
+  struct has_##NestedType : false_type {};                                     \
+                                                                               \
+  template <class Ty>                                                          \
+  struct has_##NestedType<Ty, void_t<typename Ty::NestedType>> : true_type {}; \
+                                                                               \
+  template <class Ty>                                                          \
+  inline constexpr bool has_##NestedType##_v = has_##NestedType<Ty>::value;
 }  // namespace ktl
 #endif
