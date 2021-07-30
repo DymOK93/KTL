@@ -12,6 +12,7 @@ set(
 		"exception.cpp"
 		"literals.cpp"
 		"new_delete.cpp"
+		"thread.cpp"
 )
 
 set(TARGET_LIB cpp_runtime)

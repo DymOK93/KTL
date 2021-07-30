@@ -33,6 +33,7 @@ set(
 		"string_view.hpp"
 		"string_algorithm_impl.hpp"
 		"string_algorithms_old.hpp"
+		"thread.h"
 		"type_traits.hpp"
 		"unordered_container_impl.hpp"
 		"unordered_map.hpp"
