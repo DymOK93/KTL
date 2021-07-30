@@ -68,4 +68,10 @@ auto thread_base::obtain_thread_object(internal_handle_type handle)
   return static_cast<PETHREAD>(thread_obj);
 }
 }  // namespace th::details
+
+void system_thread::before_exit(NTSTATUS status) noexcept {
+  PsTerminateSystemThread(status);
+}
+
+void io_thread::before_exit() noexcept {}
 }  // namespace ktl

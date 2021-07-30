@@ -57,25 +57,104 @@ class thread_base : non_copyable {
   native_handle_type m_thread{};
 };
 
-template <irql_t MaxIrql, class Fn, class... Types>
-auto pack_fn_with_args(Fn&& fn, Types&&... args) {
-  using arg_tuple_t = tuple<decay_t<Fn>, decay_t<Types>...>;
-  unique_ptr<arg_tuple_t> packed_args;
-  if constexpr (MaxIrql < DISPATCH_LEVEL) {
-    packed_args =
-        new (paged_new) arg_tuple_t{forward<Fn>(fn), forward<Types>(args)...};
-  } else {
-    packed_args = new (non_paged_new)
-        arg_tuple_t{forward<Fn>(fn), forward<Types>(args)...};
+template <class ConcreteThread>
+class worker_thread : public thread_base {
+  struct accessor : public ConcreteThread {
+    template <class ArgTuple, size_t... Indices>
+    static decltype(auto) make_call(ArgTuple& arg_tuple,
+                                    index_sequence<Indices...>) {
+      return ConcreteThread::make_call(move(get<Indices>(arg_tuple))...);
+    }
+
+    template <class... ResultTypes>
+    static void before_exit(ResultTypes&&... result) {
+      ConcreteThread::before_exit(forward<ResultTypes>(result)...);
+    }
+  };
+
+ protected:
+  template <irql_t MaxIrql, class Fn, class... Types>
+  static auto pack_fn_with_args(Fn&& fn, Types&&... args) {
+    using arg_tuple_t = tuple<decay_t<Fn>, decay_t<Types>...>;
+    unique_ptr<arg_tuple_t> packed_args;
+    if constexpr (MaxIrql < DISPATCH_LEVEL) {
+      packed_args =
+          new (paged_new) arg_tuple_t{forward<Fn>(fn), forward<Types>(args)...};
+    } else {
+      packed_args = new (non_paged_new)
+          arg_tuple_t{forward<Fn>(fn), forward<Types>(args)...};
+    }
+    return packed_args;
   }
-  return packed_args;
-}
+
+  template <class Fn, class... Types>
+  static void make_call(Fn&& fn, Types&&... args) {
+    // invoke(forward<Fn>(fn), forward<Types>(args)...);
+  }
+
+  template <class ArgTuple, size_t... Indices>
+  static constexpr auto get_thread_routine(
+      index_sequence<Indices...>) noexcept {
+    return &call_with_unpacked_args<ArgTuple, Indices...>;
+  }
+
+ private:
+  template <class ArgTuple, size_t... Indices>
+  static void call_with_unpacked_args(
+      void* raw_args,
+      index_sequence<Indices...> sequence) noexcept {
+    const unique_ptr args_guard{static_cast<ArgTuple*>(raw_args)};
+    auto& arg_tuple{*args_guard};
+    accessor::before_exit(make_call(accessor::make_call(arg_tuple, sequence)));
+  }
+};
 }  // namespace th::details
 
-class system_thread : th::details::thread_base {};  // Joinable thread
+// Joinable thread
+class system_thread : th::details::worker_thread<system_thread> {
+ public:
+  using MyBase = th::details::worker_thread<system_thread>;
 
-class io_thread : th::details::thread_base {
-};  // Supplied by IO-Manager thread prevents the driver from
-    // being unloaded before it exits
+ protected:
+  static void before_exit(NTSTATUS status) noexcept;
+  using MyBase::make_call;
+
+ private:
+};
+
+// Joinable thread enables throwing exceptions
+class guarded_system_thread : system_thread {
+ public:
+  using MyBase = system_thread;
+
+ protected:
+  template <class Fn, class... Types>
+  static NTSTATUS make_call(Fn&& fn, Types&&... args) noexcept {
+    NTSTATUS status{STATUS_SUCCESS};
+    try {
+      MyBase::make_call(forward<Fn>(fn), forward<Types>(args)...);
+    } catch (const exception& exc) {
+      status = exc.code();
+    } catch (...) {
+      status = STATUS_UNHANDLED_EXCEPTION;
+    }
+    return status;
+  }
+
+ private:
+};
+
+// Supplied by IO-Manager thread prevents the driver from
+// being unloaded before it exits
+class io_thread : th::details::worker_thread<io_thread> {
+ public:
+  using MyBase = th::details::worker_thread<io_thread>;
+
+ protected:
+  static void before_exit() noexcept;
+  using MyBase::make_call;
+
+ private:
+};
 
 }  // namespace ktl
