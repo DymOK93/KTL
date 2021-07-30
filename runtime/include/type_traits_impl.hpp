@@ -1397,6 +1397,15 @@ inline constexpr bool negation_v = !Trait::value;
 template <class Trait>
 struct negation : bool_constant<negation_v<Trait>> {};
 
+template <class Ty, template <class...> class Template>
+inline constexpr bool is_specialization_v = false;
+
+template <template <class...> class Template, class... Types>
+inline constexpr bool is_specialization_v<Template<Types...>, Template> = true;
+
+template <class Ty, template <class...> class Template>
+struct is_specialization : bool_constant<is_specialization_v<Ty, Template>> {};
+
 #define DEFINE_GET_NESTED_TYPE(NestedType)                       \
   template <class Ty, class = void>                              \
   struct get_##NestedType {};                                    \
