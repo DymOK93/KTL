@@ -14,6 +14,7 @@ set(
 		"basic_types.h"
 		"bugcheck.h"
 		"char_traits_impl.hpp"
+		"chrono_impl.h"
 		"crt_assert.h"
 		"crt_attributes.h"
 		"crt_runtime.h"

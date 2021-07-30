@@ -157,11 +157,11 @@ struct ratio_multiply_impl_sfinae<
     RxLhs,
     RxRhs,
     Sfinae,
-    void_t<typename ratio_multiply_impl<RxLhs, RxRhs>::_Num::type,
-           typename ratio_multiply_impl<RxLhs, RxRhs>::_Den::
+    void_t<typename ratio_multiply_impl<RxLhs, RxRhs>::numerator::type,
+           typename ratio_multiply_impl<RxLhs, RxRhs>::denominator::
                type>> {  // typename ratio<>::type is unnecessary here
-  using type = ratio<ratio_multiply_impl<RxLhs, RxRhs>::_Num::value,
-                     ratio_multiply_impl<RxLhs, RxRhs>::_Den::value>;
+  using type = ratio<ratio_multiply_impl<RxLhs, RxRhs>::numerator::value,
+                     ratio_multiply_impl<RxLhs, RxRhs>::denominator::value>;
 };
 
 template <class RxLhs, class RxRhs>
