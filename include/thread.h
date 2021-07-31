@@ -29,7 +29,7 @@ class thread_base : non_copyable {
   // basic_thread holds a pointer to thread object
   using native_handle_type = PETHREAD;
 
- private:
+ protected:
   using internal_handle_type = HANDLE;
 
  public:
@@ -48,8 +48,7 @@ class thread_base : non_copyable {
   constexpr thread_base() noexcept = default;
   thread_base(internal_handle_type handle);
 
- private:
-  void destroy() const noexcept;
+  void destroy() noexcept;
 
   static native_handle_type obtain_thread_object(internal_handle_type handle);
 
@@ -59,7 +58,24 @@ class thread_base : non_copyable {
 
 template <class ConcreteThread>
 class worker_thread : public thread_base {
+ protected:
+  using thread_routine_t = void (*)(void*);
+
+ private:
   struct accessor : public ConcreteThread {
+    static internal_handle_type start_thread(thread_routine_t start,
+                                             void* raw_args) {
+      return ConcreteThread::start_thread(start, raw_args);
+    }
+
+    template <class Ty>
+    static internal_handle_type start_thread(Ty&& special_arg,
+                                             thread_routine_t start,
+                                             void* raw_args) {
+      return ConcreteThread::start_thread(forward<Ty>(special_arg), start,
+                                          raw_args);
+    }
+
     template <class ArgTuple, size_t... Indices>
     static decltype(auto) make_call(ArgTuple& arg_tuple,
                                     index_sequence<Indices...>) {
@@ -72,12 +88,33 @@ class worker_thread : public thread_base {
     }
   };
 
+ public:
+  template <class Fn, class... Types>
+  worker_thread(irql_t max_irql, Fn&& fn, Types&&... args) {
+    auto packed_args{
+        pack_fn_with_args(max_irql, forward<Fn>(fn), forward<Types>(args)...)};
+    internal_handle_type thread_handle{
+        accessor::start_thread(get_thread_routine<>(), packed_args.get()
+    )};
+  }
+
+  template <class Fn, class... Types>
+  worker_thread(Fn&& fn, Types&&... args)
+      : worker_thread(PASSIVE_LEVEL, forward<Fn>(fn), forward<Types>(args)...) {
+  }
+
  protected:
-  template <irql_t MaxIrql, class Fn, class... Types>
-  static auto pack_fn_with_args(Fn&& fn, Types&&... args) {
+  template <class Fn, class... Types>
+  static void make_call(Fn&& fn, Types&&... args) {
+    // invoke(forward<Fn>(fn), forward<Types>(args)...);
+  }
+
+ private:
+  template <class Fn, class... Types>
+  static auto pack_fn_with_args(irql_t max_irql, Fn&& fn, Types&&... args) {
     using arg_tuple_t = tuple<decay_t<Fn>, decay_t<Types>...>;
     unique_ptr<arg_tuple_t> packed_args;
-    if constexpr (MaxIrql < DISPATCH_LEVEL) {
+    if (max_irql < DISPATCH_LEVEL) {
       packed_args =
           new (paged_new) arg_tuple_t{forward<Fn>(fn), forward<Types>(args)...};
     } else {
@@ -87,18 +124,12 @@ class worker_thread : public thread_base {
     return packed_args;
   }
 
-  template <class Fn, class... Types>
-  static void make_call(Fn&& fn, Types&&... args) {
-    // invoke(forward<Fn>(fn), forward<Types>(args)...);
-  }
-
   template <class ArgTuple, size_t... Indices>
   static constexpr auto get_thread_routine(
       index_sequence<Indices...>) noexcept {
     return &call_with_unpacked_args<ArgTuple, Indices...>;
   }
 
- private:
   template <class ArgTuple, size_t... Indices>
   static void call_with_unpacked_args(
       void* raw_args,
@@ -113,13 +144,22 @@ class worker_thread : public thread_base {
 // Joinable thread
 class system_thread : th::details::worker_thread<system_thread> {
  public:
-  using MyBase = th::details::worker_thread<system_thread>;
+  using MyBase = worker_thread<system_thread>;
+
+  using MyBase::MyBase;
+
+  bool joinable() const noexcept;
+  void join();
+  void detach();
 
  protected:
+  static internal_handle_type start_thread(thread_routine_t start,
+                                           void* raw_args);
   static void before_exit(NTSTATUS status) noexcept;
   using MyBase::make_call;
 
  private:
+  void verify_joinable() const;
 };
 
 // Joinable thread enables throwing exceptions
@@ -148,7 +188,7 @@ class guarded_system_thread : system_thread {
 // being unloaded before it exits
 class io_thread : th::details::worker_thread<io_thread> {
  public:
-  using MyBase = th::details::worker_thread<io_thread>;
+  using MyBase = worker_thread<io_thread>;
 
  protected:
   static void before_exit() noexcept;
