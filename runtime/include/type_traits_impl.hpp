@@ -314,7 +314,7 @@ using add_const_t = typename add_const<Ty>::type;
 
 template <class Ty>
 add_rvalue_reference_t<Ty> declval() noexcept;  //Только для SFINAE -
-                                                //определение не требуется
+//определение не требуется
 
 namespace tt::details {
 template <class... Types>
@@ -458,15 +458,13 @@ template <class Ty>
 inline constexpr bool is_move_constructible_v =
     is_move_constructible<Ty>::value;
 
-template <class, class Ty, class... Types>
-struct is_nothrow_constructible {
-  static constexpr bool value =
-      is_constructible_v<Ty, Types...>&& noexcept(Ty(declval<Types>()...));
-};
-
 template <class Ty, class... Types>
 inline constexpr bool is_nothrow_constructible_v =
-    is_nothrow_constructible<void_t<>, Ty, Types...>::value;
+    is_constructible_v<Ty, Types...>&& noexcept(Ty(declval<Types>()...));
+
+template <class Ty, class... Types>
+struct is_nothrow_constructible
+    : bool_constant<is_nothrow_constructible_v<Ty, Types...>> {};
 
 template <class Ty>
 struct is_nothrow_copy_constructible {
