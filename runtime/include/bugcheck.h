@@ -21,8 +21,7 @@ namespace crt {
 using bugcheck_code_t = uint32_t;
 using bugcheck_arg_t = int64_t;
 
-inline constexpr auto KTL_FAILURE{
-    static_cast<bugcheck_code_t>(0xEA9B0000)};  // 0xE, ('K' - 'A') % 10, ('T' -
+inline constexpr auto KTL_FAILURE{0xEA9B0000};  // 0xE, ('K' - 'A') % 10, ('T' -
                                                 // 'A') %
                                                 // 10, ('L' - 'A') % 10
 
@@ -43,6 +42,8 @@ enum class BugCheckReason : bugcheck_code_t {
   NoMatchingExceptionHandler,
 
   BufferSecurityCheckFailure,
+
+  DestroyingJoinableThread,
 
   AssertionFailure,
   ForbiddenCall,
