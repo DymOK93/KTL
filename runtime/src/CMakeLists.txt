@@ -34,6 +34,7 @@ add_subdirectory(exc_engine)
 
 wdk_add_library(
 	${RUNTIME_LIB} STATIC 
+		WINVER ${TARGET_WINVER}
 		${KTL_RUNTIME_HEADER_FILES}
 		${KTL_RUNTIME_SOURCE_FILES}
 		EXTENDED_CPP_FEATURES
@@ -78,6 +79,7 @@ target_link_options(
 
 wdk_add_library(
 	${MINIFILTER_LIB} STATIC 
+		WINVER ${TARGET_WINVER}
 		${KTL_RUNTIME_HEADER_FILES}	
 		${KTL_MINIFILTER_RUNTIME_SOURCE_FILES}
 )

@@ -46,7 +46,7 @@ set(TARGET_LIB cpp_interface)
 
 add_library(${TARGET_LIB} INTERFACE)
 target_compile_definitions(
-	${TARGET_LIB}  INTERFACE 
+	${TARGET_LIB} INTERFACE 
 		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  
 )
 target_include_directories(

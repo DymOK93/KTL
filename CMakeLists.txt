@@ -11,6 +11,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 list(APPEND CMAKE_MODULE_PATH ${KTL_DIR}/FindWDK/cmake)
 find_package(WDK REQUIRED)
 
+set(TARGET_WINVER 0x602)
+
 set(
 	BASIC_COMPILE_OPTIONS
 		/MP	# Multiprocessor compilation
