@@ -12,8 +12,6 @@ using std::declval;
 
 using std::integral_constant;
 
-using std::common_type;
-using std::common_type_t;
 using std::conditional;
 using std::conditional_t;
 using std::enable_if;
@@ -28,6 +26,7 @@ using std::add_pointer_t;
 using std::add_rvalue_reference;
 using std::add_rvalue_reference_t;
 using std::decay;
+using std::decay_t;
 using std::remove_all_extents;
 using std::remove_all_extents_t;
 using std::remove_const;
@@ -40,6 +39,9 @@ using std::remove_reference;
 using std::remove_reference_t;
 using std::remove_volatile;
 using std::remove_volatile_t;
+
+using std::common_type;
+using std::common_type_t;
 
 using std::is_constructible;
 using std::is_constructible_v;
@@ -315,36 +317,6 @@ using add_const_t = typename add_const<Ty>::type;
 template <class Ty>
 add_rvalue_reference_t<Ty> declval() noexcept;  //Только для SFINAE -
 //определение не требуется
-
-namespace tt::details {
-template <class... Types>
-struct common_type_impl {};
-
-template <class Ty>
-struct common_type_impl<Ty> {
-  using type = Ty;
-};
-
-template <class Ty1, class Ty2>
-struct common_type_impl<Ty1, Ty2> {
-  using type = decltype(true ? declval<Ty1>() : declval<Ty2>());
-};
-
-template <class Ty1, class Ty2, class... Rest>
-struct common_type_impl<Ty1, Ty2, Rest...> {
-  using type =
-      typename common_type_impl<typename common_type_impl<Ty1, Ty2>::type,
-                                Rest...>::type;
-};
-}  // namespace tt::details
-
-template <class... Types>
-struct common_type {
-  using type = typename tt::details::common_type_impl<Types...>::type;
-};
-
-template <class... Types>
-using common_type_t = typename common_type<Types...>::type;
 
 template <class Ty>
 struct is_empty {
@@ -895,6 +867,36 @@ struct decay {
 
 template <class Ty>
 using decay_t = typename decay<Ty>::type;
+
+namespace tt::details {
+template <class... Types>
+struct common_type_impl {};
+
+template <class Ty>
+struct common_type_impl<Ty> {
+  using type = Ty;
+};
+
+template <class Ty1, class Ty2>
+struct common_type_impl<Ty1, Ty2> {
+  using type = decay_t<decltype(true ? declval<Ty1>() : declval<Ty2>())>;
+};
+
+template <class Ty1, class Ty2, class... Rest>
+struct common_type_impl<Ty1, Ty2, Rest...> {
+  using type =
+      typename common_type_impl<typename common_type_impl<Ty1, Ty2>::type,
+                                Rest...>::type;
+};
+}  // namespace tt::details
+
+template <class... Types>
+struct common_type {
+  using type = typename tt::details::common_type_impl<Types...>::type;
+};
+
+template <class... Types>
+using common_type_t = typename common_type<Types...>::type;
 
 template <class Ty, class ListHead, class... Typelist>
 struct is_in_typelist {
