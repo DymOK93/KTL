@@ -1135,23 +1135,21 @@ void swap(weak_ptr<Ty>& lhs,
   lhs.swap(rhs);
 }
 
-namespace details {
+namespace mm::details {
 template <class Ty, class = void>
-struct is_reference_countable : ktl::false_type {};
+struct is_reference_countable : false_type {};
 
 template <class Ty>
 struct is_reference_countable<
     Ty,
-    ktl::void_t<decltype(intrusive_ptr_add_ref(
-                    ktl::declval<ktl::add_pointer_t<Ty> >())),
-                decltype(intrusive_ptr_release(
-                    ktl::declval<ktl::add_pointer_t<Ty> >()))> >
-    : ktl::true_type {};
+    void_t<decltype(intrusive_ptr_add_ref(declval<add_pointer_t<Ty> >())),
+           decltype(intrusive_ptr_release(declval<add_pointer_t<Ty> >()))> >
+    : true_type {};
 
 template <class Ty>
 inline constexpr bool is_reference_countable_v =
     is_reference_countable<Ty>::value;
-}  // namespace details
+}  // namespace mm::details
 
 template <class Ty>
 class intrusive_ptr {
@@ -1159,7 +1157,7 @@ class intrusive_ptr {
   using element_type = Ty;
 
   static_assert(
-      details::is_reference_countable_v<Ty>,
+      mm::details::is_reference_countable_v<Ty>,
       "Ty must specialize intrusive_ptr_add_ref() and intrusive_ptr_release()");
 
  public:
@@ -1179,7 +1177,7 @@ class intrusive_ptr {
 
   intrusive_ptr(intrusive_ptr&& other) noexcept : m_ptr{other.detach()} {}
 
-  template <class U, ktl::enable_if_t<ktl::is_convertible_v<U, Ty>, int> = 0>
+  template <class U, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
   intrusive_ptr(const intrusive_ptr<U>& other)
       : m_ptr{static_cast<Ty*>(other.get())} {
     if (auto* ptr = get(); ptr) {
@@ -1187,21 +1185,21 @@ class intrusive_ptr {
     }
   }
 
-  template <class U, ktl::enable_if_t<ktl::is_convertible_v<U, Ty>, int> = 0>
-  intrusive_ptr(intrusive_ptr&& other) noexcept
+  template <class U, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
+  intrusive_ptr(intrusive_ptr<U>&& other) noexcept
       : m_ptr{static_cast<Ty*>(other.detach())} {}
 
   ~intrusive_ptr() noexcept { reset(); }
 
   intrusive_ptr& operator=(const intrusive_ptr& other) {
-    if (this != ktl::addressof(other)) {
+    if (this != addressof(other)) {
       intrusive_ptr{other}.swap(*this);
     }
     return *this;
   }
 
   intrusive_ptr& operator=(intrusive_ptr&& other) noexcept {
-    if (this != ktl::addressof(other)) {
+    if (this != addressof(other)) {
       reset(other.detach(), false);
     }
     return *this;
@@ -1215,7 +1213,7 @@ class intrusive_ptr {
 
   template <class U>
   intrusive_ptr& operator=(intrusive_ptr<U>&& other) noexcept {
-    if (this != ktl::addressof(other)) {
+    if (this != addressof(other)) {
       reset(static_cast<Ty*>(other.detach(), false));
     }
     return *this;
@@ -1230,11 +1228,11 @@ class intrusive_ptr {
   void reset(Ty* ptr, bool add_ref) { intrusive_ptr{ptr, add_ref}.swap(*this); }
 
   Ty& operator*() const& noexcept { return *m_ptr; }
-  Ty&& operator*() const&& noexcept { return ktl::move(*m_ptr); }
+  Ty&& operator*() const&& noexcept { return move(*m_ptr); }
   Ty* operator->() const noexcept { return m_ptr; }
   Ty* get() const noexcept { return m_ptr; }
 
-  Ty* detach() noexcept { return ktl::exchange(m_ptr, nullptr); }
+  Ty* detach() noexcept { return exchange(m_ptr, nullptr); }
 
   explicit operator bool() const noexcept { return m_ptr != nullptr; }
 
@@ -1247,7 +1245,7 @@ class intrusive_ptr {
 template <class Ty, class U>
 bool operator==(const intrusive_ptr<Ty>& lhs,
                 const intrusive_ptr<U>& rhs) noexcept {
-  return ktl::equal_to<const Ty*>(lhs.get(), rhs.get());
+  return equal_to<const Ty*>(lhs.get(), rhs.get());
 }
 
 template <class Ty, class U>
