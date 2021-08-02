@@ -1142,8 +1142,10 @@ struct is_reference_countable : false_type {};
 template <class Ty>
 struct is_reference_countable<
     Ty,
-    void_t<decltype(intrusive_ptr_add_ref(declval<add_pointer_t<Ty> >())),
-           decltype(intrusive_ptr_release(declval<add_pointer_t<Ty> >()))> >
+    void_t<decltype(intrusive_ptr_add_ref(
+                    declval<add_pointer_t<Ty> >())),
+                decltype(intrusive_ptr_release(
+                    declval<add_pointer_t<Ty> >()))> >
     : true_type {};
 
 template <class Ty>
@@ -1189,7 +1191,11 @@ class intrusive_ptr {
   intrusive_ptr(intrusive_ptr<U>&& other) noexcept
       : m_ptr{static_cast<Ty*>(other.detach())} {}
 
-  ~intrusive_ptr() noexcept { reset(); }
+  ~intrusive_ptr() noexcept {
+    if (auto* ptr = get(); ptr) {
+      intrusive_ptr_release(ptr);
+    }
+  }
 
   intrusive_ptr& operator=(const intrusive_ptr& other) {
     if (this != addressof(other)) {
@@ -1256,7 +1262,7 @@ bool operator!=(const intrusive_ptr<Ty>& lhs,
 
 template <class Ty>
 bool operator==(const intrusive_ptr<Ty>& lhs, Ty* rhs) noexcept {
-  return ktl::equal_to<const Ty*>(lhs.get(), rhs);
+  return equal_to<const Ty*>(lhs.get(), rhs);
 }
 
 template <class Ty>
@@ -1277,8 +1283,8 @@ bool operator!=(Ty* lhs, intrusive_ptr<Ty> const& rhs) noexcept {
 template <class Ty, class U>
 bool operator<(const intrusive_ptr<Ty>& lhs,
                const intrusive_ptr<U>& rhs) noexcept {
-  using common_ptr_t = ktl::common_type_t<const Ty*, const U*>;
-  return ktl::less<common_ptr_t>(static_cast<common_ptr_t>(lhs.get()),
+  using common_ptr_t = common_type_t<const Ty*, const U*>;
+  return less<common_ptr_t>(static_cast<common_ptr_t>(lhs.get()),
                                  static_cast<common_ptr_t>(rhs.get()));
 }
 
