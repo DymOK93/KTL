@@ -299,12 +299,10 @@ template <irql_t MinIrql = PASSIVE_LEVEL,
           irql_t MaxIrql = HIGH_LEVEL,
           th::details::SpinlockType =
               th::details::spin_lock_selector_v<MinIrql, MaxIrql>>
-struct spin_lock : public th::details::spin_lock_base<
-                       th::details::queued_spin_lock_mixed_policy> {
-  using MyBase =
-      th::details::spin_lock_base<th::details::queued_spin_lock_mixed_policy>;
-  using sync_primitive_t = MyBase::sync_primitive_t;
-  using native_handle_t = MyBase::native_handle_t;
+struct spin_lock :  th::details::spin_lock_base<
+                       th::details::spin_lock_mixed_policy> {
+
+  using MyBase = spin_lock_base<th::details::spin_lock_mixed_policy>;
 
   using MyBase::MyBase;
 
@@ -316,12 +314,9 @@ struct spin_lock : public th::details::spin_lock_base<
 
 template <irql_t MinIrql, irql_t MaxIrql>
 struct spin_lock<MinIrql, MaxIrql, th::details::SpinlockType::ApcSpinLock>
-    : public th::details::spin_lock_base<
-          th::details::queued_spin_lock_apc_policy> {
-  using MyBase =
-      th::details::spin_lock_base<th::details::queued_spin_lock_apc_policy>;
-  using sync_primitive_t = MyBase::sync_primitive_t;
-  using native_handle_t = MyBase::native_handle_t;
+    : th::details::spin_lock_base<th::details::spin_lock_apc_policy> {
+
+  using MyBase = spin_lock_base<th::details::spin_lock_apc_policy>;
 
   using MyBase::MyBase;
 
@@ -333,12 +328,10 @@ struct spin_lock<MinIrql, MaxIrql, th::details::SpinlockType::ApcSpinLock>
 
 template <irql_t MinIrql, irql_t MaxIrql>
 struct spin_lock<MinIrql, MaxIrql, th::details::SpinlockType::DpcSpinLock>
-    : public th::details::spin_lock_base<
-          th::details::queued_spin_lock_dpc_policy> {
+    : th::details::spin_lock_base<
+          th::details::spin_lock_dpc_policy> {
   using MyBase =
-      th::details::spin_lock_base<th::details::queued_spin_lock_dpc_policy>;
-  using sync_primitive_t = MyBase::sync_primitive_t;
-  using native_handle_t = MyBase::native_handle_t;
+      spin_lock_base<th::details::spin_lock_dpc_policy>;
 
   using MyBase::MyBase;
 
