@@ -31,7 +31,7 @@ class thread_base : non_copyable {
   using native_handle_type = PETHREAD;
 
  protected:
-  using internal_handle_type = HANDLE;
+  using internal_object_type = void*;  // Due to problems with <ntifs.h>
 
  public:
   thread_base(thread_base&& other) noexcept;
@@ -41,21 +41,25 @@ class thread_base : non_copyable {
   void swap(thread_base& other) noexcept;
 
   [[nodiscard]] id get_id() const noexcept;
-  [[nodiscard]] native_handle_type native_handle() const noexcept;
+
+  [[nodiscard]] native_handle_type native_handle() const noexcept {
+    return static_cast<native_handle_type>(
+        m_thread);  // The real type of PETHREAD depends on included headers
+                    // (<ntifs.h>, <fltkrnel.h>)
+  }
 
   static uint32_t hardware_concurrency() noexcept;
 
  protected:
   constexpr thread_base() noexcept = default;
-  thread_base(native_handle_type thread_obj);
+  thread_base(internal_object_type thread_obj);
 
   void destroy() noexcept;
 
-  static native_handle_type try_obtain_thread_object(
-      internal_handle_type handle) noexcept;
+  static internal_object_type try_obtain_thread_object(HANDLE handle) noexcept;
 
  private:
-  native_handle_type m_thread{};
+  internal_object_type m_thread{};
 };
 
 template <class ConcreteThread>
@@ -173,20 +177,20 @@ class system_thread : public th::details::worker_thread<system_thread> {
 
  private:
   template <class Fn, class... Types>
-  static native_handle_type create_thread(irql_t max_irql,
-                                          Fn&& fn,
-                                          Types&&... args) {
+  static internal_object_type create_thread(irql_t max_irql,
+                                            Fn&& fn,
+                                            Types&&... args) {
     auto packed_args{
         pack_fn_with_args(max_irql, forward<Fn>(fn), forward<Types>(args)...)};
-    native_handle_type thread_obj{create_thread_impl(
+    auto thread_obj{create_thread_impl(
         get_thread_routine<decltype(packed_args)::element_type>(),
         packed_args.get())};
     packed_args.release();
     return thread_obj;
   }
 
-  static native_handle_type create_thread_impl(thread_routine_t start,
-                                               void* raw_args);
+  static internal_object_type create_thread_impl(thread_routine_t start,
+                                                 void* raw_args);
 
   void verify_joinable() const;
 };
@@ -262,13 +266,13 @@ class io_thread : th::details::worker_thread<io_thread> {
 
  private:
   template <class Fn, class... Types>
-  static native_handle_type create_thread(io_object io_obj,
-                                          irql_t max_irql,
-                                          Fn&& fn,
-                                          Types&&... args) {
+  static internal_object_type create_thread(io_object io_obj,
+                                            irql_t max_irql,
+                                            Fn&& fn,
+                                            Types&&... args) {
     auto packed_args{
         pack_fn_with_args(max_irql, forward<Fn>(fn), forward<Types>(args)...)};
-    native_handle_type thread_obj{create_thread_impl(
+    auto thread_obj{create_thread_impl(
         io_obj.object,
         get_thread_routine<decltype(packed_args)::element_type>(),
         packed_args.get())};
@@ -276,9 +280,9 @@ class io_thread : th::details::worker_thread<io_thread> {
     return thread_obj;
   }
 
-  static native_handle_type create_thread_impl(void* io_object,
-                                               thread_routine_t start,
-                                               void* raw_args);
+  static internal_object_type create_thread_impl(void* io_object,
+                                                 thread_routine_t start,
+                                                 void* raw_args);
 };
 #endif
 }  // namespace ktl
