@@ -8,6 +8,7 @@ using std::unique_ptr;
 using std::weak_ptr;
 }  // namespace ktl
 #else
+#include <crt_attributes.h>
 #include <exception.h>
 #include <heap.h>
 #include <allocator.hpp>
@@ -466,13 +467,21 @@ class ref_counter_with_deleter
       is_nothrow_constructible_v<Deleter, Dx>)
       : MyBase(one_then_variadic_args{}, forward<Dx>(deleter), ptr) {}
 
+  ref_counter_with_deleter& operator=(Ty* ptr) noexcept {
+    MyBase::get_second() = ptr;
+    return *this;
+  }
+
+  Ty* get_ptr() noexcept { return MyBase::get_second(); }
+  deleter_type& get_deleter() noexcept { return MyBase::get_first(); }
+
  protected:
   void destroy_object_impl() noexcept {
-    DestroyObjectPolicy::Apply(MyBase::get_second(), MyBase::get_first());
+    DestroyObjectPolicy::Apply(get_ptr(), get_deleter());
   }
 
   void delete_this_impl() noexcept {
-    DeleteItselfPolicy::Apply<Ty>(this, MyBase::get_first());
+    DeleteItselfPolicy::Apply<Ty>(this, get_deleter());
   }
 };
 
@@ -530,31 +539,26 @@ class ref_counter_with_deleter_and_alloc
             storage_type{one_then_variadic_args{}, forward<Dx>(deleter), ptr}) {
   }
 
-  // const deleter_type& get_deleter() const noexcept {
-  //  return this->m_storage.get_first().get_first();
-  //}
+  ref_counter_with_deleter_and_alloc& operator=(Ty* ptr) noexcept {
+    MyBase::get_second().get_second() = ptr;
+    return *this;
+  }
 
-  // deleter_type& get_deleter() noexcept {
-  //  return this->m_storage.get_first().get_first();
-  //}
+  Ty* get_ptr() noexcept { return MyBase::get_second().get_second(); }
 
-  // const allocator_type& get_allocator() const noexcept {
-  //  return this->m_storage.get_first().get_second();
-  //}
+  deleter_type& get_deleter() noexcept {
+    return MyBase::get_second().get_first();
+  }
 
-  // allocator_type& get_allocator() noexcept {
-  //  return this->m_storage.get_first().get_second();
-  //}
+  allocator_type& get_allocator() noexcept { return MyBase::get_first(); }
 
  protected:
   void destroy_object_impl() noexcept {
-    DestroyObjectPolicy::Apply(MyBase::get_second().get_second(),
-                               MyBase::get_second().get_first());
+    DestroyObjectPolicy::Apply(get_ptr(), get_deleter());
   }
 
   void delete_this_impl() noexcept {
-    DeleteItselfPolicy::Apply<Ty>(MyBase::get_second().get_second(),
-                                  MyBase::get_first());
+    DeleteItselfPolicy::Apply<Ty>(get_ptr(), get_allocator());
   }
 };
 
@@ -571,10 +575,21 @@ struct DestroyObjectWithDeleter {
   }
 };
 
+struct DestroyObjectInPlace {
+  template <class Ty, class Deleter>
+  static void Apply(Ty* target, [[maybe_unused]] Deleter& deleter) {
+    if (target) {
+      destroy_at(target);
+    }
+  }
+};
+
 struct DestroyObjectWithAllocator {
   template <class Ty, class Alloc>
   static void Apply(Ty* target, Alloc& alloc) {
-    allocator_traits<Alloc>::destroy(alloc, target);
+    if (target) {
+      allocator_traits<Alloc>::destroy(alloc, target);
+    }
   }
 };
 
@@ -596,7 +611,16 @@ struct DeallocateItself {
   }
 };
 
-struct DestroyObjectAndItself {
+struct DestroyItselfAndDeleteAll {
+  template <class Ty, class RefCounter, class Deleter>
+  static void Apply(RefCounter* ref_counter,
+                    [[maybe_unused]] Deleter& deleter) {
+    destroy_at(ref_counter);
+    operator delete(ref_counter);
+  }
+};
+
+struct DestroyItselfAndDeallocateAll {
   template <class Ty, class RefCounter, class Alloc>
   static void Apply(RefCounter* ref_counter, Alloc& allocator) {
     auto alloc{move(allocator)};
@@ -796,6 +820,10 @@ class shared_ptr
   using element_type = typename MyBase::element_type;
   using pointer = element_type*;
   using weak_type = weak_ptr<Ty>;
+
+ private:
+  template <class ControlBlock>
+  using placeholder_type = pair<ControlBlock, Ty>;
 
  public:
   constexpr shared_ptr() noexcept = default;
@@ -1193,49 +1221,62 @@ shared_ptr(unique_ptr<Ty, Dx>) -> shared_ptr<Ty>;
 
 template <class Ty, class... Types>
 shared_ptr<Ty> make_shared(Types&&... args) {
-  using ref_counter_base = mm::details::ref_counter_with_destroy_only<Ty>;
-  constexpr size_t summary_size{sizeof(Ty) + sizeof(ref_counter_base)};
-  auto* memory_block{operator new(summary_size)};
-  Ty* object_ptr{reinterpret_cast<Ty*>(static_cast<byte*>(memory_block) +
-                                       sizeof(ref_counter_base))};
-  shared_ptr<Ty> sptr(object_ptr,
-                      new (memory_block) ref_counter_base(
-                          object_ptr));  //Конструирование ref_counter'a
-  construct_at(object_ptr, forward<Types>(args)...);
-  return sptr;
+  using ref_counter_t = mm::details::ref_counter_with_deleter<
+      Ty, mm::details::default_delete<Ty>, mm::details::DestroyObjectInPlace,
+      mm::details::DestroyItselfAndDeleteAll>;
+  using placeholder_type =
+      typename shared_ptr<Ty>::placeholder_type<ref_counter_t>;
+  using placeholder_storage_type =
+      aligned_storage_t<sizeof(placeholder_type), alignof(placeholder_type)>;
+
+  auto placeholder_guard{make_unique<placeholder_storage_type>()};
+
+  auto* storage{placeholder_guard.get()};
+  const size_t value_offset{offsetof(placeholder_type, second)};
+  auto* raw_value_ptr{reinterpret_cast<byte*>(storage) + value_offset};
+  auto* value_ptr{reinterpret_cast<Ty*>(raw_value_ptr)};
+
+  construct_at(value_ptr, forward<Types>(args)...);
+  auto* ref_counter_ptr{reinterpret_cast<ref_counter_t*>(storage)};
+  construct_at(ref_counter_ptr, value_ptr);
+
+  placeholder_guard.release();
+
+  return shared_ptr(value_ptr, ref_counter_ptr);
 }
 
 template <class Ty, class Alloc, class... Types>
 shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
-  using AlTy = remove_reference_t<Alloc>;
-  static_assert(is_same_v<remove_reference_t<Ty>,
-                          typename allocator_traits<
-                              AlTy>::value_type>,  //Аллокатор должен работать
-                                                   //с объектами типа Ty
-                "Ty and Alloc::value_type must be same");
+  using allocator_type = remove_reference_t<Alloc>;
+  using allocator_traits_type = allocator_traits<allocator_type>;
+  using ref_counter_t = mm::details::ref_counter_with_deleter<
+      Ty, allocator_type, mm::details::DestroyObjectWithAllocator,
+      mm::details::DestroyItselfAndDeallocateAll>;
+  using placeholder_type =
+      typename shared_ptr<Ty>::placeholder_type<ref_counter_t>;
+  using placeholder_storage_type =
+      aligned_storage_t<sizeof(placeholder_type), alignof(placeholder_type)>;
 
-  using ref_counter_t =
-      mm::details::ref_counter_with_allocator_deallocate_all<Ty, AlTy>;
+  constexpr size_t bytes_count{sizeof(placeholder_storage_type)};
+  unique_ptr placeholder_guard{
+      reinterpret_cast<placeholder_storage_type*>(
+          allocator_traits_type::allocate_bytes(alloc, bytes_count)),
+      [&alloc, bytes_count](placeholder_storage_type* target) {
+        allocator_traits_type::deallocate_bytes(alloc, target, bytes_count);
+      }};
 
-  static constexpr size_t x = sizeof(
-      mm::details::ref_counter_with_deleter_and_alloc<
-          int, mm::details::default_delete<int>, basic_non_paged_allocator<int>,
-          mm::details::DestroyObjectWithDeleter, mm::details::DeleteItself>);
+  const size_t value_offset{offsetof(placeholder_type, second)};
+  auto* raw_value_ptr{reinterpret_cast<byte*>(placeholder_guard.get()) +
+                      value_offset};
+  auto* value_ptr{reinterpret_cast<Ty*>(raw_value_ptr)};
+  auto* ref_counter_ptr{
+      reinterpret_cast<ref_counter_t*>(placeholder_guard.get())};
+  construct_at(ref_counter_ptr, value_ptr, forward<Alloc>(alloc));
+  allocator_traits_type::construct(ref_counter_ptr->get_deleter(), value_ptr,
+                                   forward<Types>(args)...);
+  placeholder_guard.release();
 
-  constexpr size_t summary_size{sizeof(Ty) + sizeof(ref_counter_base)};
-  auto* memory_block{allocator_traits<AlTy>::allocate_bytes(
-      alloc, summary_size)};  // Alloc должен предоставить allocate_bytes()
-  Ty* object_ptr{reinterpret_cast<Ty*>(static_cast<byte*>(memory_block) +
-                                       sizeof(ref_counter_base))};
-
-  auto* ref_counter{construct_at(static_cast<ref_counter_base*>(memory_block),
-                                 object_ptr, forward<Alloc>(alloc))};
-
-  shared_ptr<Ty> sptr(object_ptr, ref_counter);
-  allocator_traits<AlTy>::construct(ref_counter->get_alloc(), object_ptr,
-                                    forward<Types>(args)...);
-
-  return sptr;
+  return shared_ptr(value_ptr, ref_counter_ptr);
 }
 
 template <class Ty, class Deleter>
