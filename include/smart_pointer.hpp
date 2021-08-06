@@ -578,14 +578,15 @@ struct DestroyObjectWithAllocator {
   }
 };
 
-struct ScalarDeleteInself {
+struct DeleteItself {
   template <class Ty, class RefCounter, class Deleter>
-  static void Apply(RefCounter* ref_counter, Deleter& deleter) {
+  static void Apply(RefCounter* ref_counter,
+                    [[maybe_unused]] Deleter& deleter) {
     delete ref_counter;
   }
 };
 
-struct DeallocateInself {
+struct DeallocateItself {
   template <class Ty, class RefCounter, class Alloc>
   static void Apply(RefCounter* ref_counter, Alloc& allocator) {
     auto alloc{move(allocator)};
@@ -961,14 +962,14 @@ class shared_ptr
  private:
   template <class U>
   static ref_counter_base* make_default_ref_counter(U* ptr, true_type) {
-    return make_ref_counter_impl(unique_ptr<U[]>{}, ptr,
-                                 mm::details::default_delete<U[]>{});
+    return make_ref_counter(unique_ptr<U[]>{}, ptr,
+                            mm::details::default_delete<U[]>{});
   }
 
   template <class U>
   static ref_counter_base* make_default_ref_counter(U* ptr, false_type) {
-    return make_ref_counter_impl(unique_ptr<U>{}, ptr,
-                                 mm::details::default_delete<U>{});
+    return make_ref_counter(unique_ptr<U>{}, ptr,
+                            mm::details::default_delete<U>{});
   }
 
   template <class Guard, class U, class Deleter>
@@ -980,10 +981,10 @@ class shared_ptr
     ref_counter_base* ref_counter{nullptr};
     if (ptr) {
       temporary_guard.reset(ptr);
-      ref_counter = new ref_counter_with_deleter<U, remove_reference_t<Deleter>,
-                                                 DestroyObjectWithDeleter,
-                                                 DeallocateInself>(
-          pt, forward<Deleter>(dx));
+      ref_counter =
+          new ref_counter_with_deleter<U, remove_reference_t<Deleter>,
+                                       DestroyObjectWithDeleter, DeleteItself>(
+              ptr, forward<Deleter>(dx));
       temporary_guard.release();
     }
     return ref_counter;
@@ -1017,7 +1018,7 @@ class shared_ptr
 
     using ref_counter_t = mm::details::ref_counter_with_deleter_and_alloc<
         U, remove_reference_t<Deleter>, remove_reference_t<Alloc>,
-        mm::details::DestroyObjectWithDeleter, mm::details::DeallocateInself>;
+        mm::details::DestroyObjectWithDeleter, mm::details::DeallocateItself>;
     constexpr auto REF_COUNTER_SIZE{
         static_cast<size_type>(sizeof(ref_counter_t))};
 
