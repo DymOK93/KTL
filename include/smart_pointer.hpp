@@ -394,24 +394,33 @@ class ref_counter_base {
 
 template <class Ty,
           class Deleter,  // Deleter or Allocator
-          class DestroyObjectPolicy,
-          class DeleteItselfPolicy>
-class ref_counter_with_deleter : public ref_counter_base {
+          class ConcreteRefCounter>
+class ref_counter_with_storage : public ref_counter_base {
+  struct accessor : ConcreteRefCounter {
+    static void destroy_object(ConcreteRefCounter& ref_counter) noexcept {
+      auto fn_ptr{&ConcreteRefCounter::destroy_object_impl};
+      (ref_counter.*fn_ptr)();
+    }
+
+    static void delete_this(ConcreteRefCounter& ref_counter) noexcept {
+      auto fn_ptr{&ConcreteRefCounter::delete_this_impl};
+      (ref_counter.*fn_ptr)();
+    }
+  };
+
  public:
-  constexpr ref_counter_with_deleter() = default;
+  constexpr ref_counter_with_storage() = default;
 
   template <class Dx = Deleter,
             enable_if_t<is_default_constructible_v<Dx>, int> = 0>
-  ref_counter_with_deleter(Ty* ptr) noexcept(
+  ref_counter_with_storage(Ty* ptr) noexcept(
       is_nothrow_default_constructible_v<Dx>)
       : m_storage{zero_then_variadic_args{}, ptr} {}
 
   template <class Dx>
-  ref_counter_with_deleter(Ty* ptr, Dx&& deleter) noexcept(
+  ref_counter_with_storage(Ty* ptr, Dx&& deleter) noexcept(
       is_nothrow_constructible_v<Deleter, Dx>)
       : m_storage{one_then_variadic_args{}, forward<Dx>(deleter), ptr} {}
-
-  ref_counter_with_deleter(Ty* ptr) noexcept : m_ptr{ptr} {}
 
   Ty* get_ptr() const noexcept { return m_storage.get_second(); }
 
@@ -423,17 +432,53 @@ class ref_counter_with_deleter : public ref_counter_base {
   Deleter& get_deleter() noexcept { return m_storage.get_first(); }
 
  private:
-  void destroy_object() noexcept override {
-    DestroyObjectPolicy::Apply(
-        get_ptr(), get_deleter());  // TODO: разрулить политики через CRTP
+  void destroy_object() noexcept final {
+    accessor::destroy_object(get_context());
   }
 
-  void delete_this() noexcept override {
+  void delete_this() noexcept final { accessor::delete_this(get_context()); }
+
+  ConcreteRefCounter& get_context() noexcept {
+    return static_cast<ConcreteRefCounter&>(*this);
+  }
+
+ protected:
+  compressed_pair<Deleter, Ty*> m_storage{};
+};
+
+template <class Ty,
+          class Deleter,
+          class DestroyObjectPolicy,
+          class DeleteItselfPolicy>
+class ref_counter_with_deleter
+    : public ref_counter_with_storage<
+          Ty,
+          Deleter,
+          ref_counter_with_deleter<Ty,
+                                   Deleter,
+                                   DestroyObjectPolicy,
+                                   DeleteItselfPolicy> > {
+ public:
+  using MyBase =
+      ref_counter_with_storage<Ty,
+                               Deleter,
+                               ref_counter_with_deleter<Ty,
+                                                        Deleter,
+                                                        DestroyObjectPolicy,
+                                                        DeleteItselfPolicy> >;
+  using deleter_type = Deleter;
+
+ public:
+  using MyBase::MyBase;
+
+ protected:
+  void destroy_object_impl() noexcept {
+    DestroyObjectPolicy::Apply(MyBase::get_ptr(), get_deleter());
+  }
+
+  void delete_this_impl() noexcept {
     DeleteItselfPolicy::Apply<Ty>(this, get_deleter());
   }
-
- private:
-  compressed_pair<Deleter, Ty*> m_storage{};
 };
 
 template <class Ty,
@@ -441,52 +486,76 @@ template <class Ty,
           class Alloc,
           class DestroyObjectPolicy,
           class DeleteItselfPolicy>
-class ref_counter_with_alloc
-    : public ref_counter_with_deleter<Ty,
-                                      Deleter,
-                                      DestroyObjectPolicy,
-                                      DeleteItselfPolicy> {
+class ref_counter_with_deleter_and_alloc
+    : public ref_counter_with_storage<
+          Ty,
+          compressed_pair<Deleter, Alloc>,
+          ref_counter_with_deleter_and_alloc<Ty,
+                                             Deleter,
+                                             Alloc,
+                                             DestroyObjectPolicy,
+                                             DeleteItselfPolicy> > {
  public:
-  using MyBase = ref_counter_with_deleter<Ty,
-                                          Deleter,
-                                          DestroyObjectPolicy,
-                                          DeleteItselfPolicy>;
+  using MyBase = ref_counter_with_storage<
+      Ty,
+      compressed_pair<Deleter, Alloc>,
+      ref_counter_with_deleter_and_alloc<Ty,
+                                         Deleter,
+                                         Alloc,
+                                         DestroyObjectPolicy,
+                                         DeleteItselfPolicy> >;
+  using deleter_type = Deleter;
   using allocator_type = Alloc;
 
+ private:
+  using storage_type = compressed_pair<Deleter, Alloc>;
+
  public:
-  constexpr ref_counter_with_alloc() = default;
+  constexpr ref_counter_with_deleter_and_alloc() = default;
 
   template <class Dx = Deleter,
             class Alc = Alloc,
             enable_if_t<is_default_constructible_v<Dx> &&
                             is_default_constructible_v<Alc>,
                         int> = 0>
-  ref_counter_with_alloc(Ty* ptr) noexcept(
+  ref_counter_with_deleter_and_alloc(Ty* ptr) noexcept(
       is_nothrow_default_constructible_v<Dx>&&
           is_nothrow_default_constructible_v<Alc>)
       : MyBase(ptr) {}
 
   template <class Dx, class Alc>
-  ref_counter_with_alloc(Ty* ptr, Dx&& deleter, Alc&& alloc) noexcept(
-      is_nothrow_constructible_v<Deleter, Dx>)
-      : MyBase(ptr, forward<Dx>(deleter)), m_alloc(forward<Alc>(alloc)) {}
+  ref_counter_with_deleter_and_alloc(
+      Ty* ptr,
+      Dx&& deleter,
+      Alc&& alloc) noexcept(is_nothrow_constructible_v<Deleter, Dx>)
+      : MyBase(ptr,
+               storage_type{one_then_variadic_args{}, forward<Dx>(deleter),
+                            forward<Alc>(alloc)}) {}
 
-  const Alloc& get_allocator() const noexcept { return m_alloc; }
-  Alloc& get_allocator() noexcept { return m_alloc; }
+  const deleter_type& get_deleter() const noexcept {
+    return this->m_storage.get_first().get_first();
+  }
 
-  using MyBase::get_deleter;
+  deleter_type& get_deleter() noexcept {
+    return this->m_storage.get_first().get_first();
+  }
+
+  const allocator_type& get_allocator() const noexcept {
+    return this->m_storage.get_first().get_second();
+  }
+
+  allocator_type& get_allocator() noexcept {
+    return this->m_storage.get_first().get_second();
+  }
 
  protected:
-  void destroy_object() noexcept override {
-    DestroyObjectPolicy::Apply(MyBase::get_ptr(), get_deleter());
+  void destroy_object_impl() noexcept {
+    DestroyObjectPolicy::Apply(get_ptr(), get_deleter());
   }
 
-  void delete_this() noexcept override {
+  void delete_this_impl() noexcept {
     DeleteItselfPolicy::Apply<Ty>(this, get_allocator());
   }
-
- private:
-  allocator_type m_alloc;
 };
 
 struct DestroyObjectWithDeleter {
@@ -946,7 +1015,7 @@ class shared_ptr
     using allocator_traits_type = allocator_traits<Alloc>;
     using size_type = allocator_traits_type::size_type;
 
-    using ref_counter_t = mm::details::ref_counter_with_alloc<
+    using ref_counter_t = mm::details::ref_counter_with_deleter_and_alloc<
         U, remove_reference_t<Deleter>, remove_reference_t<Alloc>,
         mm::details::DestroyObjectWithDeleter, mm::details::DeallocateInself>;
     constexpr auto REF_COUNTER_SIZE{
