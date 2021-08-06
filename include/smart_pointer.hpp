@@ -558,7 +558,7 @@ class ref_counter_with_deleter_and_alloc
   }
 
   void delete_this_impl() noexcept {
-    DeleteItselfPolicy::Apply<Ty>(get_ptr(), get_allocator());
+    DeleteItselfPolicy::Apply<Ty>(this, get_allocator());
   }
 };
 
@@ -1249,6 +1249,9 @@ template <class Ty, class Alloc, class... Types>
 shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
   using allocator_type = remove_reference_t<Alloc>;
   using allocator_traits_type = allocator_traits<allocator_type>;
+  static_assert(is_same_v<Ty, typename allocator_traits_type::value_type>,
+                "Alloc must be able to destroy Ty");
+
   using ref_counter_t = mm::details::ref_counter_with_deleter<
       Ty, allocator_type, mm::details::DestroyObjectWithAllocator,
       mm::details::DestroyItselfAndDeallocateAll>;
