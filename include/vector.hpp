@@ -178,7 +178,11 @@ class vector {
     return *this;
   }
 
-  vector& operator=(vector&& other) {
+  // If POCMA is true_type, allocator_type must satisfy MoveAssignable and the
+  // move operation must not throw exceptions
+  vector& operator=(vector&& other) noexcept(
+      allocator_traits_type::propagate_on_container_move_assignment::value ||
+      allocator_traits_type::is_always_equal::value) {
     using propagate_on_move_assignment_t =
         typename allocator_traits_type::propagate_on_container_move_assignment;
     if (addressof(other) != this) {
@@ -503,7 +507,7 @@ class vector {
     assign_range<false>(other.begin(), other.end(), true_type{});
   }
 
-  void move_assignment_impl(vector&& other, true_type) {
+  void move_assignment_impl(vector&& other, true_type) noexcept {
     destroy_and_deallocate();
     get_alloc() = move(other.get_alloc());
     m_impl.get_second() = move(other.m_impl.get_second());
