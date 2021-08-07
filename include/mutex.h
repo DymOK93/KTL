@@ -1,9 +1,9 @@
 #pragma once
 #include <basic_types.h>
 #include <irql.h>
-#include <atomic.hpp>
 #include <chrono.hpp>
 #include <compressed_pair.hpp>
+#include <limits.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
@@ -15,31 +15,32 @@ template <class SyncPrimitive>
 class sync_primitive_base : non_relocatable {
  public:
   using sync_primitive_t = SyncPrimitive;
-  using native_handle_t = sync_primitive_t*;
-
- public:
-  native_handle_t native_handle() noexcept { return addressof(m_native_sp); }
+  using native_handle_type = sync_primitive_t*;
 
  protected:
   sync_primitive_base() = default;
 
-  native_handle_t get_non_const_native_handle() const noexcept {
-    return const_cast<native_handle_t>(addressof(m_native_sp));
+  [[nodiscard]] native_handle_type get_non_const_native_handle()
+      const noexcept {
+    return const_cast<native_handle_type>(addressof(m_native_sp));
   }
+
+ public:
+  native_handle_type native_handle() noexcept { return addressof(m_native_sp); }
 
  protected:
   SyncPrimitive m_native_sp;
 };
 
 template <class SyncPrimitive>
-class waitable_sync_primitive
+class awaitable_sync_primitive
     : public sync_primitive_base<SyncPrimitive> {  //Примитивы синхронизации,
                                                    //поддерживающие ожидание с
                                                    //таймером
  public:
   using MyBase = th::details::sync_primitive_base<KMUTEX>;
-  using sync_primitive_t = typename MyBase::sync_primitive_t;
-  using native_handle_t = typename MyBase::native_handle_t;
+  using sync_primitive_t = MyBase::sync_primitive_t;
+  using native_handle_type = MyBase::native_handle_type;
   using duration_t = chrono::duration_t;
 
  protected:
@@ -63,11 +64,10 @@ class waitable_sync_primitive
 }  // namespace th::details
 
 class recursive_mutex
-    : public th::details::waitable_sync_primitive<KMUTEX> {  // Recursive KMUTEX
+    : public th::details::awaitable_sync_primitive<KMUTEX> {  // Recursive
+                                                              // KMUTEX
  public:
-  using MyBase = th::details::waitable_sync_primitive<KMUTEX>;
-  using sync_primitive_t = typename MyBase::sync_primitive_t;
-  using native_handle_t = typename MyBase::native_handle_t;
+  using MyBase = th::details::awaitable_sync_primitive<KMUTEX>;
 
  public:
   recursive_mutex() { KeInitializeMutex(native_handle(), 0); }
@@ -76,32 +76,23 @@ class recursive_mutex
   void unlock() { KeReleaseMutex(MyBase::native_handle(), false); }
 };
 
-class timed_recursive_mutex : public recursive_mutex {  //Блокировка с таймером
- public:
+struct timed_recursive_mutex : recursive_mutex {  // Locking with timeout
   using MyBase = recursive_mutex;
-  using sync_primitive_t = typename MyBase::sync_primitive_t;
-  using native_handle_t = typename MyBase::native_handle_t;
-  using duration_t = typename MyBase::duration_t;
 
- public:
   using MyBase::MyBase;
 
   bool try_lock_for(duration_t timeout_duration) {
-    return MyBase::try_timed_lock(timeout_duration);
+    return try_timed_lock(timeout_duration);
   }
 };
 
-class fast_mutex
-    : public th::details::sync_primitive_base<FAST_MUTEX> {  // Implemented
-                                                             // using
-                                                             // non-recursive
-                                                             // FAST_MUTEX
- public:
-  using MyBase = th::details::sync_primitive_base<FAST_MUTEX>;
-  using sync_primitive_t = typename MyBase::sync_primitive_t;
-  using native_handle_t = typename MyBase::native_handle_t;
+struct fast_mutex
+    : th::details::sync_primitive_base<FAST_MUTEX> {  // Implemented
+                                                      // using
+                                                      // non-recursive
+                                                      // FAST_MUTEX
+  using MyBase = sync_primitive_base<FAST_MUTEX>;
 
- public:
   fast_mutex() { ExInitializeFastMutex(MyBase::native_handle()); }
 
   void lock() { ExAcquireFastMutex(MyBase::native_handle()); }
@@ -109,20 +100,16 @@ class fast_mutex
   void unlock() { ExReleaseFastMutex(MyBase::native_handle()); }
 };
 
-class shared_mutex
-    : public th::details::sync_primitive_base<ERESOURCE> {  // Wrapper for
-                                                            // ERESOURCE
+struct shared_mutex
+    : th::details::sync_primitive_base<ERESOURCE> {  // Wrapper for
+                                                     // ERESOURCE
 
- public:
-  using MyBase = th::details::sync_primitive_base<ERESOURCE>;
-  using sync_primitive_t = typename MyBase::sync_primitive_t;
-  using native_handle_t = typename MyBase::native_handle_t;
+  using MyBase = sync_primitive_base<ERESOURCE>;
 
- public:
   shared_mutex() { ExInitializeResourceLite(native_handle()); }
   ~shared_mutex() { ExDeleteResourceLite(native_handle()); }
 
-  void lock() {  //Вход в критическую секцию
+  void lock() {
     ExEnterCriticalRegionAndAcquireResourceExclusive(native_handle());
   }
 
@@ -130,9 +117,7 @@ class shared_mutex
     ExEnterCriticalRegionAndAcquireResourceShared(native_handle());
   }
 
-  void unlock() {  //Выход из критической секции
-    ExReleaseResourceAndLeaveCriticalRegion(native_handle());
-  }
+  void unlock() { ExReleaseResourceAndLeaveCriticalRegion(native_handle()); }
 
   void unlock_shared() {
     ExReleaseResourceAndLeaveCriticalRegion(native_handle());
@@ -144,164 +129,101 @@ template <class LockPolicy>
 class spin_lock_base : non_relocatable {
  public:
   using sync_primitive_t = KSPIN_LOCK;
-  using native_handle_t = sync_primitive_t*;
+  using native_handle_type = sync_primitive_t*;
+
+ private:
+  static_assert(is_nothrow_default_constructible_v<LockPolicy>,
+                "LockPolicy must by nothrow default constructible");
 
  public:
   spin_lock_base() noexcept { KeInitializeSpinLock(native_handle()); }
 
-  void lock() noexcept { m_lock.get_first().lock(m_lock.get_second()); }
-  void unlock() noexcept { m_lock.get_first().unlock(m_lock.get_second()); }
-
-  native_handle_t native_handle() noexcept {
+  native_handle_type native_handle() noexcept {
     return addressof(m_lock.get_second());
   }
 
- private:
+ protected:
   compressed_pair<LockPolicy, KSPIN_LOCK> m_lock;
 };
 
-class spin_lock_capture_irql_policy_base {
+enum class SpinlockType { Apc, Dpc, Mixed };
+
+template <SpinlockType Type>
+class spin_lock_policy_base {
  protected:
-  irql_t m_prev_irql;
+  mutable irql_t m_prev_irql{};
 };
 
-class spin_lock_apc_policy : spin_lock_capture_irql_policy_base {
- public:
-  void lock(KSPIN_LOCK& target) noexcept {
-    KeAcquireSpinLock(addressof(target), addressof(m_prev_irql));
-  }
+template <>
+class spin_lock_policy_base<SpinlockType::Dpc> {};
 
-  void unlock(KSPIN_LOCK& target) noexcept {
-    KeReleaseSpinLock(addressof(target), m_prev_irql);
-  }
+template <SpinlockType Type>
+struct spin_lock_policy : spin_lock_policy_base<Type> {
+  void lock(KSPIN_LOCK& target) const noexcept;
+  void unlock(KSPIN_LOCK& target) const noexcept;
 };
 
-struct spin_lock_dpc_policy {
-  void lock(KSPIN_LOCK& target) noexcept {
-    KeAcquireSpinLockAtDpcLevel(addressof(target));
-  }
-
-  void unlock(KSPIN_LOCK& target) noexcept {
-    KeReleaseSpinLockFromDpcLevel(addressof(target));
-  }
+template <SpinlockType Type>
+struct queued_spin_lock_policy {
+  void lock(KSPIN_LOCK& target,
+            KLOCK_QUEUE_HANDLE& queue_handle) const noexcept;
+  void unlock(KLOCK_QUEUE_HANDLE& queue_handle) const noexcept;
 };
 
-struct spin_lock_mixed_policy : spin_lock_capture_irql_policy_base {
-  void lock(KSPIN_LOCK& target) noexcept {
-    if (auto irql = get_current_irql(); irql < DISPATCH_LEVEL) {
-      KeAcquireSpinLock(addressof(target), addressof(m_prev_irql));
-    } else {
-      KeAcquireSpinLockAtDpcLevel(addressof(target));
-      m_prev_irql = irql;
-    }
-  }
-
-  void unlock(KSPIN_LOCK& target) noexcept {
-    if (m_prev_irql < DISPATCH_LEVEL) {
-      KeReleaseSpinLock(addressof(target), m_prev_irql);
-    } else {
-      KeReleaseSpinLockFromDpcLevel(addressof(target));
-    }
-  }
-};
-
-class queued_spin_lock_policy_base {
- protected:
-  KLOCK_QUEUE_HANDLE m_queue_handle;
-};
-
-struct queued_spin_lock_apc_policy : queued_spin_lock_policy_base {
-  void lock(KSPIN_LOCK& target) noexcept {
-    KeAcquireInStackQueuedSpinLock(addressof(target),
-                                   addressof(m_queue_handle));
-  }
-
-  void unlock([[maybe_unused]] KSPIN_LOCK& target) noexcept {
-    KeReleaseInStackQueuedSpinLock(addressof(m_queue_handle));
-  }
-};
-
-struct queued_spin_lock_dpc_policy : queued_spin_lock_policy_base {
-  void lock(KSPIN_LOCK& target) noexcept {
-    KeAcquireInStackQueuedSpinLockAtDpcLevel(addressof(target),
-                                             addressof(m_queue_handle));
-  }
-
-  void unlock([[maybe_unused]] KSPIN_LOCK& target) noexcept {
-    KeReleaseInStackQueuedSpinLockFromDpcLevel(addressof(m_queue_handle));
-  }
-};
-
-struct queued_spin_lock_mixed_policy : queued_spin_lock_policy_base,
-                                       spin_lock_capture_irql_policy_base {
-  void lock(KSPIN_LOCK& target) noexcept {
-    auto irql{get_current_irql()};
-    if (irql < DISPATCH_LEVEL) {
-      KeAcquireInStackQueuedSpinLock(addressof(target),
-                                     addressof(m_queue_handle));
-    } else {
-      KeAcquireInStackQueuedSpinLockAtDpcLevel(addressof(target),
-                                               addressof(m_queue_handle));
-    }
-    m_prev_irql = irql;
-  }
-
-  void unlock([[maybe_unused]] KSPIN_LOCK& target) noexcept {
-    if (m_prev_irql < DISPATCH_LEVEL) {
-      KeReleaseInStackQueuedSpinLock(addressof(m_queue_handle));
-    } else {
-      KeReleaseInStackQueuedSpinLockFromDpcLevel(addressof(m_queue_handle));
-    }
-  }
+struct queued_spin_lock_dpc_policy {
+  void lock(KSPIN_LOCK& target,
+            KLOCK_QUEUE_HANDLE& queue_handle) const noexcept;
+  void unlock(KLOCK_QUEUE_HANDLE& queue_handle) const noexcept;
 };
 
 inline constexpr uint32_t DEVICE_SPIN_LOCK_TAG{0x0}, DPC_SPIN_LOCK_TAG{0x2},
     APC_SPIN_LOCK_TAG{0x3};
 
-enum class SpinlockType { ApcSpinLock, MixedSpinLock, DpcSpinLock };
-
 template <uint8_t>
-struct spin_lock_selector_base {
+struct spin_lock_selector_impl {
   static constexpr SpinlockType value = SpinlockType::MixedSpinLock;
 };
 
 template <>
-struct spin_lock_selector_base<DEVICE_SPIN_LOCK_TAG> {
-  static constexpr SpinlockType value = SpinlockType::DpcSpinLock;
+struct spin_lock_selector_impl<DEVICE_SPIN_LOCK_TAG> {
+  static constexpr SpinlockType value = SpinlockType::Dpc;
 };
 
 template <>
-struct spin_lock_selector_base<DPC_SPIN_LOCK_TAG> {
-  static constexpr SpinlockType value = SpinlockType::DpcSpinLock;
+struct spin_lock_selector_impl<DPC_SPIN_LOCK_TAG> {
+  static constexpr SpinlockType value = SpinlockType::Dpc;
 };
 
 template <>
-struct spin_lock_selector_base<APC_SPIN_LOCK_TAG> {
-  static constexpr SpinlockType value = SpinlockType::ApcSpinLock;
+struct spin_lock_selector_impl<APC_SPIN_LOCK_TAG> {
+  static constexpr SpinlockType value = SpinlockType::Apc;
 };
 
 template <irql_t MinIrql, irql_t MaxIrql>
-struct spin_lock_selector {
+struct spin_lock_type_selector {
   static_assert(MinIrql <= MaxIrql, "invalid spinlock type");
 
   static constexpr SpinlockType value =
-      spin_lock_selector_base<static_cast<uint8_t>(MinIrql <= APC_LEVEL) |
+      spin_lock_selector_impl<static_cast<uint8_t>(MinIrql <= APC_LEVEL) |
                               (static_cast<uint8_t>(MaxIrql <= DISPATCH_LEVEL)
                                << 1)>::value;
 };
 
 template <irql_t MinIrql, irql_t MaxIrql>
-inline constexpr SpinlockType spin_lock_selector_v =
-    spin_lock_selector<MinIrql, MaxIrql>::value;
-}  // namespace th::details
+inline constexpr SpinlockType spin_lock_type_v =
+    spin_lock_type_selector<MinIrql, MaxIrql>::value;
 
-template <irql_t MinIrql = PASSIVE_LEVEL,
-          irql_t MaxIrql = HIGH_LEVEL,
-          th::details::SpinlockType =
-              th::details::spin_lock_selector_v<MinIrql, MaxIrql>>
-struct spin_lock :  th::details::spin_lock_base<
-                       th::details::spin_lock_mixed_policy> {
+template <irql_t MinIrql, irql_t MaxIrql>
+using spin_lock_policy_selector_t =
+    spin_lock_policy<spin_lock_type_v<MinIrql, MaxIrql>>;
 
+template <irql_t MinIrql, irql_t MaxIrql>
+using queued_spin_lock_policy_selector_t =
+    queued_spin_lock_policy<spin_lock_type_v<MinIrql, MaxIrql>>;
+
+template <irql_t MinIrql = PASSIVE_LEVEL, irql_t MaxIrql = HIGH_LEVEL>
+struct spin_lock : th::details::spin_lock_base<
+                       spin_lock_policy_selector_t<MinIrql, MaxIrql>> {
   using MyBase = spin_lock_base<th::details::spin_lock_mixed_policy>;
 
   using MyBase::MyBase;
@@ -315,7 +237,6 @@ struct spin_lock :  th::details::spin_lock_base<
 template <irql_t MinIrql, irql_t MaxIrql>
 struct spin_lock<MinIrql, MaxIrql, th::details::SpinlockType::ApcSpinLock>
     : th::details::spin_lock_base<th::details::spin_lock_apc_policy> {
-
   using MyBase = spin_lock_base<th::details::spin_lock_apc_policy>;
 
   using MyBase::MyBase;
@@ -328,10 +249,8 @@ struct spin_lock<MinIrql, MaxIrql, th::details::SpinlockType::ApcSpinLock>
 
 template <irql_t MinIrql, irql_t MaxIrql>
 struct spin_lock<MinIrql, MaxIrql, th::details::SpinlockType::DpcSpinLock>
-    : th::details::spin_lock_base<
-          th::details::spin_lock_dpc_policy> {
-  using MyBase =
-      spin_lock_base<th::details::spin_lock_dpc_policy>;
+    : th::details::spin_lock_base<th::details::spin_lock_dpc_policy> {
+  using MyBase = spin_lock_base<th::details::spin_lock_dpc_policy>;
 
   using MyBase::MyBase;
 
@@ -350,7 +269,7 @@ struct queued_spin_lock : public th::details::spin_lock_base<
   using MyBase =
       th::details::spin_lock_base<th::details::queued_spin_lock_mixed_policy>;
   using sync_primitive_t = MyBase::sync_primitive_t;
-  using native_handle_t = MyBase::native_handle_t;
+  using native_handle_type = MyBase::native_handle_type;
 
   using MyBase::MyBase;
 
@@ -369,7 +288,7 @@ struct queued_spin_lock<MinIrql,
   using MyBase =
       th::details::spin_lock_base<th::details::queued_spin_lock_apc_policy>;
   using sync_primitive_t = MyBase::sync_primitive_t;
-  using native_handle_t = MyBase::native_handle_t;
+  using native_handle_type = MyBase::native_handle_type;
 
   using MyBase::MyBase;
 
@@ -388,7 +307,7 @@ struct queued_spin_lock<MinIrql,
   using MyBase =
       th::details::spin_lock_base<th::details::queued_spin_lock_dpc_policy>;
   using sync_primitive_t = MyBase::sync_primitive_t;
-  using native_handle_t = MyBase::native_handle_t;
+  using native_handle_type = MyBase::native_handle_type;
 
   using MyBase::MyBase;
 
@@ -397,21 +316,18 @@ struct queued_spin_lock<MinIrql,
 
   using MyBase::native_handle;
 };
+}  // namespace th::details
 
 class semaphore
     : public th::details::sync_primitive_base<KSEMAPHORE> {  // Implemented
                                                              // using
                                                              // KSEMAPHORE
  public:
-  using MyBase = th::details::sync_primitive_base<KSEMAPHORE>;
-  using sync_primitive_t = typename MyBase::sync_primitive_t;
-  using native_handle_t = typename MyBase::native_handle_t;
+  using MyBase = sync_primitive_base<KSEMAPHORE>;
 
- public:
   struct Settings {
     uint32_t start_count{1};
-    uint32_t upper_limit{
-        static_cast<uint32_t>(-1)};  // TODO: ввести класс numeric_limits
+    uint32_t upper_limit{(numeric_limits<uint32_t>::max)()};
   };
 
  public:
@@ -443,7 +359,7 @@ class event : public sync_primitive_base<KEVENT> {
  public:
   using MyBase = sync_primitive_base<KEVENT>;
   using sync_primitive_t = typename MyBase::sync_primitive_t;
-  using native_handle_t = typename MyBase::native_handle_t;
+  using native_handle_type = typename MyBase::native_handle_type;
   using duration_t = chrono::duration_t;
 
  public:
