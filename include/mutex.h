@@ -131,6 +131,9 @@ class spin_lock_base : non_relocatable {
   using sync_primitive_t = KSPIN_LOCK;
   using native_handle_type = sync_primitive_t*;
 
+ protected:
+  using policy_type = LockPolicy;
+
  private:
   static_assert(is_nothrow_default_constructible_v<LockPolicy>,
                 "LockPolicy must by nothrow default constructible");
@@ -139,11 +142,14 @@ class spin_lock_base : non_relocatable {
   spin_lock_base() noexcept { KeInitializeSpinLock(native_handle()); }
 
   native_handle_type native_handle() noexcept {
-    return addressof(m_lock.get_second());
+    return addressof(m_storage.get_second());
   }
 
  protected:
-  compressed_pair<LockPolicy, KSPIN_LOCK> m_lock;
+  policy_type& get_policy() noexcept { return m_storage.get_first(); }
+
+ private:
+  compressed_pair<LockPolicy, KSPIN_LOCK> m_storage;
 };
 
 enum class SpinlockType { Apc, Dpc, Mixed };
@@ -220,103 +226,44 @@ using spin_lock_policy_selector_t =
 template <irql_t MinIrql, irql_t MaxIrql>
 using queued_spin_lock_policy_selector_t =
     queued_spin_lock_policy<spin_lock_type_v<MinIrql, MaxIrql>>;
+}  // namespace th::details
 
 template <irql_t MinIrql = PASSIVE_LEVEL, irql_t MaxIrql = HIGH_LEVEL>
-struct spin_lock : th::details::spin_lock_base<
-                       spin_lock_policy_selector_t<MinIrql, MaxIrql>> {
-  using MyBase = spin_lock_base<th::details::spin_lock_mixed_policy>;
+struct spin_lock
+    : th::details::spin_lock_base<
+          th::details::spin_lock_policy_selector_t<MinIrql, MaxIrql>> {
+  using MyBase = th::details::spin_lock_base<
+      th::details::spin_lock_policy_selector_t<MinIrql, MaxIrql>>;
 
   using MyBase::MyBase;
 
-  using MyBase::lock;
-  using MyBase::unlock;
+  // TODO: try_lock()
+  void lock() noexcept { MyBase::get_policy().lock(*native_handle()); }
+  void unlock() noexcept { MyBase::get_policy().unlock(*native_handle()); }
 
   using MyBase::native_handle;
 };
 
-template <irql_t MinIrql, irql_t MaxIrql>
-struct spin_lock<MinIrql, MaxIrql, th::details::SpinlockType::ApcSpinLock>
-    : th::details::spin_lock_base<th::details::spin_lock_apc_policy> {
-  using MyBase = spin_lock_base<th::details::spin_lock_apc_policy>;
+template <irql_t MinIrql = PASSIVE_LEVEL, irql_t MaxIrql = HIGH_LEVEL>
+struct queued_spin_lock
+    : th::details::spin_lock_base<
+          th::details::queued_spin_lock_policy_selector_t<MinIrql, MaxIrql>> {
+  using MyBase = th::details::spin_lock_base<
+      th::details::queued_spin_lock_policy_selector_t<MinIrql, MaxIrql>>;
+  using owner_handle_type = KLOCK_QUEUE_HANDLE;
 
   using MyBase::MyBase;
 
-  using MyBase::lock;
-  using MyBase::unlock;
+  // TODO: try_lock()
+  void lock(owner_handle_type& owner_handle) noexcept {
+    MyBase::get_policy().lock(*native_handle(), owner_handle);
+  }
+  void unlock(owner_handle_type& owner_handle) noexcept {
+    MyBase::get_policy().unlock(owner_handle);
+  }
 
   using MyBase::native_handle;
 };
-
-template <irql_t MinIrql, irql_t MaxIrql>
-struct spin_lock<MinIrql, MaxIrql, th::details::SpinlockType::DpcSpinLock>
-    : th::details::spin_lock_base<th::details::spin_lock_dpc_policy> {
-  using MyBase = spin_lock_base<th::details::spin_lock_dpc_policy>;
-
-  using MyBase::MyBase;
-
-  using MyBase::lock;
-  using MyBase::unlock;
-
-  using MyBase::native_handle;
-};
-
-template <irql_t MinIrql = PASSIVE_LEVEL,
-          irql_t MaxIrql = HIGH_LEVEL,
-          th::details::SpinlockType =
-              th::details::spin_lock_selector_v<MinIrql, MaxIrql>>
-struct queued_spin_lock : public th::details::spin_lock_base<
-                              th::details::queued_spin_lock_mixed_policy> {
-  using MyBase =
-      th::details::spin_lock_base<th::details::queued_spin_lock_mixed_policy>;
-  using sync_primitive_t = MyBase::sync_primitive_t;
-  using native_handle_type = MyBase::native_handle_type;
-
-  using MyBase::MyBase;
-
-  using MyBase::lock;
-  using MyBase::unlock;
-
-  using MyBase::native_handle;
-};
-
-template <irql_t MinIrql, irql_t MaxIrql>
-struct queued_spin_lock<MinIrql,
-                        MaxIrql,
-                        th::details::SpinlockType::ApcSpinLock>
-    : public th::details::spin_lock_base<
-          th::details::queued_spin_lock_apc_policy> {
-  using MyBase =
-      th::details::spin_lock_base<th::details::queued_spin_lock_apc_policy>;
-  using sync_primitive_t = MyBase::sync_primitive_t;
-  using native_handle_type = MyBase::native_handle_type;
-
-  using MyBase::MyBase;
-
-  using MyBase::lock;
-  using MyBase::unlock;
-
-  using MyBase::native_handle;
-};
-
-template <irql_t MinIrql, irql_t MaxIrql>
-struct queued_spin_lock<MinIrql,
-                        MaxIrql,
-                        th::details::SpinlockType::DpcSpinLock>
-    : public th::details::spin_lock_base<
-          th::details::queued_spin_lock_dpc_policy> {
-  using MyBase =
-      th::details::spin_lock_base<th::details::queued_spin_lock_dpc_policy>;
-  using sync_primitive_t = MyBase::sync_primitive_t;
-  using native_handle_type = MyBase::native_handle_type;
-
-  using MyBase::MyBase;
-
-  using MyBase::lock;
-  using MyBase::unlock;
-
-  using MyBase::native_handle;
-};
-}  // namespace th::details
 
 class semaphore
     : public th::details::sync_primitive_base<KSEMAPHORE> {  // Implemented
