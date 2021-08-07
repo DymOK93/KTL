@@ -111,22 +111,27 @@ class worker_thread : public thread_base {
   template <class ArgTuple, size_t... Indices>
   static constexpr auto get_thread_routine_impl(
       index_sequence<Indices...>) noexcept {
-    return &call_with_unpacked_args<ArgTuple, Indices...>;
+    return &invoke_in_thread<ArgTuple, Indices...>;
   }
 
   template <class ArgTuple, size_t... Indices>
-  static void call_with_unpacked_args(void* raw_args) noexcept {
-    const unique_ptr args_guard{static_cast<ArgTuple*>(raw_args)};
-    auto& arg_tuple{*args_guard};
-    using invoke_result_t =
-        decltype(accessor::make_call(move(get<Indices>(arg_tuple))...));
+  static void invoke_in_thread(void* raw_args) noexcept {
+    auto* args_ptr{static_cast<ArgTuple*>(raw_args)};
+    using invoke_result_t = decltype(
+        invoke_with_unpacked_args<ArgTuple, Indices...>(unique_ptr{args_ptr}));
     if constexpr (!is_void_v<invoke_result_t>) {
-      accessor::before_exit(
-          accessor::make_call(move(get<Indices>(arg_tuple))...));
+      accessor::before_exit(invoke_with_unpacked_args<ArgTuple, Indices...>(
+          unique_ptr{args_ptr}));
     } else {
-      accessor::make_call(move(get<Indices>(arg_tuple))...);
+      invoke_with_unpacked_args<ArgTuple, Indices...>(unique_ptr{args_ptr});
       accessor::before_exit();
     }
+  }
+
+  template <class ArgTuple, size_t... Indices>
+  static decltype(auto) invoke_with_unpacked_args(
+      unique_ptr<ArgTuple> args_guard) noexcept {
+    return accessor::make_call(move(get<Indices>(*args_guard))...);
   }
 };
 }  // namespace th::details
@@ -196,9 +201,12 @@ class system_thread : public th::details::worker_thread<system_thread> {
 };
 
 // Joinable thread catches all unhandled C++ exceptions
-class guarded_system_thread : system_thread {
+class guarded_system_thread : public system_thread {
  public:
   using MyBase = system_thread;
+
+ public:
+  using MyBase::MyBase;
 
  protected:
   template <class Fn, class... Types>
