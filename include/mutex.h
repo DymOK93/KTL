@@ -265,23 +265,13 @@ struct queued_spin_lock
   using MyBase::native_handle;
 };
 
-class semaphore
-    : public th::details::sync_primitive_base<KSEMAPHORE> {  // Implemented
-                                                             // using
-                                                             // KSEMAPHORE
- public:
+struct semaphore : th::details::sync_primitive_base<KSEMAPHORE> {
   using MyBase = sync_primitive_base<KSEMAPHORE>;
 
-  struct Settings {
-    uint32_t start_count{1};
-    uint32_t upper_limit{(numeric_limits<uint32_t>::max)()};
-  };
-
- public:
-  semaphore(Settings settings) {
-    KeInitializeSemaphore(native_handle(),
-                          static_cast<LONG>(settings.start_count),
-                          static_cast<LONG>(settings.upper_limit));
+  semaphore(uint32_t start_count,
+            uint32_t upper_limit = (numeric_limits<uint32_t>::max)()) {
+    KeInitializeSemaphore(native_handle(), static_cast<LONG>(start_count),
+                          static_cast<LONG>(upper_limit));
   }
 
   void acquire() {
@@ -305,8 +295,6 @@ template <event_type type>
 class event : public sync_primitive_base<KEVENT> {
  public:
   using MyBase = sync_primitive_base<KEVENT>;
-  using sync_primitive_t = typename MyBase::sync_primitive_t;
-  using native_handle_type = typename MyBase::native_handle_type;
   using duration_t = chrono::duration_t;
 
  public:
@@ -399,9 +387,9 @@ inline constexpr bool has_try_lock_for_v =
 
 }  // namespace th::details
 
-struct defer_lock_tag {};    //Отложенная блокировка
-struct try_lock_for_tag {};  //Блокировка с таймаутом
-struct adopt_lock_tag {};  //Сигнализирует, что мьютекс уже захвачен
+struct defer_lock_tag {};    // Deferred lock
+struct try_lock_for_tag {};  // Lock with timeout
+struct adopt_lock_tag {};    // Mutex is already held
 
 namespace th::details {
 template <class Mutex, class = void>
@@ -418,10 +406,26 @@ template <class Mutex>
 using get_duration_type_t = typename get_duration_type<Mutex>::type;
 
 template <class Mutex>
+class mutex_guard_storage {
+ public:
+  using mutex_type = Mutex;
+
+ public:
+  constexpr mutex_guard_storage(mutex_type& mtx) noexcept
+      : m_mtx{addressof(mtx)} {}
+
+ protected:
+  mutex_type* mutex() const noexcept { return m_mtx; }
+
+ protected:
+  mutex_type* m_mtx{nullptr};
+};
+
+template <class Mutex>
 class mutex_guard_base : non_copyable {
  public:
-  using mutex_t = Mutex;
-  using duration_t = get_duration_type_t<mutex_t>;
+  using mutex_type = Mutex;
+  using duration_t = get_duration_type_t<mutex_type>;
 
  public:
   void swap(mutex_guard_base& other) {
@@ -454,7 +458,7 @@ class mutex_guard_base : non_copyable {
   }
 
   bool try_lock_for(duration_t timeout_duration) {
-    static_assert(has_try_lock_for_v<mutex_t, duration_t>,
+    static_assert(has_try_lock_for_v<mutex_type, duration_t>,
                   "Mutex doesn't support locking with timeout");
     m_owned = m_mtx->try_lock_for(timeout_duration);
     return m_owned;
@@ -470,54 +474,77 @@ class mutex_guard_base : non_copyable {
     m_owned = false;
   }
 
-  mutex_t* release() {
+  mutex_type* release() {
     m_owned = false;
     return exchange(m_mtx, nullptr);
   }
 
  protected:
-  mutex_t* m_mtx{nullptr};
+  mutex_type* m_mtx{nullptr};
   bool m_owned{false};
+};
+
+template <class Mutex, class = void>
+class lock_guard_base : public mutex_guard_storage<Mutex>, non_relocatable {
+ public:
+  using MyBase = mutex_guard_storage<Mutex>;
+  using mutex_type = typename MyBase::mutex_type;
+
+ public:
+  lock_guard_base(mutex_type& mtx) : MyBase(mtx) { mtx.lock(); }
+  lock_guard_base(mutex_type mtx, adopt_lock_tag) : MyBase(mtx) {}
+  ~lock_guard_base() { MyBase::mutex()->unlock(); }
+};
+
+template <class Mutex>
+class lock_guard_base<Mutex, void_t<typename Mutex::owner_handle_type>>
+    : public mutex_guard_storage<Mutex>, non_relocatable {
+ public:
+  using MyBase = mutex_guard_storage<Mutex>;
+  using mutex_type = typename MyBase::mutex_type;
+  using owner_handle_type = typename mutex_type::owner_handle_type;
+
+ public:
+  lock_guard_base(mutex_type& mtx) : MyBase(mtx) { mtx.lock(m_owner_handle); }
+  lock_guard_base(mutex_type mtx, adopt_lock_tag) : MyBase(mtx) {}
+  ~lock_guard_base() { MyBase::mutex()->unlock(m_owner_handle); }
+
+ private:
+  owner_handle_type m_owner_handle{};
 };
 }  // namespace th::details
 
 template <class Mutex>
-class lock_guard : public th::details::mutex_guard_base<Mutex> {
- public:
-  using MyBase = th::details::mutex_guard_base<Mutex>;
-  using mutex_t = typename MyBase::mutex_t;
-
- public:
-  lock_guard(mutex_t& mtx) : MyBase(mtx) { MyBase::lock(); }
-  lock_guard(mutex_t mtx, adopt_lock_tag) : MyBase(mtx, true) {}
-  ~lock_guard() { MyBase::unlock(); }
+struct lock_guard : th::details::lock_guard_base<Mutex> {
+  using MyBase = th::details::lock_guard_base<Mutex>;
+  using MyBase::MyBase;
 };
 
 template <class Mutex>
 lock_guard(Mutex&)
-    -> lock_guard<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
+    -> lock_guard<typename th::details::mutex_guard_base<Mutex>::mutex_type>;
 
 template <class Mutex>
 lock_guard(Mutex&, adopt_lock_tag)
-    -> lock_guard<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
+    -> lock_guard<typename th::details::mutex_guard_base<Mutex>::mutex_type>;
 
 template <class Mutex>
 class unique_lock : public th::details::mutex_guard_base<Mutex> {
  public:
   using MyBase = th::details::mutex_guard_base<Mutex>;
-  using mutex_t = typename MyBase::mutex_t;
+  using mutex_type = typename MyBase::mutex_type;
   using duration_t = typename MyBase::duration_t;
 
  public:
   constexpr unique_lock() = default;
-  explicit unique_lock(mutex_t& mtx) : MyBase(mtx) { MyBase::lock(); }
-  unique_lock(mutex_t& mtx, adopt_lock_tag) : MyBase(mtx, true) {}
-  unique_lock(mutex_t& mtx, defer_lock_tag) : MyBase(mtx) {}
+  explicit unique_lock(mutex_type& mtx) : MyBase(mtx) { MyBase::lock(); }
+  unique_lock(mutex_type& mtx, adopt_lock_tag) : MyBase(mtx, true) {}
+  unique_lock(mutex_type& mtx, defer_lock_tag) : MyBase(mtx) {}
 
   template <
-      class Mtx = mutex_t,
+      class Mtx = mutex_type,
       enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
-  unique_lock(mutex_t& mtx, duration_t timeout_duration, try_lock_for_tag)
+  unique_lock(mutex_type& mtx, duration_t timeout_duration, try_lock_for_tag)
       : MyBase(mtx) {
     MyBase::try_lock_for(timeout_duration);
   }
@@ -552,39 +579,39 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
 
 template <class Mutex>
 unique_lock(Mutex&)
-    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
+    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_type>;
 
 template <class Mutex>
 unique_lock(Mutex&, adopt_lock_tag)
-    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
+    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_type>;
 
 template <class Mutex>
 unique_lock(Mutex&, defer_lock_tag)
-    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
+    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_type>;
 
 template <class Mutex>
 unique_lock(Mutex&,
             typename th::details::mutex_guard_base<Mutex>::duration_t,
             try_lock_for_tag)
-    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
+    -> unique_lock<typename th::details::mutex_guard_base<Mutex>::mutex_type>;
 
 template <class Mutex>
 class shared_lock : public th::details::mutex_guard_base<Mutex> {
  public:
   using MyBase = th::details::mutex_guard_base<Mutex>;
-  using mutex_t = typename MyBase::mutex_t;
+  using mutex_type = typename MyBase::mutex_type;
   using duration_t = typename MyBase::duration_t;
 
  public:
   constexpr shared_lock() = default;
-  explicit shared_lock(mutex_t& mtx) : MyBase(mtx) { MyBase::lock_shared(); }
-  shared_lock(mutex_t& mtx, adopt_lock_tag) : MyBase(mtx, true) {}
-  shared_lock(mutex_t& mtx, defer_lock_tag) : MyBase(mtx) {}
+  explicit shared_lock(mutex_type& mtx) : MyBase(mtx) { MyBase::lock_shared(); }
+  shared_lock(mutex_type& mtx, adopt_lock_tag) : MyBase(mtx, true) {}
+  shared_lock(mutex_type& mtx, defer_lock_tag) : MyBase(mtx) {}
 
   template <
-      class Mtx = mutex_t,
+      class Mtx = mutex_type,
       enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
-  shared_lock(mutex_t& mtx, duration_t timeout_duration, try_lock_for_tag)
+  shared_lock(mutex_type& mtx, duration_t timeout_duration, try_lock_for_tag)
       : MyBase(mtx) {
     MyBase::try_lock_for(timeout_duration);
   }
@@ -620,21 +647,21 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
 
 template <class Mutex>
 shared_lock(Mutex&)
-    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
+    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_type>;
 
 template <class Mutex>
 shared_lock(Mutex&, adopt_lock_tag)
-    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
+    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_type>;
 
 template <class Mutex>
 shared_lock(Mutex&, defer_lock_tag)
-    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
+    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_type>;
 
 template <class Mutex>
 shared_lock(Mutex&,
             typename th::details::mutex_guard_base<Mutex>::duration_t,
             try_lock_for_tag)
-    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_t>;
+    -> shared_lock<typename th::details::mutex_guard_base<Mutex>::mutex_type>;
 
 class irql_guard {
  public:
