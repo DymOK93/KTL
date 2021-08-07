@@ -17,7 +17,7 @@ void yield() noexcept {
 }  // namespace this_thread
 
 namespace th::details {
-thread_base::thread_base(native_handle_type thread_obj)
+thread_base::thread_base(internal_object_type thread_obj)
     : m_thread{thread_obj} {}
 
 thread_base::thread_base(thread_base&& other) noexcept
@@ -40,11 +40,7 @@ void thread_base::swap(thread_base& other) noexcept {
 }
 
 auto thread_base::get_id() const noexcept -> id {
-  return HandleToUlong(PsGetThreadId(m_thread));
-}
-
-auto thread_base::native_handle() const noexcept -> native_handle_type {
-  return m_thread;
+  return HandleToUlong(PsGetThreadId(native_handle()));
 }
 
 uint32_t thread_base::hardware_concurrency() noexcept {
@@ -58,13 +54,13 @@ void thread_base::destroy() noexcept {
   }
 }
 
-auto thread_base::try_obtain_thread_object(internal_handle_type handle) noexcept
-    -> native_handle_type {
+auto thread_base::try_obtain_thread_object(HANDLE handle) noexcept
+    -> internal_object_type {
   void* thread_obj;
   const NTSTATUS status{
       ObReferenceObjectByHandle(handle, THREAD_ALL_ACCESS, *PsThreadType,
                                 KernelMode, addressof(thread_obj), nullptr)};
-  return NT_SUCCESS(status) ? static_cast<PETHREAD>(thread_obj) : nullptr;
+  return NT_SUCCESS(status) ? thread_obj : nullptr;
 }
 }  // namespace th::details
 
@@ -98,7 +94,7 @@ void system_thread::verify_joinable() const {
 }
 
 auto system_thread::create_thread_impl(thread_routine_t start, void* raw_args)
-    -> native_handle_type {
+    -> internal_object_type {
   OBJECT_ATTRIBUTES attrs;
   InitializeObjectAttributes(addressof(attrs), nullptr, OBJ_KERNEL_HANDLE,
                              nullptr, nullptr);
@@ -109,7 +105,7 @@ auto system_thread::create_thread_impl(thread_routine_t start, void* raw_args)
   throw_exception_if_not<kernel_error>(NT_SUCCESS(status), status,
                                        L"thread creation failed",
                                        constexpr_message_tag{});
-  native_handle_type thread_obj{try_obtain_thread_object(thread_handle)};
+  auto thread_obj{try_obtain_thread_object(thread_handle)};
   ZwClose(thread_handle);
   return thread_obj;
 }
@@ -123,7 +119,7 @@ void io_thread::before_exit() noexcept {}
 
 auto io_thread::create_thread_impl(void* io_object,
                                    thread_routine_t start,
-                                   void* raw_args) -> native_handle_type {
+                                   void* raw_args) -> internal_object_type {
   OBJECT_ATTRIBUTES attrs;
   InitializeObjectAttributes(addressof(attrs), nullptr, OBJ_KERNEL_HANDLE,
                              nullptr, nullptr);
@@ -134,7 +130,7 @@ auto io_thread::create_thread_impl(void* io_object,
   throw_exception_if_not<kernel_error>(NT_SUCCESS(status), status,
                                        L"thread creation failed",
                                        constexpr_message_tag{});
-  native_handle_type thread_obj{try_obtain_thread_object(thread_handle)};
+  auto thread_obj{try_obtain_thread_object(thread_handle)};
   ZwClose(thread_handle);
   return thread_obj;
 }

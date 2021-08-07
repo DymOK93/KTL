@@ -24,7 +24,7 @@ set(
 		"memory.hpp"
 		"memory_tools.hpp"
 		"memory_type_traits.hpp"
-		"mutex.hpp"
+		"mutex.h"
 		"new_delete.h"
 		"smart_pointer.hpp"
 		"static_pipeline.hpp"

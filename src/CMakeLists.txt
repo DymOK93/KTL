@@ -11,6 +11,7 @@ set(
 		"condition_variable.cpp"
 		"exception.cpp"
 		"literals.cpp"
+		"mutex.cpp"
 		"new_delete.cpp"
 		"thread.cpp"
 )

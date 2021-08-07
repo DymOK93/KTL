@@ -1,6 +1,8 @@
 #pragma once
 #include <basic_types.h>
 
+#include <cstddef>
+
 #if defined(_M_IX86)
 #define CRTCALL __cdecl
 #define STDCALL __stdcall

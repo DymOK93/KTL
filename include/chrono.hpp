@@ -424,7 +424,7 @@ duration_cast(const duration<Rep, Period>& dur) noexcept(
   constexpr bool num_is_one = carry_flag::num == 1;
   constexpr bool den_is_one = carry_flag::den == 1;
 
-  if constexpr (num_is_one) {
+  if constexpr (den_is_one) {
     if constexpr (num_is_one) {
       return static_cast<To>(static_cast<ToRep>(dur.count()));
     } else {
