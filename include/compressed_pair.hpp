@@ -22,8 +22,8 @@ class compressed_pair : private Ty1 {
                 typename ktl::enable_if_t<ktl::is_default_constructible_v<U1> &&
                                           ktl::is_default_constructible_v<U2>>>
   constexpr compressed_pair() noexcept(
-      is_nothrow_default_constructible_v<U1>&& noexcept(
-          is_nothrow_default_constructible_v<U2>)) {}
+      is_nothrow_default_constructible_v<U1>&& 
+          is_nothrow_default_constructible_v<U2>) {}
 
   constexpr compressed_pair(Ty1&& a, Ty2&& b) noexcept(
       is_nothrow_move_constructible_v<Ty1>&&
