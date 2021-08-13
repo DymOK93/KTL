@@ -22,7 +22,7 @@ void sleep_for(const chrono::duration<Rep, Period>& sleep_duration) {
   LARGE_INTEGER interval;
   interval.QuadPart = -1 * native_duration.count(); // A negative value indicates relative time
   
-  KeDelayExecutionThread(KernelMode, FALSE, &interval);
+  KeDelayExecutionThread(KernelMode, false, addressof(interval));
 }
 
 template <class Clock, class Duration>
@@ -32,7 +32,7 @@ void sleep_until(const chrono::time_point<Clock, Duration>& sleep_time) {
   LARGE_INTEGER interval;
   interval.QuadPart = native_duration.count();
   
-  KeDelayExecutionThread(KernelMode, FALSE, &interval);
+  KeDelayExecutionThread(KernelMode, false, addressof(interval));
 }
 }  // namespace this_thread
 
