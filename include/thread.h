@@ -3,7 +3,6 @@
 #include <irql.h>
 #include <assert.hpp>
 #include <chrono.hpp>
-#include <ratio.hpp>
 #include <smart_pointer.hpp>
 #include <tuple.hpp>
 #include <type_traits.hpp>
