@@ -18,9 +18,7 @@ void yield() noexcept;
 
 template <class Rep, class Period>
 void sleep_for(const chrono::duration<Rep, Period>& sleep_duration) {
-  using native_duration_t = chrono::duration<long long, ratio::<1, 10'000'000>>;
-  
-  const auto native_duration = chrono::duration_cast<native_duration_t>(sleep_duration);
+  const auto native_duration = chrono::to_native_100ns_duration(sleep_duration);
   
   LARGE_INTEGER interval;
   interval.QuadPart = -1 * native_duration.count(); // A negative value indicates relative time
@@ -30,10 +28,7 @@ void sleep_for(const chrono::duration<Rep, Period>& sleep_duration) {
 
 template <class Clock, class Duration>
 void sleep_until(const chrono::time_point<Clock, Duration>& sleep_time) {
-  using native_duration_t = chrono::duration<long long, ratio::<1, 10'000'000>>;
-  
-  const auto native_duration = chrono::duration_cast<native_duration_t>(
-    sleep_time.time_since_epoch());
+  const auto native_duration = chrono::to_native_100ns_duration(sleep_time.time_since_epoch());
   
   LARGE_INTEGER interval;
   interval.QuadPart = native_duration.count();
