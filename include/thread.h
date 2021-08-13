@@ -3,6 +3,7 @@
 #include <irql.h>
 #include <assert.hpp>
 #include <chrono.hpp>
+#include <ratio.hpp>
 #include <smart_pointer.hpp>
 #include <tuple.hpp>
 #include <type_traits.hpp>
@@ -16,10 +17,29 @@ thread_id_t get_id();
 void yield() noexcept;
 
 template <class Rep, class Period>
-void sleep_for(const chrono::duration<Rep, Period>& sleep_duration);
+void sleep_for(const chrono::duration<Rep, Period>& sleep_duration) {
+  using native_duration_t = chrono::duration<long long, ratio::<1, 10'000'000>>;
+  
+  const auto native_duration = chrono::duration_cast<native_duration_t>(sleep_duration);
+  
+  LARGE_INTEGER interval;
+  interval.QuadPart = -1 * native_duration.count(); // A negative value indicates relative time
+  
+  KeDelayExecutionThread(KernelMode, FALSE, &interval);
+}
 
 template <class Clock, class Duration>
-void sleep_until(const chrono::time_point<Clock, Duration>& sleep_time);
+void sleep_until(const chrono::time_point<Clock, Duration>& sleep_time) {
+  using native_duration_t = chrono::duration<long long, ratio::<1, 10'000'000>>;
+  
+  const auto native_duration = chrono::duration_cast<native_duration_t>(
+    sleep_time.time_since_epoch());
+  
+  LARGE_INTEGER interval;
+  interval.QuadPart = native_duration.count();
+  
+  KeDelayExecutionThread(KernelMode, FALSE, &interval);
+}
 }  // namespace this_thread
 
 namespace th::details {
