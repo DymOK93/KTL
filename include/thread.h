@@ -34,6 +34,12 @@ void sleep_until(const chrono::time_point<Clock, Duration>& sleep_time) {
   
   KeDelayExecutionThread(KernelMode, false, addressof(interval));
 }
+
+template<class Rep, class Period>
+void stall_for(const chrono::duration<Rep, Period>& sleep_duration) {
+  const auto us_duration = chrono::duration_cast<chrono::microseconds>(sleep_duration);
+  KeStallExecutionProcessor(static_cast<unsigned long>(us_duration.count()));
+}
 }  // namespace this_thread
 
 namespace th::details {
