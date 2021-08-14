@@ -27,18 +27,30 @@ void sleep_for(const chrono::duration<Rep, Period>& sleep_duration) {
 
 template <class Clock, class Duration>
 void sleep_until(const chrono::time_point<Clock, Duration>& sleep_time) {
-  const auto native_duration = chrono::to_native_100ns_duration(sleep_time.time_since_epoch());
+  const auto now = Clock::now();
   
-  LARGE_INTEGER interval;
-  interval.QuadPart = native_duration.count();
+  if (sleep_time <= now) {
+    return;
+  }
   
-  KeDelayExecutionThread(KernelMode, false, addressof(interval));
+  sleep_for(sleep_time - now);
 }
 
 template<class Rep, class Period>
-void stall_for(const chrono::duration<Rep, Period>& sleep_duration) {
-  const auto us_duration = chrono::duration_cast<chrono::microseconds>(sleep_duration);
+void stall_for(const chrono::duration<Rep, Period>& stall_duration) {
+  const auto us_duration = chrono::duration_cast<chrono::microseconds>(stall_duration);
   KeStallExecutionProcessor(static_cast<unsigned long>(us_duration.count()));
+}
+
+template<class Clock, class Duration>
+void stall_until(const chrono::time_point<Clock, Duration>& stall_time) {
+  const auto now = Clock::now();
+  
+  if (stall_time <= now) {
+    return;
+  }
+  
+  stall_for(stall_time - now);
 }
 }  // namespace this_thread
 
