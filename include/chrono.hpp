@@ -832,5 +832,12 @@ inline LARGE_INTEGER to_native_100ns_tics(duration_t period) noexcept {
   native_period.QuadPart = period;
   return native_period;
 }
+
+template<class Rep, class Period>
+auto to_native_100ns_duration(const chrono::duration<Rep, Period>& duration) {
+  using native_duration_t = chrono::duration<long long, ratio<1, 10'000'000>>;
+  return chrono::duration_cast<native_duration_t>(duration);
+}
+
 }  // namespace chrono
 }  // namespace ktl
