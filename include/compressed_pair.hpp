@@ -18,11 +18,11 @@ class compressed_pair : private Ty1 {
  public:
   template <typename U1 = Ty1,
             typename U2 = Ty2,
-            typename =
-                typename ktl::enable_if_t<ktl::is_default_constructible_v<U1> &&
-                                          ktl::is_default_constructible_v<U2>>>
+            ktl::enable_if_t<ktl::is_default_constructible_v<U1> &&
+                                 ktl::is_default_constructible_v<U2>,
+                             int> = 0>
   constexpr compressed_pair() noexcept(
-      is_nothrow_default_constructible_v<U1>&& 
+      is_nothrow_default_constructible_v<U1>&&
           is_nothrow_default_constructible_v<U2>) {}
 
   constexpr compressed_pair(Ty1&& a, Ty2&& b) noexcept(
@@ -80,14 +80,16 @@ class compressed_pair : private Ty1 {
           is_nothrow_constructible_v<Ty2, U2&&>)
       : MyBase(move(other.first)), m_value(move(other.second)) {}
 
-  first_type& get_first() noexcept { return static_cast<MyBase&>(*this); }
+  constexpr first_type& get_first() noexcept {
+    return static_cast<MyBase&>(*this);
+  }
 
-  const first_type& get_first() const noexcept {
+  constexpr const first_type& get_first() const noexcept {
     return static_cast<const MyBase&>(*this);
   }
 
-  second_type& get_second() noexcept { return m_value; }
-  const second_type& get_second() const noexcept { return m_value; }
+  constexpr second_type& get_second() noexcept { return m_value; }
+  constexpr const second_type& get_second() const noexcept { return m_value; }
 
  private:
   Ty2 m_value{};
@@ -127,9 +129,11 @@ class compressed_pair<Ty1, Ty2, false> : private pair<Ty1, Ty2> {
                forward_as_tuple(forward<U1>(value)),
                forward_as_tuple(forward<Types>(args)...)) {}
 
-  first_type& get_first() noexcept { return this->first; }
-  const first_type& get_first() const noexcept { return this->first; }
-  second_type& get_second() noexcept { return this->second; }
-  const second_type& get_second() const noexcept { return this->second; }
+  constexpr first_type& get_first() noexcept { return this->first; }
+  constexpr const first_type& get_first() const noexcept { return this->first; }
+  constexpr second_type& get_second() noexcept { return this->second; }
+  constexpr const second_type& get_second() const noexcept {
+    return this->second;
+  }
 };
 }  // namespace ktl
