@@ -521,11 +521,11 @@ using microseconds = duration<long long, micro>;
 using milliseconds = duration<long long, milli>;
 using seconds      = duration<long long>;
 using minutes      = duration<int, ratio<60>>;
-using hours        = duration<int, ratio<3600>>;
-using days         = duration<int, ratio<86400>>;
-using weeks        = duration<int, ratio<604800>>;
-using months       = duration<int, ratio<2629746>>;
-using years        = duration<int, ratio<31556952>>;
+using hours        = duration<int, ratio<3'600>>;
+using days         = duration<int, ratio<86'400>>;
+using weeks        = duration<int, ratio<604'800>>;
+using months       = duration<int, ratio<2'629'746>>;
+using years        = duration<int, ratio<31'556'952>>;
     
 // native Windows 100ns duration
 using tics         = duration<long long, ratio<1, 10'000'000>>;
@@ -839,12 +839,5 @@ inline LARGE_INTEGER to_native_100ns_tics(duration_t period) noexcept {
   native_period.QuadPart = period;
   return native_period;
 }
-
-template<class Rep, class Period>
-auto to_native_100ns_duration(const chrono::duration<Rep, Period>& duration) {
-  using native_duration_t = chrono::duration<long long, ratio<1, 10'000'000>>;
-  return chrono::duration_cast<native_duration_t>(duration);
-}
-
 }  // namespace chrono
 }  // namespace ktl

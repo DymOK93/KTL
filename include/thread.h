@@ -19,7 +19,7 @@ void yield() noexcept;
 template <class Rep, class Period>
 void sleep_for(const chrono::duration<Rep, Period>& sleep_duration) {
   const auto tics_to_wait =
-      chrono::to_native_100ns_duration(sleep_duration).count();
+      chrono::duration_cast<chrono::tics>(sleep_duration).count();
 
   if (tics_to_wait < 0) {
     return;
