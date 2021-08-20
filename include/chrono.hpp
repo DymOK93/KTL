@@ -529,10 +529,10 @@ template <class Clock, class Duration, class Rep, class Period>
     common_type_t<Duration, duration<Rep, Period>>>
 operator+(const time_point<Clock, Duration>& lhs,
           const duration<Rep, Period>&
-              rhs) noexcept(is_arithmetic_v<typename duration::rep>&&
+              rhs) noexcept(is_arithmetic_v<typename Duration::rep>&&
                                 is_arithmetic_v<Rep>) {
   using result_t =
-      time_point<Clock, common_type_t<duration, duration<Rep, Period>>>;
+      time_point<Clock, common_type_t<Duration, duration<Rep, Period>>>;
   return result_t{lhs.time_since_epoch() + rhs};
 }
 
