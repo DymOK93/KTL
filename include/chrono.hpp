@@ -518,12 +518,19 @@ template <class Rep,
              : dur;
 }
 
-using nanoseconds = duration<long long, nano>;
+using nanoseconds  = duration<long long, nano>;
 using microseconds = duration<long long, micro>;
 using milliseconds = duration<long long, milli>;
-using seconds = duration<long long>;
-using minutes = duration<int, ratio<60>>;
-using hours = duration<int, ratio<3600>>;
+using seconds      = duration<long long>;
+using minutes      = duration<int, ratio<60>>;
+using hours        = duration<int, ratio<3600>>;
+using days         = duration<int, ratio<86400>>;
+using weeks        = duration<int, ratio<604800>>;
+using months       = duration<int, ratio<2629746>>;
+using years        = duration<int, ratio<31556952>>;
+    
+// native Windows 100ns duration
+using tics         = duration<long long, ratio<1, 10'000'000>>;
 
 template <class Clock, class Duration, class Rep, class Period>
 [[nodiscard]] constexpr time_point<
