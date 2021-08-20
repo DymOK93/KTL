@@ -663,16 +663,20 @@ inline constexpr bool is_class_v = __is_class(Ty);
 template <class Ty>
 struct is_class : bool_constant<is_class_v<Ty>> {};
 
-template <class Ty>
-struct is_function {
-  static constexpr bool value =
-      !is_const_v<const Ty> &&
-      !is_reference_v<Ty>;  // only function types and reference types can't be
-                            // const qualified
-};
+// TODO: use common macro for disabled warnings
+#pragma warning(disable : 4180)  // qualifier applied to function type has no
+                                 // meaning; ignored
 
 template <class Ty>
-inline constexpr bool is_function_v = is_function<Ty>::value;
+inline constexpr bool is_function_v =
+    !is_const_v<const Ty> &&
+    !is_reference_v<Ty>;  // only function types and reference types can't be
+                          // const qualified
+
+template <class Ty>
+struct is_function : bool_constant<is_function_v<Ty>> {};
+
+#pragma warning(default : 4180)
 
 template <class Ty>
 struct is_object {
@@ -1437,5 +1441,14 @@ struct is_specialization : bool_constant<is_specialization_v<Ty, Template>> {};
                                                                                \
   template <class Ty>                                                          \
   inline constexpr bool has_##NestedType##_v = has_##NestedType<Ty>::value;
+
+template <class Ty, class = void>
+struct is_dereferenceable : false_type {};
+
+template <class Ty>
+struct is_dereferenceable<Ty, void_t<decltype(*declval<Ty>())>> : true_type {};
+
+template <class Ty>
+inline constexpr bool is_dereferenceable_v = is_dereferenceable<Ty>::value;
 }  // namespace ktl
 #endif

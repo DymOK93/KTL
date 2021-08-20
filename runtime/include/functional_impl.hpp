@@ -3,9 +3,9 @@
 #ifndef KTL_NO_CXX_STANDARD_LIBRARY
 #include <functional>
 namespace ktl {
+using std::equal_to;
 using std::greater;
 using std::less;
-using std::equal_to;
 }  // namespace ktl
 #else
 #include <type_traits_impl.hpp>
@@ -67,7 +67,6 @@ struct equal_to<void> {
 
   using is_transparent = int;
 };
-
 
 template <class Ty = void>
 struct prefix_increment {
@@ -233,5 +232,244 @@ struct has_operator_minus<
 template <class Ty1, class Ty2>
 inline constexpr bool has_operator_minus_v =
     has_operator_minus<Ty1, Ty2>::value;
+
+namespace fn::details {
+template <class Ty>
+constexpr Ty& unrefwrap(Ty& ref) noexcept {
+  return ref;
+}
+template <class Ty>
+void unrefwrap(Ty&&) = delete;
+}  // namespace fn::details
+
+template <class Ty>
+class reference_wrapper {
+ public:
+  using type = Ty;
+
+ public:
+  template <class U,
+            enable_if_t<!is_same_v<reference_wrapper, remove_cvref_t<U> >,
+                        decltype(fn::details::unrefwrap<Ty>(declval<U>()),
+                                 int())> = 0>
+  constexpr reference_wrapper(U&& value) noexcept(
+      noexcept(fn::details::unrefwrap<Ty>(value)))
+      : m_ptr(addressof(fn::details::unrefwrap<Ty>(forward<U>(value)))) {}
+
+  reference_wrapper(const reference_wrapper&) noexcept = default;
+  reference_wrapper& operator=(const reference_wrapper& other) noexcept =
+      default;
+
+  constexpr operator Ty&() const noexcept { return *m_ptr; }
+  constexpr Ty& get() const noexcept { return *m_ptr; }
+
+ private:
+  Ty* m_ptr;
+};
+
+template <class Ty>
+reference_wrapper(Ty&) -> reference_wrapper<Ty>;
+
+template <class Ty>
+constexpr reference_wrapper<Ty> ref(Ty& ref) noexcept {
+  return reference_wrapper{ref};
+}
+
+template <class Ty>
+constexpr reference_wrapper<Ty> ref(
+    reference_wrapper<Ty> ref_wrapper) noexcept {
+  return reference_wrapper{ref_wrapper.get()};
+}
+
+template <class Ty>
+void ref(const Ty&&) = delete;
+
+template <class Ty>
+constexpr reference_wrapper<const Ty> cref(const Ty& ref) noexcept {
+  return reference_wrapper<const Ty>{ref};
+}
+
+template <class Ty>
+constexpr reference_wrapper<const Ty> cref(
+    reference_wrapper<Ty> ref_wrapper) noexcept {
+  return reference_wrapper<const Ty>{ref_wrapper.get()};
+}
+
+template <class Ty>
+void cref(const Ty&&) = delete;
+
+template <class>
+constexpr bool is_reference_wrapper_v = false;
+
+template <class Ty>
+constexpr bool is_reference_wrapper_v<reference_wrapper<Ty> > = true;
+
+namespace fn::details {
+enum class CallTargetCategory : uint8_t {
+  Object,
+  ReferenceWrapper,
+  Pointer,
+  Undefined
+};
+
+template <class C, class Ty>
+constexpr CallTargetCategory get_call_target_category() noexcept {
+  if constexpr (is_base_of_v<C, decay_t<Ty> >) {
+    return CallTargetCategory::Object;
+  } else if constexpr (is_reference_wrapper_v<decay_t<Ty> >) {
+    return CallTargetCategory::ReferenceWrapper;
+  } else if constexpr (is_dereferenceable_v<Ty>) {
+    if constexpr (get_call_target_category<C, decltype(*declval<Ty>())>() ==
+                  CallTargetCategory::Object) {
+      return CallTargetCategory::Pointer;
+    } else {
+      return CallTargetCategory::Undefined;
+    }
+  } else {
+    return CallTargetCategory::Undefined;
+  }
+}
+
+template <CallTargetCategory Category>
+struct member_ptr_invoker;
+
+template <>
+struct member_ptr_invoker<CallTargetCategory::Object> {
+  template <class C,
+            class Pointed,
+            class Ty,
+            class... Types,
+            enable_if_t<is_function_v<Pointed>, int> = 0>
+  static decltype(auto) invoke(
+      Pointed C::*fn,
+      Ty&& obj,
+      Types&&... args) noexcept(noexcept((forward<Ty>(obj).*
+                                          fn)(forward<Types>(args)...))) {
+    return (forward<Ty>(obj).*fn)(forward<Types>(args)...);
+  }
+
+  template <
+      class C,
+      class Pointed,
+      class Ty,
+      class... Types,
+      enable_if_t<!is_function_v<Pointed> && sizeof...(Types) == 0, int> = 0>
+  static decltype(auto) invoke(
+      Pointed C::*fn,
+      Ty&& obj,
+      Types&&... args) noexcept(noexcept(forward<Ty>(obj).*fn)) {
+    return forward<Ty>(obj).*fn;
+  }
+};
+
+template <>
+struct member_ptr_invoker<CallTargetCategory::ReferenceWrapper> {
+  template <class C,
+            class Pointed,
+            class Ty,
+            class... Types,
+            enable_if_t<is_function_v<Pointed>, int> = 0>
+  static decltype(auto) invoke(
+      Pointed C::*fn,
+      Ty&& obj,
+      Types&&... args) noexcept(noexcept((obj.get().*
+                                          fn)(forward<Types>(args)...))) {
+    return (obj.get().*fn)(forward<Types>(args)...);
+  }
+
+  template <
+      class C,
+      class Pointed,
+      class Ty,
+      class... Types,
+      enable_if_t<!is_function_v<Pointed> && sizeof...(Types) == 0, int> = 0>
+  static decltype(auto) invoke(Pointed C::*fn,
+                               Ty&& obj,
+                               Types&&... args) noexcept(noexcept(obj.get().*
+                                                                  fn)) {
+    return obj.get().*fn;
+  }
+};
+
+template <>
+struct member_ptr_invoker<CallTargetCategory::Pointer> {
+  template <class C,
+            class Pointed,
+            class Ty,
+            class... Types,
+            enable_if_t<is_function_v<Pointed>, int> = 0>
+  static decltype(auto) invoke(
+      Pointed C::*fn,
+      Ty&& obj,
+      Types&&... args) noexcept(noexcept(((*forward<Ty>(obj)).*
+                                          fn)(forward<Types>(args)...))) {
+    return ((*forward<Ty>(obj)).*fn)(forward<Types>(args)...);
+  }
+
+  template <
+      class C,
+      class Pointed,
+      class Ty,
+      class... Types,
+      enable_if_t<!is_function_v<Pointed> && sizeof...(Types) == 0, int> = 0>
+  static decltype(auto) invoke(
+      Pointed C::*fn,
+      Ty&& obj,
+      Types&&... args) noexcept(noexcept((*forward<Ty>(obj)).*fn)) {
+    return (*forward<Ty>(obj)).*fn;
+  }
+};
+
+// template <class C, class Pointed, class Ty, class... Types>
+// constexpr decltype(auto) invoke_by_member_ptr(Pointed C::*fn,
+//                                              Ty&& obj,
+//                                              Types&&... args) {
+//  if constexpr (is_function_v<Pointed>) {
+//    if constexpr (is_base_of_v<C, decay_t<Ty> >) {
+//      return (forward<Ty>(obj).*fn)(forward<Types>(args)...);
+//    } else if constexpr (is_reference_wrapper_v<decay_t<Ty> >) {
+//      return (obj.get().*fn)(forward<Types>(args)...);
+//    } else {
+//      return ((*forward<Ty>(obj)).*fn)(forward<Types>(args)...);
+//    }
+//  } else {
+//    static_assert(is_object_v<Pointed> && sizeof...(args) == 0);
+//    if constexpr (is_base_of_v<C, decay_t<Ty> >) {
+//      return forward<Ty>(obj).*fn;
+//    } else if constexpr (is_reference_wrapper_v<decay_t<Ty> >) {
+//      return obj.get().*fn;
+//    } else {
+//      return (*forward<Ty>(obj)).*fn;
+//    }
+//  }
+//}
+
+template <class FnTy, bool = is_member_pointer_v<decay_t<FnTy> > >
+struct invoker {
+  template <class C, class Pointed, class Ty, class... Types>
+  static auto invoke(Pointed C::*fn, Ty&& obj, Types&&... args) noexcept(
+      noexcept(member_ptr_invoker<get_call_target_category<C, Ty>()>::invoke(
+          fn,
+          forward<Ty>(obj),
+          forward<Types>(args)...)))
+      -> decltype(member_ptr_invoker<get_call_target_category<C, Ty>()>::invoke(
+          fn,
+          forward<Ty>(obj),
+          forward<Types>(args)...)) {
+    return member_ptr_invoker<get_call_target_category<C, Ty>()>::invoke(
+        fn, forward<Ty>(obj), forward<Types>(args)...);
+  }
+};
+
+template <class FnTy>
+struct invoker<FnTy, false> {
+  template <class Fn, class... Types>
+  static auto invoke(Fn&& fn, Types&&... args) noexcept(
+      noexcept(forward<Fn>(fn)(forward<Types>(args)...)))
+      -> decltype(forward<Fn>(fn)(forward<Types>(args)...)) {
+    return forward<Fn>(fn)(forward<Types>(args)...);
+  }
+};
+}  // namespace fn::details
 }  // namespace ktl
 #endif

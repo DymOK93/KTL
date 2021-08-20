@@ -3,6 +3,7 @@
 #include <irql.h>
 #include <assert.hpp>
 #include <chrono.hpp>
+#include <functional.hpp>
 #include <smart_pointer.hpp>
 #include <tuple.hpp>
 #include <type_traits.hpp>
@@ -17,15 +18,17 @@ void yield() noexcept;
 
 template <class Rep, class Period>
 void sleep_for(const chrono::duration<Rep, Period>& sleep_duration) {
-  const auto tics_to_wait = chrono::to_native_100ns_duration(sleep_duration).count();
-  
+  const auto tics_to_wait =
+      chrono::to_native_100ns_duration(sleep_duration).count();
+
   if (tics_to_wait < 0) {
     return;
   }
-  
+
   LARGE_INTEGER interval;
-  interval.QuadPart = -1 * tics_to_wait; // A negative value indicates relative time
-  
+  interval.QuadPart =
+      -1 * tics_to_wait;  // A negative value indicates relative time
+
   KeDelayExecutionThread(KernelMode, false, addressof(interval));
 }
 
@@ -34,20 +37,22 @@ void sleep_until(const chrono::time_point<Clock, Duration>& sleep_time) {
   sleep_for(sleep_time - Clock::now());
 }
 
-template<class Rep, class Period>
+template <class Rep, class Period>
 void stall_for(const chrono::duration<Rep, Period>& stall_duration) {
-  const auto us_to_wait = chrono::duration_cast<chrono::microseconds>(stall_duration).count();
-  
-  assert_with_msg(us_to_wait <= 50, L"wait duration in stall_for must not exceed 50 us");
-  
+  const auto us_to_wait =
+      chrono::duration_cast<chrono::microseconds>(stall_duration).count();
+
+  assert_with_msg(us_to_wait <= 50,
+                  L"wait duration in stall_for must not exceed 50 us");
+
   if (us_to_wait < 0) {
     return;
   }
-  
+
   KeStallExecutionProcessor(static_cast<unsigned long>(us_to_wait));
 }
 
-template<class Clock, class Duration>
+template <class Clock, class Duration>
 void stall_until(const chrono::time_point<Clock, Duration>& stall_time) {
   stall_for(stall_time - Clock::now());
 }
@@ -114,8 +119,7 @@ class worker_thread : public thread_base {
 
   template <class Fn, class... Types>
   static void make_call(Fn&& fn, Types&&... args) {
-    // invoke(forward<Fn>(fn), forward<Types>(args)...);
-    forward<Fn>(fn)(forward<Types>(args)...);
+    invoke(forward<Fn>(fn), forward<Types>(args)...);
   }
 
   template <class Fn, class... Types>
