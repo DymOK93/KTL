@@ -33,6 +33,8 @@ using std::remove_const;
 using std::remove_const_t;
 using std::remove_cv;
 using std::remove_cv_t;
+using std::remove_cvref;
+using std::remove_cvref_t;
 using std::remove_extent;
 using std::remove_extent_t;
 using std::remove_reference;
@@ -282,6 +284,14 @@ struct remove_cv {
 
 template <class Ty>
 using remove_cv_t = typename remove_cv<Ty>::type;
+
+template <class Ty>
+struct remove_cvref {
+  using type = typename remove_cv_t<remove_reference_t<Ty>>;
+};
+
+template <typename Ty>
+using remove_cvref_t = typename remove_cvref<Ty>::type;
 
 template <class Ty>
 struct remove_pointer_const {
