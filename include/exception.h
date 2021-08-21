@@ -69,6 +69,32 @@ class overflow_error : public runtime_error {
   NTSTATUS code() const noexcept override;
 };
 
+class kernel_error : public runtime_error {
+ public:
+  using MyBase = runtime_error;
+
+ public:
+  kernel_error(NTSTATUS code, const exc_char_t* msg);
+  kernel_error(NTSTATUS code, const exc_char_t* msg, size_t length);
+
+  template <size_t N>
+  explicit constexpr kernel_error(NTSTATUS code, const exc_char_t (&msg)[N])
+      : MyBase(msg), m_code{code} {}
+
+  constexpr kernel_error(NTSTATUS code,
+                         const exc_char_t* msg,
+                         constexpr_message_tag tag) noexcept
+      : MyBase(msg, tag), m_code{code} {}
+
+  explicit kernel_error(NTSTATUS code, const unicode_string& nt_str);
+  explicit kernel_error(NTSTATUS code, const unicode_string_non_paged& str);
+
+  NTSTATUS code() const noexcept override;
+
+ private:
+  NTSTATUS m_code;
+};
+
 // Make sure this is not inlined as it is slow and dramatically enlarges code,
 // thus making other inlinings more difficult. Throws are also generally the
 // slow path.

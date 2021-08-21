@@ -12,8 +12,6 @@ using std::declval;
 
 using std::integral_constant;
 
-using std::common_type;
-using std::common_type_t;
 using std::conditional;
 using std::conditional_t;
 using std::enable_if;
@@ -28,18 +26,24 @@ using std::add_pointer_t;
 using std::add_rvalue_reference;
 using std::add_rvalue_reference_t;
 using std::decay;
+using std::decay_t;
 using std::remove_all_extents;
 using std::remove_all_extents_t;
 using std::remove_const;
 using std::remove_const_t;
 using std::remove_cv;
 using std::remove_cv_t;
+using std::remove_cvref;
+using std::remove_cvref_t;
 using std::remove_extent;
 using std::remove_extent_t;
 using std::remove_reference;
 using std::remove_reference_t;
 using std::remove_volatile;
 using std::remove_volatile_t;
+
+using std::common_type;
+using std::common_type_t;
 
 using std::is_constructible;
 using std::is_constructible_v;
@@ -282,6 +286,14 @@ template <class Ty>
 using remove_cv_t = typename remove_cv<Ty>::type;
 
 template <class Ty>
+struct remove_cvref {
+  using type = typename remove_cv_t<remove_reference_t<Ty>>;
+};
+
+template <typename Ty>
+using remove_cvref_t = typename remove_cvref<Ty>::type;
+
+template <class Ty>
 struct remove_pointer_const {
   using type = Ty;
 };
@@ -314,37 +326,7 @@ using add_const_t = typename add_const<Ty>::type;
 
 template <class Ty>
 add_rvalue_reference_t<Ty> declval() noexcept;  //Только для SFINAE -
-                                                //определение не требуется
-
-namespace tt::details {
-template <class... Types>
-struct common_type_impl {};
-
-template <class Ty>
-struct common_type_impl<Ty> {
-  using type = Ty;
-};
-
-template <class Ty1, class Ty2>
-struct common_type_impl<Ty1, Ty2> {
-  using type = decltype(true ? declval<Ty1>() : declval<Ty2>());
-};
-
-template <class Ty1, class Ty2, class... Rest>
-struct common_type_impl<Ty1, Ty2, Rest...> {
-  using type =
-      typename common_type_impl<typename common_type_impl<Ty1, Ty2>::type,
-                                Rest...>::type;
-};
-}  // namespace tt::details
-
-template <class... Types>
-struct common_type {
-  using type = typename tt::details::common_type_impl<Types...>::type;
-};
-
-template <class... Types>
-using common_type_t = typename common_type<Types...>::type;
+//определение не требуется
 
 template <class Ty>
 struct is_empty {
@@ -458,15 +440,13 @@ template <class Ty>
 inline constexpr bool is_move_constructible_v =
     is_move_constructible<Ty>::value;
 
-template <class, class Ty, class... Types>
-struct is_nothrow_constructible {
-  static constexpr bool value =
-      is_constructible_v<Ty, Types...>&& noexcept(Ty(declval<Types>()...));
-};
-
 template <class Ty, class... Types>
 inline constexpr bool is_nothrow_constructible_v =
-    is_nothrow_constructible<void_t<>, Ty, Types...>::value;
+    is_constructible_v<Ty, Types...>&& noexcept(Ty(declval<Types>()...));
+
+template <class Ty, class... Types>
+struct is_nothrow_constructible
+    : bool_constant<is_nothrow_constructible_v<Ty, Types...>> {};
 
 template <class Ty>
 struct is_nothrow_copy_constructible {
@@ -683,16 +663,20 @@ inline constexpr bool is_class_v = __is_class(Ty);
 template <class Ty>
 struct is_class : bool_constant<is_class_v<Ty>> {};
 
-template <class Ty>
-struct is_function {
-  static constexpr bool value =
-      !is_const_v<const Ty> &&
-      !is_reference_v<Ty>;  // only function types and reference types can't be
-                            // const qualified
-};
+// TODO: use common macro for disabled warnings
+#pragma warning(disable : 4180)  // qualifier applied to function type has no
+                                 // meaning; ignored
 
 template <class Ty>
-inline constexpr bool is_function_v = is_function<Ty>::value;
+inline constexpr bool is_function_v =
+    !is_const_v<const Ty> &&
+    !is_reference_v<Ty>;  // only function types and reference types can't be
+                          // const qualified
+
+template <class Ty>
+struct is_function : bool_constant<is_function_v<Ty>> {};
+
+#pragma warning(default : 4180)
 
 template <class Ty>
 struct is_object {
@@ -897,6 +881,36 @@ struct decay {
 
 template <class Ty>
 using decay_t = typename decay<Ty>::type;
+
+namespace tt::details {
+template <class... Types>
+struct common_type_impl {};
+
+template <class Ty>
+struct common_type_impl<Ty> {
+  using type = Ty;
+};
+
+template <class Ty1, class Ty2>
+struct common_type_impl<Ty1, Ty2> {
+  using type = decay_t<decltype(true ? declval<Ty1>() : declval<Ty2>())>;
+};
+
+template <class Ty1, class Ty2, class... Rest>
+struct common_type_impl<Ty1, Ty2, Rest...> {
+  using type =
+      typename common_type_impl<typename common_type_impl<Ty1, Ty2>::type,
+                                Rest...>::type;
+};
+}  // namespace tt::details
+
+template <class... Types>
+struct common_type {
+  using type = typename tt::details::common_type_impl<Types...>::type;
+};
+
+template <class... Types>
+using common_type_t = typename common_type<Types...>::type;
 
 template <class Ty, class ListHead, class... Typelist>
 struct is_in_typelist {
@@ -1427,5 +1441,14 @@ struct is_specialization : bool_constant<is_specialization_v<Ty, Template>> {};
                                                                                \
   template <class Ty>                                                          \
   inline constexpr bool has_##NestedType##_v = has_##NestedType<Ty>::value;
+
+template <class Ty, class = void>
+struct is_dereferenceable : false_type {};
+
+template <class Ty>
+struct is_dereferenceable<Ty, void_t<decltype(*declval<Ty>())>> : true_type {};
+
+template <class Ty>
+inline constexpr bool is_dereferenceable_v = is_dereferenceable<Ty>::value;
 }  // namespace ktl
 #endif

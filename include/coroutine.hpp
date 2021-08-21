@@ -12,7 +12,7 @@
     "Remove /await for standard coroutines or use <experimental/coroutine> for legacy /await support")
 #else
 #ifndef KTL_COROUTINES
-#pragma error("The coruutines are supported only with C++20 or later")
+#pragma error("The corutines are supported only with C++20 or later")
 #else
 
 #include <hash.hpp>

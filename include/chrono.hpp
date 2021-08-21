@@ -341,7 +341,7 @@ template <class LhsRep, class LhsPeriod, class RhsRep>
 operator%(const duration<LhsRep, LhsPeriod>& lhs, const RhsRep& rhs) noexcept(
     is_arithmetic_v<LhsRep>&& is_arithmetic_v<RhsRep>) {
   using common_rep = common_type_t<LhsRep, RhsRep>;
-  using common_duration = duration<CommonRep, LhsPeriod>;
+  using common_duration = duration<common_rep, LhsPeriod>;
   return common_duration(common_duration(lhs).count() % rhs);
 }
 
@@ -412,7 +412,7 @@ template <class LhsRep, class LhsPeriod, class RhsRep, class RhsPeriod>
 template <class To,
           class Rep,
           class Period,
-          enable_if_t<is_duration_v<To>, int> _Enabled>
+          enable_if_t<is_duration_v<To>, int> Enabled>
 [[nodiscard]] constexpr To
 duration_cast(const duration<Rep, Period>& dur) noexcept(
     is_arithmetic_v<Rep>&& is_arithmetic_v<typename To::rep>) {
@@ -421,11 +421,11 @@ duration_cast(const duration<Rep, Period>& dur) noexcept(
   using ToRep = typename To::rep;
   using common_rep = common_type_t<ToRep, Rep, intmax_t>;
 
-  constexpr bool _Num_is_one = carry_flag::num == 1;
-  constexpr bool _Den_is_one = carry_flag::den == 1;
+  constexpr bool num_is_one = carry_flag::num == 1;
+  constexpr bool den_is_one = carry_flag::den == 1;
 
-  if (_Den_is_one) {
-    if (_Num_is_one) {
+  if constexpr (den_is_one) {
+    if constexpr (num_is_one) {
       return static_cast<To>(static_cast<ToRep>(dur.count()));
     } else {
       return static_cast<To>(
@@ -433,7 +433,7 @@ duration_cast(const duration<Rep, Period>& dur) noexcept(
                              static_cast<common_rep>(carry_flag::num)));
     }
   } else {
-    if (_Num_is_one) {
+    if constexpr (num_is_one) {
       return static_cast<To>(
           static_cast<ToRep>(static_cast<common_rep>(dur.count()) /
                              static_cast<common_rep>(carry_flag::den)));
@@ -446,7 +446,6 @@ duration_cast(const duration<Rep, Period>& dur) noexcept(
   }
 }
 
-// FUNCTION TEMPLATE floor
 template <class To,
           class Rep,
           class Period,
@@ -455,15 +454,14 @@ template <class To,
     is_arithmetic_v<Rep>&& is_arithmetic_v<typename To::rep>) {
   // convert duration to another duration; round towards negative infinity
   // i.e. the greatest integral result such that the result <= dur
-  const To _Casted{chrono::duration_cast<To>(dur)};
-  if (_Casted > dur) {
-    return To{_Casted.count() - static_cast<typename To::rep>(1)};
+  const To casted{chrono::duration_cast<To>(dur)};
+  if (casted > dur) {
+    return To{casted.count() - static_cast<typename To::rep>(1)};
   }
 
-  return _Casted;
+  return casted;
 }
 
-// FUNCTION TEMPLATE ceil
 template <class To,
           class Rep,
           class Period,
@@ -472,12 +470,12 @@ template <class To,
     is_arithmetic_v<Rep>&& is_arithmetic_v<typename To::rep>) {
   // convert duration to another duration; round towards positive infinity
   // i.e. the least integral result such that dur <= the result
-  const To _Casted{chrono::duration_cast<To>(dur)};
-  if (_Casted < dur) {
-    return To{_Casted.count() + static_cast<typename To::rep>(1)};
+  const To casted{chrono::duration_cast<To>(dur)};
+  if (casted < dur) {
+    return To{casted.count() + static_cast<typename To::rep>(1)};
   }
 
-  return _Casted;
+  return casted;
 }
 
 // FUNCTION TEMPLATE round
@@ -499,7 +497,7 @@ template <class To,
   const To floored{chrono::floor<To>(dur)};
   const To ceiled{floored + To{1}};
   const auto floor_adjustment = dur - floored;
-  const auto _Ceil_adjustment = ceiled - dur;
+  const auto ceil_adjustment = ceiled - dur;
   if (floor_adjustment < ceil_adjustment ||
       (floor_adjustment == ceil_adjustment && is_even(floored.count()))) {
     return floored;
@@ -523,11 +521,11 @@ using microseconds = duration<long long, micro>;
 using milliseconds = duration<long long, milli>;
 using seconds      = duration<long long>;
 using minutes      = duration<int, ratio<60>>;
-using hours        = duration<int, ratio<3600>>;
-using days         = duration<int, ratio<86400>>;
-using weeks        = duration<int, ratio<604800>>;
-using months       = duration<int, ratio<2629746>>;
-using years        = duration<int, ratio<31556952>>;
+using hours        = duration<int, ratio<3'600>>;
+using days         = duration<int, ratio<86'400>>;
+using weeks        = duration<int, ratio<604'800>>;
+using months       = duration<int, ratio<2'629'746>>;
+using years        = duration<int, ratio<31'556'952>>;
     
 // native Windows 100ns duration
 using tics         = duration<long long, ratio<1, 10'000'000>>;
@@ -538,10 +536,10 @@ template <class Clock, class Duration, class Rep, class Period>
     common_type_t<Duration, duration<Rep, Period>>>
 operator+(const time_point<Clock, Duration>& lhs,
           const duration<Rep, Period>&
-              rhs) noexcept(is_arithmetic_v<typename duration::rep>&&
+              rhs) noexcept(is_arithmetic_v<typename Duration::rep>&&
                                 is_arithmetic_v<Rep>) {
   using result_t =
-      time_point<Clock, common_type_t<duration, duration<Rep, Period>>>;
+      time_point<Clock, common_type_t<Duration, duration<Rep, Period>>>;
   return result_t{lhs.time_since_epoch() + rhs};
 }
 

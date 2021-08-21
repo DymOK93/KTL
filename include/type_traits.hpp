@@ -1,7 +1,24 @@
 ﻿#pragma once
+#include <functional_impl.hpp>
 #include <type_traits_impl.hpp>
 
 namespace ktl {
+struct non_copyable {
+  non_copyable() = default;
+  non_copyable(const non_copyable&) = delete;
+  non_copyable& operator=(const non_copyable&) = delete;
+  non_copyable(non_copyable&&) = default;
+  non_copyable& operator=(non_copyable&&) = default;
+};
+
+struct non_relocatable {
+  non_relocatable() = default;
+  non_relocatable(const non_relocatable&) = delete;
+  non_relocatable& operator=(const non_relocatable&) = delete;
+  non_relocatable(non_relocatable&&) = delete;
+  non_relocatable& operator=(non_relocatable&&) = delete;
+};
+
 template <class Ty>
 struct alignment_of
     : integral_constant<size_t,
@@ -131,19 +148,71 @@ template <class InputIt, class OutputIt>
 struct is_memcpyable_range
     : bool_constant<is_memcpyable_range_v<InputIt, OutputIt>> {};
 
-struct non_copyable {
-  non_copyable() = default;
-  non_copyable(const non_copyable&) = delete;
-  non_copyable& operator=(const non_copyable&) = delete;
-  non_copyable(non_copyable&&) = default;
-  non_copyable& operator=(non_copyable&&) = default;
+#define INVOKE_EXPR \
+  fn::details::invoker<Fn>::invoke(declval<Fn>(), declval<Types>()...)
+
+template <class, class Fn, class... Types>
+struct invoke_result {};
+
+template <class Fn, class... Types>
+struct invoke_result<void_t<decltype(INVOKE_EXPR)>, Fn, Types...> {
+  using type = decltype(INVOKE_EXPR);
 };
 
-struct non_relocatable {
-  non_relocatable() = default;
-  non_relocatable(const non_relocatable&) = delete;
-  non_relocatable& operator=(const non_relocatable&) = delete;
-  non_relocatable(non_relocatable&&) = delete;
-  non_relocatable& operator=(non_relocatable&&) = delete;
+template <class Fn, class... Types>
+using invoke_result_t = typename invoke_result<void_t<>, Fn, Types...>::type;
+
+template <class, class Fn, class... Types>
+struct is_invocable : false_type {};
+
+template <class Fn, class... Types>
+struct is_invocable<void_t<invoke_result_t<Fn, Types...>>, Fn, Types...>
+    : true_type {};
+
+template <class Fn, class... Types>
+inline constexpr bool is_invocable_v =
+    is_invocable<void_t<>, Fn, Types...>::value;
+
+template <class, class Ret, class Fn, class... Types>
+struct is_invocable_r : false_type {};
+
+template <class Ret, class Fn, class... Types>
+struct is_invocable_r<enable_if_t<is_invocable_v<Fn, Types...>>,
+                      Ret,
+                      Fn,
+                      Types...>
+    : bool_constant<is_void_v<Ret> ||
+                    is_convertible_v<invoke_result_t<Fn, Types...>, Ret>> {};
+
+template <class Ret, class Fn, class... Types>
+inline constexpr bool is_invocable_r_v =
+    is_invocable_r<void_t<>, Ret, Fn, Types...>::value;
+
+template <class, class Fn, class... Types>
+struct is_nothrow_invocable : false_type {};
+
+template <class Fn, class... Types>
+struct is_nothrow_invocable<enable_if_t<is_invocable_v<Fn, Types...>>,
+                            Fn,
+                            Types...> : bool_constant<noexcept(INVOKE_EXPR)> {};
+
+template <class Fn, class... Types>
+inline constexpr bool is_nothrow_invocable_v =
+    is_nothrow_invocable<void_t<>, Fn, Types...>::value;
+
+template <class, class Ret, class Fn, class... Types>
+struct is_nothrow_invocable_r : false_type {};
+
+template <class Ret, class Fn, class... Types>
+struct is_nothrow_invocable_r<enable_if_t<is_invocable_r_v<Fn, Types...>>,
+                              Ret,
+                              Fn,
+                              Types...> : bool_constant<noexcept(INVOKE_EXPR)> {
 };
+
+template <class Ret, class Fn, class... Types>
+inline constexpr bool is_nothrow_invocable_r_v =
+    is_nothrow_invocable_r<void_t<>, Ret, Fn, Types...>::value;
+
+#undef INVOKE_EXPR
 }  // namespace ktl
