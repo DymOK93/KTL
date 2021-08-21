@@ -33,8 +33,9 @@ Kernel Template Library is open-source library providing CRT environment, STL-st
     * Iterators
     * MSVC-intrinsic-based coroutines
     * Mutexes, events and condition variables based on kernel synchronization primitives with RAII wrappers
-    * Smart pointers (`unique_ptr`, `shared_ptr` and `weak_ptr`)
+    * Smart pointers (`unique_ptr`, `shared_ptr` and `weak_ptr`, `intrusive_ptr`)
     * `<type_traits>`
+    * `thread` for managing driver-dedicated threads
     * `tuple`
     * `optional` with constexpr support
     * `unordered_node_map`, `unordered_node_set`, `unordered_flat_map` and `unordered_flat_set` using [robin-hood-hashing](https://github.com/martinus/robin-hood-hashing)
@@ -100,12 +101,11 @@ It includes **3 static libraries**:
 * [FindWDK](https://github.com/DymOK93/FindWDK/tree/develop) (used as a Git submodule)
 
 # Examples
-_Examples will be avaliable soon_
+* [CoroDriverSample](https://github.com/DymOK93/CoroDriverSample) - a simple driver demonstrating the use of C++20 coroutines in kernel mode 
 
 # Roadmap for the near future 
 * Linked lists and Red-Black-Tree containers
-* Intrusive smart pointers and intrusive containers
-* Thread support library
+* Intrusive containers
 * Coroutine-compatible async primitives
 * **Exception handling on the x86 platforms**
 
