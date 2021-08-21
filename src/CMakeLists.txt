@@ -11,13 +11,16 @@ set(
 		"condition_variable.cpp"
 		"exception.cpp"
 		"literals.cpp"
+		"mutex.cpp"
 		"new_delete.cpp"
+		"thread.cpp"
 )
 
 set(TARGET_LIB cpp_runtime)
 
 wdk_add_library(
 	${TARGET_LIB} STATIC
+		WINVER ${TARGET_WINVER}
 		${KTL_HEADER_FILES}
 		${KTL_SOURCE_FILES}
 		EXTENDED_CPP_FEATURES

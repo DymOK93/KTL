@@ -7,6 +7,7 @@ namespace ktl {
 namespace rat::details {
 template <intmax_t Value>
 struct abs : integral_constant<intmax_t, (Value < 0 ? -Value : Value)> {
+  static_assert(Value != (numeric_limits<intmax_t>::min)(), "Value is too negative");
 };  // computes absolute value of Value
 }  // namespace rat::details
 
@@ -17,7 +18,7 @@ template <intmax_t Lhs,
                   (numeric_limits<intmax_t>::max)() /
                       (Rhs == 0 ? 1 : rat::details::abs<Rhs>::value))>
 struct safe_multiply : integral_constant<intmax_t, Lhs * Rhs> {
-};  // Computes Lhs * Rhs without overflow
+};  // computes Lhs * Rhs without overflow
 
 template <intmax_t Lhs, intmax_t Rhs, bool Sfinae>
 struct safe_multiply<Lhs, Rhs, Sfinae, false> {  // Lhs * Rhs would overflow
@@ -36,7 +37,7 @@ struct safe_add_impl : integral_constant<intmax_t, Lhs + Rhs> {
 template <intmax_t Lhs, intmax_t Rhs>
 struct safe_add_impl<Lhs, Rhs, false, false> {
   static_assert(always_false_v<safe_add_impl>,
-                "addition  results in an integer overflow");
+                "addition results in an integer overflow");
 };
 }  // namespace rat::details
 
@@ -231,23 +232,23 @@ constexpr uint128 multiply_uint128(
     const uint64_t
         rhs_factor) noexcept {  // multiply two 64-bit integers into a
                                 // 128-bit integer, Knuth's algorithm M
-  const uint64_t _Llow = lhs_factor & 0xFFFF'FFFFULL;
-  const uint64_t _Lhigh = lhs_factor >> 32;
-  const uint64_t _Rlow = rhs_factor & 0xFFFF'FFFFULL;
-  const uint64_t _Rhigh = rhs_factor >> 32;
+  const uint64_t lhs_low = lhs_factor & 0xFFFF'FFFFULL;
+  const uint64_t lhs_high = lhs_factor >> 32;
+  const uint64_t rhs_low = rhs_factor & 0xFFFF'FFFFULL;
+  const uint64_t rhs_high = rhs_factor >> 32;
 
-  uint64_t _Temp = _Llow * _Rlow;
-  const uint64_t lower32 = _Temp & 0xFFFF'FFFFULL;
-  uint64_t _Carry = _Temp >> 32;
+  uint64_t tmp = lhs_low * rhs_low;
+  const uint64_t lower32 = tmp & 0xFFFF'FFFFULL;
+  uint64_t carry = tmp >> 32;
 
-  _Temp = _Llow * _Rhigh + _Carry;
-  const uint64_t _Mid_lower = _Temp & 0xFFFF'FFFFULL;
-  const uint64_t _Mid_uint128 = _Temp >> 32;
+  tmp = lhs_low * rhs_high + carry;
+  const uint64_t mid_lower = tmp & 0xFFFF'FFFFULL;
+  const uint64_t mid_uint128 = tmp >> 32;
 
-  _Temp = _Lhigh * _Rlow + _Mid_lower;
-  _Carry = _Temp >> 32;
+  tmp = lhs_high * rhs_low + mid_lower;
+  carry = tmp >> 32;
 
-  return {_Lhigh * _Rhigh + _Mid_uint128 + _Carry, (_Temp << 32) + lower32};
+  return {lhs_high * rhs_high + mid_uint128 + carry, (tmp << 32) + lower32};
 }
 
 constexpr bool is_ratio_less(const int64_t NxLhs,

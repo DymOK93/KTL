@@ -3,12 +3,12 @@
 namespace ktl {
 namespace crt {
 void deallocate_impl(void* memory_block,
-                     [[maybe_unused]] align_val_t alignment) noexcept {
+                     [[maybe_unused]] std::align_val_t alignment) noexcept {
   ExFreePoolWithTag(memory_block, KTL_HEAP_TAG);
 }
 }  // namespace crt
 
-void* alloc_paged(size_t bytes_count, align_val_t alignment) noexcept {
+void* alloc_paged(size_t bytes_count, std::align_val_t alignment) noexcept {
   if (alignment <= crt::DEFAULT_ALLOCATION_ALIGNMENT) {
     return crt::allocate_impl<PagedPool, crt::DEFAULT_ALLOCATION_ALIGNMENT>(
         bytes_count, alignment);
@@ -19,7 +19,7 @@ void* alloc_paged(size_t bytes_count, align_val_t alignment) noexcept {
   }
 }
 
-void* alloc_non_paged(size_t bytes_count, align_val_t alignment) noexcept {
+void* alloc_non_paged(size_t bytes_count, std::align_val_t alignment) noexcept {
   if (alignment <= crt::DEFAULT_ALLOCATION_ALIGNMENT) {
     return crt::allocate_impl<NonPagedPoolNx,
                               crt::DEFAULT_ALLOCATION_ALIGNMENT>(bytes_count,
@@ -31,13 +31,17 @@ void* alloc_non_paged(size_t bytes_count, align_val_t alignment) noexcept {
   }
 }
 
-void deallocate(void* memory_block, align_val_t alignment) noexcept {
+void deallocate(void* memory_block, std::align_val_t alignment) noexcept {
   if (memory_block) {
     crt::deallocate_impl(memory_block, alignment);
   }
 }
 
-void free(void* ptr, size_t, align_val_t alignment) noexcept {
+void free(void* ptr, std::align_val_t alignment) noexcept {
   deallocate(ptr, alignment);
+}
+
+void free(void* ptr, size_t, std::align_val_t alignment) noexcept {
+  free(ptr, alignment);
 }
 }  // namespace ktl

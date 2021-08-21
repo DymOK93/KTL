@@ -24,7 +24,7 @@ set(
 		"memory.hpp"
 		"memory_tools.hpp"
 		"memory_type_traits.hpp"
-		"mutex.hpp"
+		"mutex.h"
 		"new_delete.h"
 		"smart_pointer.hpp"
 		"static_pipeline.hpp"
@@ -33,6 +33,7 @@ set(
 		"string_view.hpp"
 		"string_algorithm_impl.hpp"
 		"string_algorithms_old.hpp"
+		"thread.h"
 		"type_traits.hpp"
 		"unordered_container_impl.hpp"
 		"unordered_map.hpp"
@@ -45,7 +46,7 @@ set(TARGET_LIB cpp_interface)
 
 add_library(${TARGET_LIB} INTERFACE)
 target_compile_definitions(
-	${TARGET_LIB}  INTERFACE 
+	${TARGET_LIB} INTERFACE 
 		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  
 )
 target_include_directories(
