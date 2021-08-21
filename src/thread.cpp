@@ -35,8 +35,12 @@ thread_base::~thread_base() noexcept {
   destroy();
 }
 
-void thread_base::swap(thread_base& other) noexcept {
-  ktl::swap(m_thread, other.m_thread);
+auto thread_base::get_priority() const noexcept -> priority_t {
+  return KeQueryPriorityThread(static_cast<PKTHREAD>(m_thread));
+}
+
+auto thread_base::set_priority(priority_t new_priority) noexcept -> priority_t {
+  return KeSetPriorityThread(static_cast<PKTHREAD>(m_thread), new_priority);
 }
 
 auto thread_base::get_id() const noexcept -> id {
@@ -52,6 +56,10 @@ void thread_base::destroy() noexcept {
     ObDereferenceObject(m_thread);
     m_thread = nullptr;
   }
+}
+
+void thread_base::swap(thread_base& other) noexcept {
+  ktl::swap(m_thread, other.m_thread);
 }
 
 auto thread_base::try_obtain_thread_object(HANDLE handle) noexcept
@@ -87,6 +95,10 @@ void system_thread::detach() {
   destroy();
 }
 
+void system_thread::swap(system_thread& other) noexcept {
+  MyBase::swap(other);
+}
+
 void system_thread::verify_joinable() const {
   throw_exception_if_not<kernel_error>(joinable(), STATUS_INVALID_THREAD,
                                        L"thread isn't joinable",
@@ -114,8 +126,24 @@ void system_thread::before_exit(NTSTATUS status) noexcept {
   PsTerminateSystemThread(status);
 }
 
+void swap(system_thread& lhs, system_thread& rhs) noexcept {
+  lhs.swap(rhs);
+}
+
+void guarded_system_thread::swap(guarded_system_thread& other) noexcept {
+  MyBase::swap(other);
+}
+
+void swap(guarded_system_thread& lhs, guarded_system_thread& rhs) noexcept {
+  lhs.swap(rhs);
+}
+
 #if WINVER >= _WIN32_WINNT_WIN8
 void io_thread::before_exit() noexcept {}
+
+void io_thread::swap(io_thread& other) noexcept {
+  MyBase::swap(other);
+}
 
 auto io_thread::create_thread_impl(void* io_object,
                                    thread_routine_t start,
@@ -133,6 +161,10 @@ auto io_thread::create_thread_impl(void* io_object,
   auto thread_obj{try_obtain_thread_object(thread_handle)};
   ZwClose(thread_handle);
   return thread_obj;
+}
+
+void swap(io_thread& lhs, io_thread& rhs) noexcept {
+  lhs.swap(rhs);
 }
 #endif
 }  // namespace ktl

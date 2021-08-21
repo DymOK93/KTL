@@ -62,6 +62,7 @@ namespace th::details {
 class thread_base : non_copyable {
  public:
   using id = thread_id_t;
+  using priority_t = KPRIORITY;
 
   // basic_thread holds a pointer to thread object
   using native_handle_type = PETHREAD;
@@ -74,8 +75,6 @@ class thread_base : non_copyable {
   thread_base& operator=(thread_base&& other) noexcept;
   ~thread_base() noexcept;
 
-  void swap(thread_base& other) noexcept;
-
   [[nodiscard]] id get_id() const noexcept;
 
   [[nodiscard]] native_handle_type native_handle() const noexcept {
@@ -84,6 +83,9 @@ class thread_base : non_copyable {
                     // (<ntifs.h>, <fltkrnel.h>)
   }
 
+  priority_t get_priority() const noexcept;
+  priority_t set_priority(priority_t new_priority) noexcept;
+
   static uint32_t hardware_concurrency() noexcept;
 
  protected:
@@ -91,6 +93,7 @@ class thread_base : non_copyable {
   thread_base(internal_object_type thread_obj);
 
   void destroy() noexcept;
+  void swap(thread_base& other) noexcept;
 
   static internal_object_type try_obtain_thread_object(HANDLE handle) noexcept;
 
@@ -205,6 +208,7 @@ class system_thread : public th::details::worker_thread<system_thread> {
   bool joinable() const noexcept;
   void join();
   void detach();
+  void swap(system_thread& other) noexcept;
 
  protected:
   template <class Fn, class... Types>
@@ -235,6 +239,8 @@ class system_thread : public th::details::worker_thread<system_thread> {
   void verify_joinable() const;
 };
 
+void swap(system_thread& lhs, system_thread& rhs) noexcept;
+
 // Joinable thread catches all unhandled C++ exceptions
 class guarded_system_thread : public system_thread {
  public:
@@ -242,6 +248,8 @@ class guarded_system_thread : public system_thread {
 
  public:
   using MyBase::MyBase;
+
+  void swap(guarded_system_thread& other) noexcept;
 
  protected:
   template <class Fn, class... Types>
@@ -256,12 +264,19 @@ class guarded_system_thread : public system_thread {
     }
     return status;
   }
+
+ private:
+  using MyBase::swap;  // Swapping from guarded_system_thread to system_thread
+                       // is allowed, but from system_thread to
+                       // guarded_system_thread isn't
 };
+
+void swap(guarded_system_thread& lhs, guarded_system_thread& rhs) noexcept;
 
 #if WINVER >= _WIN32_WINNT_WIN8
 // Supplied by IO-Manager thread prevents the driver from
 // being unloaded before it exits
-class io_thread : th::details::worker_thread<io_thread> {
+class io_thread : public th::details::worker_thread<io_thread> {
  public:
   using MyBase = worker_thread<io_thread>;
 
@@ -303,6 +318,8 @@ class io_thread : th::details::worker_thread<io_thread> {
   io_thread(io_thread&&) noexcept = default;
   io_thread& operator=(io_thread&&) noexcept = default;
 
+  void io_thread::swap(io_thread& other) noexcept;
+
  protected:
   using MyBase::make_call;
   static void before_exit() noexcept;
@@ -327,5 +344,7 @@ class io_thread : th::details::worker_thread<io_thread> {
                                                  thread_routine_t start,
                                                  void* raw_args);
 };
+
+void swap(io_thread& lhs, io_thread& rhs) noexcept;
 #endif
 }  // namespace ktl
