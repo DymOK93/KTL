@@ -1,20 +1,11 @@
 #include <crt_assert.h>
 
 namespace ktl::crt {
-void assertion_handler(bool value,
-                       [[maybe_unused]] const wchar_t* description) noexcept {
-  if (!value) {
-    KdPrint(("Assertion failure: %ws\n", description));
-    DbgRaiseAssertionFailure();
-  }
-}
-
-void assertion_handler(bool value,
-                       [[maybe_unused]] const wchar_t* description,
-                       [[maybe_unused]] const wchar_t* msg) noexcept {
-  if (!value) {
-    KdPrint(("Assertion failure: %ws\n%ws\n", description, msg));
-    DbgRaiseAssertionFailure();
-  }
+void assertion_handler(const wchar_t* description,
+                       const wchar_t* msg) noexcept {
+  const auto* fmt{!msg ? "Assertion failure: %ws\n"
+                      : "Assertion failure: %ws\n%ws\n"};
+  DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_ERROR_LEVEL, fmt, description, msg);
+  DbgRaiseAssertionFailure();
 }
 }  // namespace ktl::crt
