@@ -481,7 +481,7 @@ class ref_counter_with_deleter
   }
 
   void delete_this_impl() noexcept {
-    DeleteItselfPolicy::Apply<Ty>(this, get_deleter());
+    DeleteItselfPolicy::template Apply<Ty>(this, get_deleter());
   }
 };
 
@@ -558,7 +558,7 @@ class ref_counter_with_deleter_and_alloc
   }
 
   void delete_this_impl() noexcept {
-    DeleteItselfPolicy::Apply<Ty>(this, get_allocator());
+    DeleteItselfPolicy::template Apply<Ty>(this, get_allocator());
   }
 };
 
@@ -1225,7 +1225,7 @@ shared_ptr<Ty> make_shared(Types&&... args) {
       Ty, mm::details::default_delete<Ty>, mm::details::DestroyObjectInPlace,
       mm::details::DestroyItselfAndDeleteAll>;
   using placeholder_type =
-      typename shared_ptr<Ty>::placeholder_type<ref_counter_t>;
+      typename shared_ptr<Ty>::template placeholder_type<ref_counter_t>;
   using placeholder_storage_type =
       aligned_storage_t<sizeof(placeholder_type), alignof(placeholder_type)>;
 
@@ -1256,7 +1256,7 @@ shared_ptr<Ty> allocate_shared(Alloc&& alloc, Types&&... args) {
       Ty, allocator_type, mm::details::DestroyObjectWithAllocator,
       mm::details::DestroyItselfAndDeallocateAll>;
   using placeholder_type =
-      typename shared_ptr<Ty>::placeholder_type<ref_counter_t>;
+      typename shared_ptr<Ty>::template placeholder_type<ref_counter_t>;
   using placeholder_storage_type =
       aligned_storage_t<sizeof(placeholder_type), alignof(placeholder_type)>;
 
