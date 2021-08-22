@@ -318,7 +318,7 @@ class io_thread : public th::details::worker_thread<io_thread> {
   io_thread(io_thread&&) noexcept = default;
   io_thread& operator=(io_thread&&) noexcept = default;
 
-  void io_thread::swap(io_thread& other) noexcept;
+  void swap(io_thread& other) noexcept;
 
  protected:
   using MyBase::make_call;

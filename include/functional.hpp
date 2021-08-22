@@ -51,7 +51,7 @@ template <class Ret,
           enable_if_t<is_invocable_r_v<Ret, Fn, Types...>, int> = 0>
 constexpr invoke_result_t<Fn, Types...> invoke(
     Fn&& fn,
-    Types&&... args) noexcept(is_nothrow_invocable_r_v<F, Types...>) {
+    Types&&... args) noexcept(is_nothrow_invocable_r_v<Fn, Types...>) {
   if constexpr (is_void_v<Ret>) {
     invoke(forward<Fn>(fn), forward<Types>(args)...);
   } else {
