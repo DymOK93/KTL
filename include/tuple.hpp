@@ -24,13 +24,13 @@ struct is_present {
 template<size_t Idx, class Ty, class Ty1, class... Tys>
 struct index_of_impl {
   static constexpr size_t value = \
-    std::is_same_v<Ty, Ty1> ? Idx : index_of_impl<Idx + 1, Ty, Tys...>::value;
+    is_same_v<Ty, Ty1> ? Idx : index_of_impl<Idx + 1, Ty, Tys...>::value;
 }
 
 template<size_t Idx, class Ty, class Ty1>
 struct index_of_impl {
   static constexpr size_t value = \
-    std::is_same_v<Ty, Ty1> ? Idx : -1;
+    is_same_v<Ty, Ty1> ? Idx : -1;
 }
 
 template<class Ty, class... Tys>
