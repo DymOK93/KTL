@@ -208,90 +208,45 @@ struct tuple_size<tuple<Types...>>
 template <class Ty>
 inline constexpr size_t tuple_size_v = tuple_size<Ty>::value;
 
-template <size_t Idx, class... Types>
-constexpr decltype(auto) get(tuple<Types...>& target) noexcept {
-  static_assert(Idx < tuple_size_v<tuple<Types...>>,
-                "tuple index is out of bounds");
-  return tt::details::get_value<Idx>(target);
-}
+#define KTL_EMPTY_TAG /* Nothing here */
+#define KTL_MOVE(val) move(val)
+#define KTL_NO_MOVE(val) val
 
-template <size_t Idx, class... Types>
-constexpr decltype(auto) get(const tuple<Types...>& target) noexcept {
-  static_assert(Idx < tuple_size_v<tuple<Types...>>,
-                "tuple index is out of bounds");
-  return tt::details::get_value<Idx>(target);
-}
+#define KTL_GET_BY_IDX_IMPL(Const, Volatile, Ref, Move)                              \
+  template<size_t Idx, class... Types>                                               \
+  constexpr decltype(auto) get(Const Volatile tuple<Types...> Ref target) noexcept { \
+    static_assert(Idx < tuple_size_v<tuple<Types...>>,                               \
+                  "tuple index is out of bounds");                                   \
+    return tt::details::get_value<Idx>(Move(target));                                \
+  }
 
-template <size_t Idx, class... Types>
-constexpr decltype(auto) get(const volatile tuple<Types...>& target) noexcept {
-  static_assert(Idx < tuple_size_v<tuple<Types...>>,
-                "tuple index is out of bounds");
-  return tt::details::get_value<Idx>(target);
-}
+KTL_GET_BY_IDX_IMPL(KTL_EMPTY_TAG, KTL_EMPTY_TAG, &,  KTL_NO_MOVE)
+KTL_GET_BY_IDX_IMPL(const,         KTL_EMPTY_TAG, &,  KTL_NO_MOVE)
+KTL_GET_BY_IDX_IMPL(KTL_EMPTY_TAG, volatile,      &,  KTL_NO_MOVE)
+KTL_GET_BY_IDX_IMPL(const,         volatile,      &,  KTL_NO_MOVE)
+KTL_GET_BY_IDX_IMPL(KTL_EMPTY_TAG, KTL_EMPTY_TAG, &&, KTL_MOVE)
+  
+#define KTL_GET_BY_TYPE_IMPL(Const, Volatile, Ref, Move)                             \
+  template <class Ty, class... Types>                                                \
+  constexpr decltype(auto) get(Const Volatile tuple<Types...> Ref target) noexcept { \
+    static_assert(tt::details::is_present<Ty, Types...>::value                       \
+                  "Type Ty must be present in tuple");                               \
+    static_assert(tt::details::is_present_once<Ty, Types...>::value                  \
+                  "Type Ty must be present in tuple only once");                     \
+    return get<tt::details::index_of<Ty, Types...>::value>(Move(target));            \
+  }
 
-template <size_t Idx, class... Types>
-constexpr decltype(auto) get(volatile tuple<Types...>& target) noexcept {
-  static_assert(Idx < tuple_size_v<tuple<Types...>>,
-                "tuple index is out of bounds");
-  return tt::details::get_value<Idx>(target);
-}
-
-template <size_t Idx, class... Types>
-constexpr decltype(auto) get(tuple<Types...>&& target) noexcept {
-  static_assert(Idx < tuple_size_v<tuple<Types...>>,
-                "tuple index is out of bounds");
-  return tt::details::get_value<Idx>(move(target));
-}
-
-template <class Ty, class... Types>
-constexpr decltype(auto) get(tuple<Types...>& target) noexcept {
-  static_assert(tt::details::is_present<Ty, Types...>::value
-                "Type Ty must be present in tuple");
-  static_assert(tt::details::is_present_once<Ty, Types...>::value
-                "Type Ty must be present in tuple only once");
-
-  return get<tt::details::index_of<Ty, Types...>::value>(target);
-}
-
-template <class Ty, class... Types>
-constexpr decltype(auto) get(const tuple<Types...>& target) noexcept {
-  static_assert(tt::details::is_present<Ty, Types...>::value
-                "Type Ty must be present in tuple");
-  static_assert(tt::details::is_present_once<Ty, Types...>::value
-                "Type Ty must be present in tuple only once");
-
-  return get<tt::details::index_of<Ty, Types...>::value>(target);
-}
-
-template <class Ty, class... Types>
-constexpr decltype(auto) get(const volatile tuple<Types...>& target) noexcept {
-  static_assert(tt::details::is_present<Ty, Types...>::value
-                "Type Ty must be present in tuple");
-  static_assert(tt::details::is_present_once<Ty, Types...>::value
-                "Type Ty must be present in tuple only once");
-
-  return get<tt::details::index_of<Ty, Types...>::value>(target);
-}
-
-template <class Ty, class... Types>
-constexpr decltype(auto) get(volatile tuple<Types...>& target) noexcept {
-  static_assert(tt::details::is_present<Ty, Types...>::value
-                "Type Ty must be present in tuple");
-  static_assert(tt::details::is_present_once<Ty, Types...>::value
-                "Type Ty must be present in tuple only once");
-
-  return get<tt::details::index_of<Ty, Types...>::value>(target);
-}
-
-template <class Ty, class... Types>
-constexpr decltype(auto) get(tuple<Types...>&& target) noexcept {
-  static_assert(tt::details::is_present<Ty, Types...>::value
-                "Type Ty must be present in tuple");
-  static_assert(tt::details::is_present_once<Ty, Types...>::value
-                "Type Ty must be present in tuple only once");
-
-  return get<tt::details::index_of<Ty, Types...>::value>(move(target));
-}
+KTL_GET_BY_TYPE_IMPL(KTL_EMPTY_TAG, KTL_EMPTY_TAG, &,  KTL_NO_MOVE)
+KTL_GET_BY_TYPE_IMPL(const,         KTL_EMPTY_TAG, &,  KTL_NO_MOVE)
+KTL_GET_BY_TYPE_IMPL(KTL_EMPTY_TAG, volatile,      &,  KTL_NO_MOVE)
+KTL_GET_BY_TYPE_IMPL(const,         volatile,      &,  KTL_NO_MOVE)
+KTL_GET_BY_TYPE_IMPL(KTL_EMPTY_TAG, KTL_EMPTY_TAG, &&, KTL_MOVE)
+  
+#undef KTL_GET_BY_TYPE_IMPL
+#undef KTL_GET_BY_IDX_IMPL
+#undef KTL_NO_MOVE
+#undef KTL_MOVE
+#undef KTL_EMPTY_TAG
 
 template <size_t Idx, class Ty>
 using tuple_element = remove_reference<decltype(get<Idx>(declval<Ty>()))>;
