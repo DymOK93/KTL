@@ -7,36 +7,36 @@ namespace tt::details {
 template<class Ty, class... Tys>
 struct count_entries {
   // MSVC 19.20+
-  static constexpr size_t value = \
-    (static_cast<size_t>(is_same_v<Ty, Tys>) + ...);
-}
+  static constexpr size_t value =
+      (static_cast<size_t>(is_same_v<Ty, Tys>) + ...);
+};
 
 template<class Ty, class... Tys>
 struct is_present_once {
   static constexpr bool value = count_entries<Ty, Tys>::value == 1;
-}
+};
 
 template<class Ty, class... Tys>
 struct is_present {
   static constexpr bool value = count_entries<Ty, Tys>::value > 0;
-}
+};
 
 template<size_t Idx, class Ty, class Ty1, class... Tys>
 struct index_of_impl {
   static constexpr size_t value = \
     is_same_v<Ty, Ty1> ? Idx : index_of_impl<Idx + 1, Ty, Tys...>::value;
-}
+};
 
 template<size_t Idx, class Ty, class Ty1>
-struct index_of_impl {
+struct index_of_impl<Idx, Ty, Ty1> {
   static constexpr size_t value = \
     is_same_v<Ty, Ty1> ? Idx : -1;
-}
+};
 
 template<class Ty, class... Tys>
 struct index_of {
   static constexpr size_t value = index_of_impl<0, Ty, Tys...>::value;
-}
+};
   
 template <size_t Idx, class Ty>
 struct tuple_element {
@@ -229,9 +229,9 @@ KTL_GET_BY_IDX_IMPL(KTL_EMPTY_TAG, KTL_EMPTY_TAG, &&, KTL_MOVE)
 #define KTL_GET_BY_TYPE_IMPL(Const, Volatile, Ref, Move)                             \
   template <class Ty, class... Types>                                                \
   constexpr decltype(auto) get(Const Volatile tuple<Types...> Ref target) noexcept { \
-    static_assert(tt::details::is_present<Ty, Types...>::value                       \
+    static_assert(tt::details::is_present<Ty, Types...>::value,                      \
                   "Type Ty must be present in tuple");                               \
-    static_assert(tt::details::is_present_once<Ty, Types...>::value                  \
+    static_assert(tt::details::is_present_once<Ty, Types...>::value,                 \
                   "Type Ty must be present in tuple only once");                     \
     return get<tt::details::index_of<Ty, Types...>::value>(Move(target));            \
   }
