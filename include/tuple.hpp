@@ -4,6 +4,40 @@
 
 namespace ktl {
 namespace tt::details {
+template<class Ty, class... Tys>
+struct count_entries {
+  // MSVC 19.20+
+  static constexpr size_t value = \
+    (static_cast<size_t>(is_same_v<Ty, Tys>) + ...);
+}
+
+template<class Ty, class... Tys>
+struct is_present_once {
+  static constexpr bool value = count_entries<Ty, Tys>::value == 1;
+}
+
+template<class Ty, class... Tys>
+struct is_present {
+  static constexpr bool value = count_entries<Ty, Tys>::value > 0;
+}
+
+template<size_t Idx, class Ty, class Ty1, class... Tys>
+struct index_of_impl {
+  static constexpr size_t value = \
+    std::is_same_v<Ty, Ty1> ? Idx : index_of_impl<Idx + 1, Ty, Tys...>::value;
+}
+
+template<size_t Idx, class Ty, class Ty1>
+struct index_of_impl {
+  static constexpr size_t value = \
+    std::is_same_v<Ty, Ty1> ? Idx : -1;
+}
+
+template<class Ty, class... Tys>
+struct index_of {
+  static constexpr size_t value = index_of_impl<0, Ty, Tys...>::value;
+}
+  
 template <size_t Idx, class Ty>
 struct tuple_element {
   Ty value{};
@@ -207,6 +241,56 @@ constexpr decltype(auto) get(tuple<Types...>&& target) noexcept {
   static_assert(Idx < tuple_size_v<tuple<Types...>>,
                 "tuple index is out of bounds");
   return tt::details::get_value<Idx>(move(target));
+}
+
+template <class Ty, class... Types>
+constexpr decltype(auto) get(tuple<Types...>& target) noexcept {
+  static_assert(tt::details::is_present<Ty, Types...>::value
+                "Type Ty must be present in tuple");
+  static_assert(tt::details::is_present_once<Ty, Types...>::value
+                "Type Ty must be present in tuple only once");
+
+  return get<tt::details::index_of<Ty, Types...>::value>(target);
+}
+
+template <class Ty, class... Types>
+constexpr decltype(auto) get(const tuple<Types...>& target) noexcept {
+  static_assert(tt::details::is_present<Ty, Types...>::value
+                "Type Ty must be present in tuple");
+  static_assert(tt::details::is_present_once<Ty, Types...>::value
+                "Type Ty must be present in tuple only once");
+
+  return get<tt::details::index_of<Ty, Types...>::value>(target);
+}
+
+template <class Ty, class... Types>
+constexpr decltype(auto) get(const volatile tuple<Types...>& target) noexcept {
+  static_assert(tt::details::is_present<Ty, Types...>::value
+                "Type Ty must be present in tuple");
+  static_assert(tt::details::is_present_once<Ty, Types...>::value
+                "Type Ty must be present in tuple only once");
+
+  return get<tt::details::index_of<Ty, Types...>::value>(target);
+}
+
+template <class Ty, class... Types>
+constexpr decltype(auto) get(volatile tuple<Types...>& target) noexcept {
+  static_assert(tt::details::is_present<Ty, Types...>::value
+                "Type Ty must be present in tuple");
+  static_assert(tt::details::is_present_once<Ty, Types...>::value
+                "Type Ty must be present in tuple only once");
+
+  return get<tt::details::index_of<Ty, Types...>::value>(target);
+}
+
+template <class Ty, class... Types>
+constexpr decltype(auto) get(tuple<Types...>&& target) noexcept {
+  static_assert(tt::details::is_present<Ty, Types...>::value
+                "Type Ty must be present in tuple");
+  static_assert(tt::details::is_present_once<Ty, Types...>::value
+                "Type Ty must be present in tuple only once");
+
+  return get<tt::details::index_of<Ty, Types...>::value>(move(target));
 }
 
 template <size_t Idx, class Ty>
