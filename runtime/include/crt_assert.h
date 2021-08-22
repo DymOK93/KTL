@@ -3,21 +3,16 @@
 #include <ntddk.h>
 
 namespace ktl::crt {
-void assertion_handler(bool value, const wchar_t* description) noexcept;
-void assertion_handler(bool value,
-                       const wchar_t* description,
-                       const wchar_t* msg) noexcept;
+void assertion_handler(const wchar_t* description,
+                       const wchar_t* msg = nullptr) noexcept;
 
 template <class Cond>
-void assert_impl(const Cond& cond, const wchar_t* description) {
-  assertion_handler(static_cast<bool>(cond), description);
-}
-
-template <class Cond>
-void assert_impl(const Cond& cond,
+constexpr void assert_impl(const Cond& cond,
                  const wchar_t* description,
-                 const wchar_t* msg) {
-  assertion_handler(static_cast<bool>(cond), description, msg);
+                 const wchar_t* msg = nullptr) {
+  if (!cond) {
+    assertion_handler(description, msg);
+  }
 }
 }  // namespace ktl::crt
 
@@ -31,8 +26,8 @@ void assert_impl(const Cond& cond,
   ktl::crt::assert_impl((cond), ASSERT_DESCRIPTION(cond), msg)
 
 #ifdef KTL_RUNTIME_DBG
-#define crt_assert(cond) ASSERTION_CHECK(cond)
-#define crt_assert_with_msg(cond, msg) ASSERTION_CHECK_WITH_MSG(cond, (msg))
+#define crt_assert(cond) ASSERTION_CHECK((cond))
+#define crt_assert_with_msg(cond, msg) ASSERTION_CHECK_WITH_MSG((cond), (msg))
 #else
 #define crt_assert(cond)
 #define crt_assert_with_msg(cond, msg)
