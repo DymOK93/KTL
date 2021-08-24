@@ -440,13 +440,18 @@ template <class Ty>
 inline constexpr bool is_move_constructible_v =
     is_move_constructible<Ty>::value;
 
-template <class Ty, class... Types>
-inline constexpr bool is_nothrow_constructible_v =
-    is_constructible_v<Ty, Types...>&& noexcept(Ty(declval<Types>()...));
+template <class, class Ty, class... Types>
+struct is_nothrow_constructible : false_type {};
 
 template <class Ty, class... Types>
-struct is_nothrow_constructible
-    : bool_constant<is_nothrow_constructible_v<Ty, Types...>> {};
+struct is_nothrow_constructible<
+    void_t<enable_if_t<is_constructible_v<Ty, Types...>>>,
+    Ty,
+    Types...> : bool_constant<noexcept(Ty(declval<Types>()...))> {};
+
+template <class Ty, class... Types>
+inline constexpr bool is_nothrow_constructible_v =
+    is_nothrow_constructible<void_t<>, Ty, Types...>::value;
 
 template <class Ty>
 struct is_nothrow_copy_constructible {
