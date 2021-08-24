@@ -99,7 +99,7 @@ exception_base::exception_base(const char* msg, impermanent_message_tag)
     : exception_base(msg, ktl::char_traits<char>::length(msg)) {}
 
 exception_base::exception_base(const char* msg, size_t msg_length)
-    : m_data{make_shared(msg, msg_length)} {}
+    : m_data{make_shared_data(msg, msg_length)} {}
 
 exception_base::exception_base(const wchar_t* msg)
     : exception_base(msg, char_traits<wchar_t>::length(msg)) {}
@@ -141,7 +141,7 @@ auto exception_base::construct_from_unicode(const wchar_t* msg, size_t length)
   if (get_current_irql() >= DISPATCH_LEVEL) {
     return CONVERSION_ERROR;
   }
-  return convert_to_shared(msg, length);
+  return make_shared_data(msg, length);
 }
 
 const char* exception_base::get_message() const noexcept {
@@ -159,7 +159,7 @@ auto exception_base::get_shared() const noexcept -> shared_data* {
   return static_cast<shared_data*>(unmask(const_cast<void*>(m_data)));
 }
 
-auto exception_base::make_shared(const char* msg, size_t msg_length)
+auto exception_base::make_shared_data(const char* msg, size_t msg_length)
     -> masked_ptr_t {
   byte* buffer{details::exc_memory_pool.allocate(sizeof(shared_data) +
                                                  msg_length + 1ull)};
@@ -169,8 +169,8 @@ auto exception_base::make_shared(const char* msg, size_t msg_length)
   return construct_header(buffer, msg_buf);
 }
 
-auto exception_base::convert_to_shared(const wchar_t* msg, size_t msg_length)
-    -> masked_ptr_t {
+auto exception_base::make_shared_data(const wchar_t* msg,
+                                            size_t msg_length) -> masked_ptr_t {
   unsigned long description_length;
   const auto src_length_in_bytes{
       static_cast<unsigned long>(msg_length * sizeof(wchar_t))};

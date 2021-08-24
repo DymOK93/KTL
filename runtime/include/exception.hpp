@@ -74,8 +74,8 @@ class exception_base {
   static masked_storage_t construct_from_unicode(const wchar_t* msg,
                                                  size_t length);
 
-  static masked_ptr_t make_shared(const char* msg, size_t msg_length);
-  static masked_ptr_t convert_to_shared(const wchar_t* msg, size_t msg_length);
+  static masked_ptr_t make_shared_data(const char* msg, size_t msg_length);
+  static masked_ptr_t make_shared_data(const wchar_t* msg, size_t msg_length);
   static masked_ptr_t construct_header(byte* buffer, char* saved_msg) noexcept;
 
   static uintptr_t ptr_to_number(void* ptr) noexcept;
