@@ -95,9 +95,6 @@ struct exception_base::shared_data {
   size_t ref_counter;
 };
 
-exception_base::exception_base(const char* msg)
-    : exception_base(msg, char_traits<char>::length(msg)) {}
-
 exception_base::exception_base(const char* msg, size_t msg_length)
     : m_data{make_shared(msg, msg_length)} {}
 
@@ -208,4 +205,12 @@ auto exception_base::unmask(void* ptr) noexcept -> masked_ptr_t {
   return reinterpret_cast<void*>(ptr_as_num);
 }
 }  // namespace crt
+
+NTSTATUS bad_alloc::code() const noexcept {
+  return STATUS_NO_MEMORY;
+}
+
+NTSTATUS bad_array_new_length::code() const noexcept {
+  return STATUS_BUFFER_OVERFLOW;
+}
 }  // namespace ktl

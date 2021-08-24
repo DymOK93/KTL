@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 #include <bugcheck.h>
-#include <exception.h>
+#include <ktlexcept.hpp>
 #include <algorithm.hpp>
 #include <intrinsic.hpp>
 #include <limits.hpp>
@@ -2629,8 +2629,7 @@ struct formatter<detail::bigint> {
 
 FMT_FUNC detail::utf8_to_utf16::utf8_to_utf16(string_view s) {
   for_each_codepoint(s, [this](uint32_t cp, int error) {
-    ktl::throw_exception_if<ktl::runtime_error>(error != 0, L"invalid utf8",
-                                                ktl::constexpr_message_tag{});
+    ktl::throw_exception_if<ktl::runtime_error>(error != 0, L"invalid utf8");
     if (cp <= 0xFFFF) {
       buffer_.push_back(static_cast<wchar_t>(cp));
     } else {
@@ -2658,7 +2657,7 @@ FMT_FUNC detail::utf8_to_utf16::utf8_to_utf16(string_view s) {
 //  FMT_THROW(format_error(message));
 //}
 
-FMT_FUNC void detail::error_handler::on_error(const wchar_t* message) {
+FMT_FUNC void detail::error_handler::on_error(const char* message) {
   ktl::throw_exception<format_error>(message);
 }
 

@@ -1,6 +1,6 @@
 #pragma once
 #include <crt_attributes.h>
-#include <exception_impl.h>
+#include <exception.hpp>
 #include <string_fwd.hpp>
 #include <utility.hpp>
 
@@ -11,27 +11,24 @@ class bad_weak_ptr : public exception {
 
  public:
   constexpr bad_weak_ptr() noexcept
-      : MyBase{L"bad weak ptr", constexpr_message_tag{}} {}
+      : MyBase{"bad weak ptr"} {}
 };
 
 namespace exc::details {
-class unicode_string_exception_base : public exception {
- public:
+struct winnt_string_exception_base : exception {
   using MyBase = exception;
 
- public:
-  explicit unicode_string_exception_base(const unicode_string& nt_str);
-  explicit unicode_string_exception_base(const unicode_string_non_paged& str);
+  template <typename CharT, size_t SsoChBufferCount, class Traits, class Alloc>
+  explicit winnt_string_exception_base(
+      const basic_winnt_string<CharT, SsoChBufferCount, Traits, Alloc>& str)
+      : MyBase(data(str), size(str)) {}
 
   using MyBase::MyBase;
 };
 }  // namespace exc::details
 
-class logic_error : public exc::details::unicode_string_exception_base {
- public:
-  using MyBase = exc::details::unicode_string_exception_base;
-
- public:
+struct logic_error : exc::details::winnt_string_exception_base {
+  using MyBase = winnt_string_exception_base;
   using MyBase::MyBase;
 };
 
@@ -52,11 +49,8 @@ class length_error : public logic_error {
   using MyBase::MyBase;
 };
 
-class runtime_error : public exc::details::unicode_string_exception_base {
- public:
-  using MyBase = exc::details::unicode_string_exception_base;
-
- public:
+struct runtime_error : exc::details::winnt_string_exception_base {
+  using MyBase = winnt_string_exception_base;
   using MyBase::MyBase;
 };
 
@@ -74,17 +68,19 @@ class kernel_error : public runtime_error {
   using MyBase = runtime_error;
 
  public:
-  kernel_error(NTSTATUS code, const exc_char_t* msg);
-  kernel_error(NTSTATUS code, const exc_char_t* msg, size_t length);
+  kernel_error(NTSTATUS code, const char* msg, size_t length);
 
-  template <size_t N>
-  explicit constexpr kernel_error(NTSTATUS code, const exc_char_t (&msg)[N])
-      : MyBase(msg), m_code{code} {}
+  kernel_error(NTSTATUS code, const wchar_t* msg);
+  kernel_error(NTSTATUS code, const wchar_t* msg, size_t length);
 
   constexpr kernel_error(NTSTATUS code,
-                         const exc_char_t* msg,
-                         constexpr_message_tag tag) noexcept
+                         const char* msg,
+                         persistent_message_tag tag) noexcept
       : MyBase(msg, tag), m_code{code} {}
+
+  template <size_t N>
+  explicit constexpr kernel_error(NTSTATUS code, const char (&msg)[N])
+      : MyBase(msg), m_code{code} {}
 
   explicit kernel_error(NTSTATUS code, const unicode_string& nt_str);
   explicit kernel_error(NTSTATUS code, const unicode_string_non_paged& str);

@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include <container_helpers.h>
-#include <exception.h>
+#include <ktlexcept.hpp>
 #include <new_delete.h>
 #include <algorithm.hpp>
 #include <assert.hpp>

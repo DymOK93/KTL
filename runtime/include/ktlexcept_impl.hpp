@@ -20,7 +20,7 @@ class bad_alloc : public exception {
 
  public:
   constexpr bad_alloc() noexcept
-      : MyBase{L"memory allocation fails", constexpr_message_tag{}} {}
+      : MyBase{L"memory allocation fails", persistent_message_tag{}} {}
 
   NTSTATUS code() const noexcept override;
 

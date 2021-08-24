@@ -9,7 +9,7 @@ using std::weak_ptr;
 }  // namespace ktl
 #else
 #include <crt_attributes.h>
-#include <exception.h>
+#include <ktlexcept.hpp>
 #include <heap.h>
 #include <allocator.hpp>
 #include <atomic.hpp>

@@ -34,7 +34,7 @@
 #define FMT_FORMAT_H_
 
 #include <basic_types.h>  // uint32_t
-#include <exception.h>    // ktl::runtime_error
+#include <ktlexcept.hpp>  // ktl::runtime_error
 #include <limits.hpp>     // ktl::numeric_limits
 #include <math.hpp>
 #include <memory.hpp>   // ktl::uninitialized_copy
@@ -1645,8 +1645,7 @@ constexpr inline auto write_int(OutputIt out,
     case 'c':
       return write_char(out, static_cast<Char>(abs_value), specs);
     default:
-      ktl::throw_exception<format_error>(L"invalid type specifier",
-                                         ktl::constexpr_message_tag{});
+      ktl::throw_exception<format_error>(L"invalid type specifier");
   }
 }
 
@@ -1971,8 +1970,7 @@ auto write(OutputIt out,
   int precision = specs.precision >= 0 || !specs.type ? specs.precision : 6;
   if (fspecs.format == float_format::exp) {
     ktl::throw_exception_if<format_error>(precision == max_value<int>(),
-                                          L"number is too big",
-                                          ktl::constexpr_message_tag{});
+                                          L"number is too big");
     ++precision;
   }
   if (const_check(ktl::is_same<T, float>()))
@@ -2111,8 +2109,7 @@ constexpr auto write(OutputIt out, Char value) -> OutputIt {
 template <typename Char, typename OutputIt>
 FMT_CONSTEXPR_CHAR_TRAITS auto write(OutputIt out, const Char* value)
     -> OutputIt {
-  ktl::throw_exception_if<format_error>(!value, L"string pointer is null",
-                                        ktl::constexpr_message_tag{});
+  ktl::throw_exception_if<format_error>(!value, "string pointer is null");
   auto length = ktl::char_traits<Char>::length(value);
   out = write(out, basic_winnt_string_view<Char>(value, length));
   return out;
@@ -2310,7 +2307,7 @@ class specs_handler : public specs_setter<Char> {
 
   // TODO:on_error
   // void on_error(const char* message) { context_.on_error(message); }
-  void on_error(const wchar_t* message) { context_.on_error(message); }
+  void on_error(const char* message) { context_.on_error(message); }
 };
 
 template <template <typename> class Handler, typename Context>

@@ -1,7 +1,7 @@
 #pragma once
-#include <exception_impl.h>
 #include <heap.h>
 #include <placement_new.h>
+#include <exception.hpp>
 
 namespace ktl {
 struct paged_new_tag_t {};

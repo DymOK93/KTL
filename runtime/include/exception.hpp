@@ -44,23 +44,17 @@ class exception_base {
   using masked_storage_t = const void*;
 
  public:
-  exception_base(const char* msg);
   exception_base(const char* msg, size_t length);
 
   exception_base(const wchar_t* msg);
   exception_base(const wchar_t* msg, size_t length);
 
-  constexpr exception_base(const char* msg, persistent_message_tag) noexcept
-      : m_data{msg} {}
-
-  template <size_t N>
-  explicit constexpr exception_base(const char (&msg)[N],
-                                    persistent_message_tag) noexcept
-      : m_data{msg} {}
-
   template <size_t N>
   explicit constexpr exception_base(const char (&msg)[N]) noexcept
-      : exception_base(msg, persistent_message_tag{}) {}
+      : m_data{msg} {}
+
+  constexpr exception_base(const char* msg, persistent_message_tag) noexcept
+      : m_data{msg} {}
 
   exception_base(const exception_base& other) noexcept;
   exception_base& operator=(const exception_base& other) noexcept;
@@ -80,8 +74,7 @@ class exception_base {
 
   static masked_ptr_t make_shared(const char* msg, size_t msg_length);
   static masked_ptr_t convert_to_shared(const wchar_t* msg, size_t msg_length);
-  static masked_ptr_t construct_header(byte* buffer,
-                                         char* saved_msg) noexcept;
+  static masked_ptr_t construct_header(byte* buffer, char* saved_msg) noexcept;
 
   static void destroy_shared(masked_ptr_t target) noexcept;
   static uintptr_t ptr_to_number(void* ptr) noexcept;
@@ -107,6 +100,17 @@ struct bad_alloc : public exception {
   constexpr bad_alloc() noexcept
       : MyBase{"memory allocation fails", persistent_message_tag{}} {}
 
+  NTSTATUS code() const noexcept override;
+
+ protected:
+  using MyBase::MyBase;
+};
+
+struct bad_array_new_length : bad_alloc {
+  using MyBase = bad_alloc;
+
+  constexpr bad_array_new_length() noexcept
+      : MyBase{"array is too long for operator[]"} {}
   NTSTATUS code() const noexcept override;
 };
 }  // namespace ktl

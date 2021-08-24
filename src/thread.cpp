@@ -1,6 +1,6 @@
 #include <bugcheck.h>
-#include <exception.h>
 #include <thread.h>
+#include <ktlexcept.hpp>
 #include <utility.hpp>
 
 #include <ntddk.h>
@@ -101,8 +101,7 @@ void system_thread::swap(system_thread& other) noexcept {
 
 void system_thread::verify_joinable() const {
   throw_exception_if_not<kernel_error>(joinable(), STATUS_INVALID_THREAD,
-                                       L"thread isn't joinable",
-                                       constexpr_message_tag{});
+                                       "thread isn't joinable");
 }
 
 auto system_thread::create_thread_impl(thread_routine_t start, void* raw_args)
@@ -115,8 +114,7 @@ auto system_thread::create_thread_impl(thread_routine_t start, void* raw_args)
       addressof(thread_handle), THREAD_ALL_ACCESS, addressof(attrs), nullptr,
       nullptr, start, raw_args)};
   throw_exception_if_not<kernel_error>(NT_SUCCESS(status), status,
-                                       L"thread creation failed",
-                                       constexpr_message_tag{});
+                                       "thread creation failed");
   auto thread_obj{try_obtain_thread_object(thread_handle)};
   ZwClose(thread_handle);
   return thread_obj;
@@ -156,8 +154,7 @@ auto io_thread::create_thread_impl(void* io_object,
       io_object, addressof(thread_handle), THREAD_ALL_ACCESS, addressof(attrs),
       nullptr, nullptr, start, raw_args)};
   throw_exception_if_not<kernel_error>(NT_SUCCESS(status), status,
-                                       L"thread creation failed",
-                                       constexpr_message_tag{});
+                                       "thread creation failed");
   auto thread_obj{try_obtain_thread_object(thread_handle)};
   ZwClose(thread_handle);
   return thread_obj;

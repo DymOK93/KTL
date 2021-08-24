@@ -562,7 +562,7 @@ struct error_handler {
 
   // This function is intentionally not constexpr to give a compile-time error.
   // [[noreturn]] FMT_API void on_error(const char* message);
-  [[noreturn]] FMT_API void on_error(const wchar_t* message);
+  [[noreturn]] FMT_API void on_error(const char* message);
 };
 FMT_END_DETAIL_NAMESPACE
 
@@ -637,7 +637,7 @@ class basic_format_parse_context : private ErrorHandler {
 
   constexpr void check_arg_id(basic_winnt_string_view<Char>) {}
 
-  constexpr void on_error(const wchar_t* message) {
+  constexpr void on_error(const char* message) {
     ErrorHandler::on_error(message);
   }
 
@@ -1627,7 +1627,7 @@ class basic_format_context {
 
   constexpr auto error_handler() -> detail::error_handler { return {}; }
 
-  void on_error(const wchar_t* message) { error_handler().on_error(message); }
+  void on_error(const char* message) { error_handler().on_error(message); }
 
   // Returns an iterator to the beginning of the output range.
   constexpr auto out() -> iterator { return out_; }
@@ -2040,7 +2040,7 @@ class dynamic_specs_handler
     specs_.precision_ref = make_arg_ref(arg_id);
   }
 
-  constexpr void on_error(const wchar_t* message) {
+  constexpr void on_error(const char* message) {
     context_.on_error(message);
   }
 
@@ -2249,7 +2249,7 @@ constexpr auto parse_width(const Char* begin,
       handler.on_dynamic_width(id);
     }
 
-    constexpr void on_error(const wchar_t* message) {
+    constexpr void on_error(const char* message) {
       if (message)
         handler.on_error(message);
     }
@@ -2287,7 +2287,7 @@ constexpr auto parse_precision(const Char* begin,
       handler.on_dynamic_precision(id);
     }
 
-    constexpr void on_error(const wchar_t* message) {
+    constexpr void on_error(const char* message) {
       if (message)
         handler.on_error(message);
     }
@@ -2402,7 +2402,7 @@ constexpr auto parse_replacement_field(const Char* begin,
       arg_id = handler.on_arg_id(id);
     }
 
-    constexpr void on_error(const wchar_t* message) {
+    constexpr void on_error(const char* message) {
       if (message)
         handler.on_error(message);
     }
@@ -2768,7 +2768,7 @@ class format_string_checker {
     return context_.check_arg_id(index), index;
 #else
     (void)id;
-    on_error(L"compile-time checks for named arguments require C++20 support");
+    on_error("compile-time checks for named arguments require C++20 support");
     return 0;
 #endif
   }
@@ -2782,7 +2782,7 @@ class format_string_checker {
     return id >= 0 && id < num_args ? parse_funcs_[id](context_) : begin;
   }
 
-  constexpr void on_error(const wchar_t* message) {
+  constexpr void on_error(const char* message) {
     context_.on_error(message);
   }
 };

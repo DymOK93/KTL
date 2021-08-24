@@ -4,7 +4,7 @@
 namespace ktl {
 using exc_char_t = wchar_t;
 
-struct constexpr_message_tag {};
+struct persistent_message_tag {};
 
 namespace crt {
 struct exception_data {
@@ -27,12 +27,12 @@ class exception_base {
       : exception_base(msg, N) {}
 
   constexpr exception_base(const exc_char_t* msg,
-                           constexpr_message_tag) noexcept
+                           persistent_message_tag) noexcept
       : m_data{msg} {}
 
   template <size_t N>
   explicit constexpr exception_base(const exc_char_t (&msg)[N],
-                                    constexpr_message_tag)
+                                    persistent_message_tag)
       : m_data{msg} {}
 
   exception_base(const exception_base& other);
