@@ -12,6 +12,7 @@ set(
 		"basic_runtime.cpp"
 		"bugcheck.cpp"
 		"chrono_impl.cpp"
+		"exception.cpp"
 		"exception_base.cpp"
 		"exception_impl.cpp"
 		"floating_point.cpp" 
