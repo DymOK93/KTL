@@ -2211,13 +2211,13 @@ class width_checker {
   template <typename T, FMT_ENABLE_IF(is_integer<T>::value)>
   constexpr auto operator()(T value) -> unsigned long long {
     if (is_negative(value))
-      handler_.on_error(L"negative width");
+      handler_.on_error("negative width");
     return static_cast<unsigned long long>(value);
   }
 
   template <typename T, FMT_ENABLE_IF(!is_integer<T>::value)>
   constexpr auto operator()(T) -> unsigned long long {
-    handler_.on_error(L"width is not integer");
+    handler_.on_error("width is not integer");
   }
 
  private:
@@ -2232,13 +2232,13 @@ class precision_checker {
   template <typename T, FMT_ENABLE_IF(is_integer<T>::value)>
   constexpr auto operator()(T value) -> unsigned long long {
     if (is_negative(value))
-      handler_.on_error(L"negative precision");
+      handler_.on_error("negative precision");
     return static_cast<unsigned long long>(value);
   }
 
   template <typename T, FMT_ENABLE_IF(!is_integer<T>::value)>
   constexpr auto operator()(T) -> unsigned long long {
-    handler_.on_error(L"precision is not integer");
+    handler_.on_error("precision is not integer");
   }
 
  private:
@@ -2251,7 +2251,7 @@ template <template <typename> class Handler,
 constexpr auto get_dynamic_spec(FormatArg arg, ErrorHandler eh) -> int {
   unsigned long long value = visit_format_arg(Handler<ErrorHandler>(eh), arg);
   if (value > to_unsigned(max_value<int>()))
-    eh.on_error(L"number is too big");
+    eh.on_error("number is too big");
   return static_cast<int>(value);
 }
 
@@ -2259,7 +2259,7 @@ template <typename Context, typename ID>
 constexpr auto get_arg(Context& ctx, ID id) -> typename Context::format_arg {
   auto arg = ctx.arg(id);
   if (!arg)
-    ctx.on_error(L"argument not found");
+    ctx.on_error("argument not found");
   return arg;
 }
 
@@ -2885,7 +2885,7 @@ void vformat_to(
   if (fmt.size() == 2 && equal2(fmt.data(), "{}")) {
     auto arg = args.get(0);
     if (!arg)
-      error_handler().on_error(L"argument not found");
+      error_handler().on_error("argument not found");
     visit_format_arg(default_arg_formatter<Char>{out, args, loc}, arg);
     return;
   }
@@ -2913,7 +2913,7 @@ void vformat_to(
     constexpr auto on_arg_id(basic_winnt_string_view<Char> id) -> int {
       int arg_id = context.arg_id(id);
       if (arg_id < 0)
-        on_error(L"argument not found");
+        on_error("argument not found");
       return arg_id;
     }
 
@@ -2939,7 +2939,7 @@ void vformat_to(
           specs_handler<Char>(specs, parse_context, context), arg.type());
       begin = parse_format_specs(begin, end, handler);
       if (begin == end || *begin != '}')
-        on_error(L"missing '}' in format string");
+        on_error("missing '}' in format string");
       auto f = arg_formatter<Char>{context.out(), specs, context.locale()};
       context.advance_to(visit_format_arg(f, arg));
       return begin;

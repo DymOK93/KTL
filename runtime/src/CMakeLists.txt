@@ -13,7 +13,6 @@ set(
 		"bugcheck.cpp"
 		"chrono_impl.cpp"
 		"exception.cpp"
-		"exception_base.cpp"
 		"floating_point.cpp" 
 		"irql.cpp"
 		"heap.cpp"

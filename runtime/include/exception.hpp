@@ -6,6 +6,7 @@
 
 namespace ktl {
 struct persistent_message_tag {};
+struct impermanent_message_tag {};
 
 namespace crt {
 class exception_allocator : preload_initializer {
@@ -36,7 +37,7 @@ class exception_allocator : preload_initializer {
 
 class exception_base {
   static constexpr size_t SHARED_DATA_MASK{1};
-  static constexpr auto CONVERSION_ERROR{"exception message conversion failed"};
+  static constexpr auto CONVERSION_ERROR{""};
 
   struct shared_data;
 
@@ -44,6 +45,7 @@ class exception_base {
   using masked_storage_t = const void*;
 
  public:
+  exception_base(const char* msg, impermanent_message_tag);
   exception_base(const char* msg, size_t length);
 
   exception_base(const wchar_t* msg);
@@ -76,7 +78,6 @@ class exception_base {
   static masked_ptr_t convert_to_shared(const wchar_t* msg, size_t msg_length);
   static masked_ptr_t construct_header(byte* buffer, char* saved_msg) noexcept;
 
-  static void destroy_shared(masked_ptr_t target) noexcept;
   static uintptr_t ptr_to_number(void* ptr) noexcept;
   static masked_ptr_t mask(void* ptr) noexcept;
   static masked_ptr_t unmask(void* ptr) noexcept;

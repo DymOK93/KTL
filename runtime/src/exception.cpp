@@ -95,6 +95,9 @@ struct exception_base::shared_data {
   size_t ref_counter;
 };
 
+exception_base::exception_base(const char* msg, impermanent_message_tag)
+    : exception_base(msg, ktl::char_traits<char>::length(msg)) {}
+
 exception_base::exception_base(const char* msg, size_t msg_length)
     : m_data{make_shared(msg, msg_length)} {}
 
@@ -123,9 +126,8 @@ exception_base& exception_base::operator=(
 exception_base::~exception_base() noexcept {
   if (is_shared()) {
     auto* shared_data{get_shared()};
-    --shared_data->ref_counter;
-    if (!shared_data->ref_counter) {
-      destroy_shared(shared_data);
+    if (--shared_data->ref_counter == 0) {
+      details::exc_memory_pool.deallocate(reinterpret_cast<byte*>(shared_data));
     }
   }
 }
@@ -140,6 +142,11 @@ auto exception_base::construct_from_unicode(const wchar_t* msg, size_t length)
     return CONVERSION_ERROR;
   }
   return convert_to_shared(msg, length);
+}
+
+const char* exception_base::get_message() const noexcept {
+  return is_shared() ? get_shared()->description
+                     : static_cast<const char*>(m_data);
 }
 
 bool exception_base::is_shared() const noexcept {
@@ -171,8 +178,8 @@ auto exception_base::convert_to_shared(const wchar_t* msg, size_t msg_length)
   byte* buffer{details::exc_memory_pool.allocate(sizeof(shared_data) +
                                                  description_length + 1u)};
   auto* msg_buf{reinterpret_cast<char*>(buffer + sizeof(shared_data))};
-  RtlUnicodeToUTF8N(msg_buf, description_length, nullptr, msg,
-                    src_length_in_bytes);
+  RtlUnicodeToMultiByteN(msg_buf, description_length, nullptr, msg,
+                         src_length_in_bytes);
   return construct_header(buffer, msg_buf);
 }
 
@@ -181,12 +188,6 @@ auto exception_base::construct_header(byte* buffer, char* saved_msg) noexcept
   auto* data{new (reinterpret_cast<shared_data*>(buffer))
                  shared_data{saved_msg, 1}};
   return mask(data);
-}
-
-void exception_base::destroy_shared(masked_ptr_t target) noexcept {
-  crt_assert_with_msg((ptr_to_number(target) & SHARED_DATA_MASK) == 1,
-                      L"invalid shared data pointer");
-  details::exc_memory_pool.deallocate(reinterpret_cast<byte*>(unmask(target)));
 }
 
 uintptr_t exception_base::ptr_to_number(void* ptr) noexcept {
@@ -205,6 +206,13 @@ auto exception_base::unmask(void* ptr) noexcept -> masked_ptr_t {
   return reinterpret_cast<void*>(ptr_as_num);
 }
 }  // namespace crt
+
+const char* exception::what() const noexcept {
+  return get_message();
+}
+NTSTATUS exception::code() const noexcept {
+  return STATUS_UNHANDLED_EXCEPTION;
+}
 
 NTSTATUS bad_alloc::code() const noexcept {
   return STATUS_NO_MEMORY;
