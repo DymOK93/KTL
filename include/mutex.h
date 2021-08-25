@@ -6,6 +6,7 @@
 #include <limits.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
+#include <tuple.hpp>
 
 #include <ntddk.h>
 
@@ -34,9 +35,9 @@ class sync_primitive_base : non_relocatable {
 
 template <class SyncPrimitive>
 class awaitable_sync_primitive
-    : public sync_primitive_base<SyncPrimitive> {  //Примитивы синхронизации,
-                                                   //поддерживающие ожидание с
-                                                   //таймером
+    : public sync_primitive_base<SyncPrimitive> {  //ГЏГ°ГЁГ¬ГЁГІГЁГўГ» Г±ГЁГ­ГµГ°Г®Г­ГЁГ§Г Г¶ГЁГЁ,
+                                                   //ГЇГ®Г¤Г¤ГҐГ°Г¦ГЁГўГ ГѕГ№ГЁГҐ Г®Г¦ГЁГ¤Г Г­ГЁГҐ Г±
+                                                   //ГІГ Г©Г¬ГҐГ°Г®Г¬
  public:
   using MyBase = th::details::sync_primitive_base<KMUTEX>;
   using sync_primitive_t = MyBase::sync_primitive_t;
@@ -684,5 +685,29 @@ class irql_guard {
   irql_t m_old_irql;
 };
 
+template<class Mtx1, class Mtx2, class... MtxNs>
+void lock(Mtx1& mtx1, Mtx2& mtx2, MtxNs&... mtxns)
+{
+ // TODO: implement deadlock-avoidable lock
+}
+ 
+template<class... Mtxs>
+class scoped_lock {
+public:
+  explicit scoped_lock(Mtxs&... mtxs) : m_mtxs(mtxs...) { 
+    ktl::lock(mtxs...);
+  }
+  
+  explicit scoped_lock(adopt_locj_tag, Mtxs&... mtxs) : m_mtxs(mtxs...) { /* Don't lock */ }
+  
+  ~scoped_lock() { apply([](Mtxs&... mtxs) { (..., (void) mtxs.unlock()); }, m_mtxs); }
+  
+  scoped_lock(const scoped_lock&) = delete;
+  scoped_lock& operator=(const scoped_lock&) = delete;
+
+private:
+  tuple<Mtxs&...> m_mtxs;
+};
+ 
 // TODO: tuple, scoped_lock
 }  // namespace ktl
