@@ -684,11 +684,53 @@ class irql_guard {
  private:
   irql_t m_old_irql;
 };
+ 
+namespace th::details {
+ 
+ template<class... Mtxs>
+ int lock_attempt(int prev, Mtxs&... mtxs) {
+   // TODO: implement deadlock-avoidable lock attempt
+ }
+ 
+ template<class Mtx1, class Mtx2, class Mtx3, class... MtxNs>
+ void lock_impl(Mtx1& mtx1, Mtx2& mtx2, Mtx3& mtx3, MtxNs&... mtxns) {
+   int not_locked = 0;
+   while (not_locked != -1) {
+     not_locked = lock_attempt(not_locked, mtx1, mtx2, mtx3, mtxns...);
+   }
+ }
+ 
+ template<class Mtx1, class Mtx2>
+ bool lock_attempt_small(Mtx1& mtx1, Mtx2& mtx2) {
+   mtx1.lock();
+   
+   try {
+     if (mtx2.try_lock()) {
+       return false;
+     }
+   }
+   catch(...) {
+     mtx1.unlock();
+     throw;
+   }
+   
+   mtx1.unlock();
+   this_thread::yield();
+   
+   return true;
+ }
+ 
+ template<class Mtx1, class Mtx2>
+ void lock_impl(Mtx1& mtx1, Mtx2& mtx2) {
+   while(lock_attempt_small(mtx1, mtx2) && lock_attempt_small(mtx2, mtx1))
+     /* Don't give up... Try harder! */ ;
+ }
+ 
+} // namespace th::details
 
 template<class Mtx1, class Mtx2, class... MtxNs>
-void lock(Mtx1& mtx1, Mtx2& mtx2, MtxNs&... mtxns)
-{
- // TODO: implement deadlock-avoidable lock
+void lock(Mtx1& mtx1, Mtx2& mtx2, MtxNs&... mtxns) {
+  th::details::lock_impl(mtx1, mtx2, mtxns...);
 }
  
 template<class... Mtxs>
