@@ -7,6 +7,7 @@
 #include <type_traits.hpp>
 #include <utility.hpp>
 #include <tuple.hpp>
+#include <thread.h>
 
 #include <ntddk.h>
 
