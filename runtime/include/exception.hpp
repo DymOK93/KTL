@@ -100,11 +100,9 @@ class exception_base {
 };
 }  // namespace crt
 
-class exception : crt::exception_base {
- public:
+struct exception : crt::exception_base {
   using MyBase = exception_base;
 
- public:
   constexpr exception() noexcept = default;
 
   [[nodiscard]] virtual const char* what() const noexcept;

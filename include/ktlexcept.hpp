@@ -1,111 +1,139 @@
 #pragma once
 #include <crt_attributes.h>
+#include <char_traits.hpp>
 #include <exception.hpp>
 #include <string_fwd.hpp>
 #include <utility.hpp>
 
 namespace ktl {
-struct bad_weak_ptr : public exception {
-  using MyBase = exception;
-
-  constexpr bad_weak_ptr() noexcept
-      : MyBase{"bad weak ptr"} {}
-};
-
 namespace exc::details {
-struct winnt_string_exception_base : exception {
+struct winnt_exception_base : exception {
   using MyBase = exception;
 
-  template <typename CharT, size_t SsoChBufferCount, class Traits, class Alloc>
-  explicit winnt_string_exception_base(
-      const basic_winnt_string<CharT, SsoChBufferCount, Traits, Alloc>& str)
+  template <class Traits = char_traits<char>>
+  winnt_exception_base(const basic_ansi_string_view<Traits>& str)
       : MyBase(data(str), size(str)) {}
 
-  using MyBase::MyBase;
+  template <class Traits = char_traits<wchar_t>>
+  winnt_exception_base(const basic_unicode_string_view<Traits>& str)
+      : MyBase(data(str), size(str)) {}
+
+  template <class Traits = char_traits<char>>
+  constexpr winnt_exception_base(persistent_message_t,
+                                 const basic_ansi_string_view<Traits>& str)
+      : MyBase(persistent_message_t{}, data(str)) {}
+
+  template <size_t N>
+  constexpr winnt_exception_base(const char (&str)[N]) : MyBase(str) {}
 };
 }  // namespace exc::details
 
-struct logic_error : exc::details::winnt_string_exception_base {
-  using MyBase = winnt_string_exception_base;
+struct logic_error : exc::details::winnt_exception_base {
+  using MyBase = winnt_exception_base;
   using MyBase::MyBase;
 };
 
-class out_of_range : public logic_error {
- public:
+struct invalid_argument : logic_error {
   using MyBase = logic_error;
-
- public:
   using MyBase::MyBase;
-  NTSTATUS code() const noexcept override;
 };
 
-class length_error : public logic_error {
- public:
+struct domain_error : logic_error {
   using MyBase = logic_error;
-
- public:
   using MyBase::MyBase;
 };
 
-struct runtime_error : exc::details::winnt_string_exception_base {
-  using MyBase = winnt_string_exception_base;
+struct length_error : logic_error {
+  using MyBase = logic_error;
   using MyBase::MyBase;
 };
 
-class overflow_error : public runtime_error {
- public:
+struct out_of_range : logic_error {
+  using MyBase = logic_error;
+  using MyBase::MyBase;
+  [[nodiscard]] NTSTATUS code() const noexcept override;
+};
+
+struct future_error : logic_error {
+  using MyBase = logic_error;
+  constexpr future_error() noexcept
+      : MyBase{"future has no associated shared state"} {}
+  [[nodiscard]] NTSTATUS code() const noexcept override;
+};
+
+struct runtime_error : exc::details::winnt_exception_base {
+  using MyBase = winnt_exception_base;
+  using MyBase::MyBase;
+};
+
+struct range_error : runtime_error {
+  using MyBase = runtime_error;
+  using MyBase::MyBase;
+  [[nodiscard]] NTSTATUS code() const noexcept override;
+};
+
+struct overflow_error : runtime_error {
+  using MyBase = runtime_error;
+  using MyBase::MyBase;
+  [[nodiscard]] NTSTATUS code() const noexcept override;
+};
+
+struct underflow_error : runtime_error {
+  using MyBase = runtime_error;
+  using MyBase::MyBase;
+  [[nodiscard]] NTSTATUS code() const noexcept override;
+};
+
+struct kernel_error : runtime_error {
   using MyBase = runtime_error;
 
- public:
-  using MyBase::MyBase;
-  NTSTATUS code() const noexcept override;
-};
+  template <class Traits = char_traits<char>>
+  kernel_error(NTSTATUS code, const basic_ansi_string_view<Traits>& str)
+      : MyBase(data(str), size(str)), m_code{code} {}
 
-class kernel_error : public runtime_error {
- public:
-  using MyBase = runtime_error;
+  template <class Traits = char_traits<wchar_t>>
+  kernel_error(NTSTATUS code, const basic_unicode_string_view<Traits>& str)
+      : MyBase(data(str), size(str)), m_code{code} {}
 
- public:
-  kernel_error(NTSTATUS code, const char* msg, size_t length);
-
-  kernel_error(NTSTATUS code, const wchar_t* msg);
-  kernel_error(NTSTATUS code, const wchar_t* msg, size_t length);
-
-  constexpr kernel_error(NTSTATUS code,
-                         const char* msg,
-                         persistent_message_tag tag) noexcept
-      : MyBase(msg, tag), m_code{code} {}
+  template <class Traits = char_traits<char>>
+  constexpr kernel_error(persistent_message_t,
+                         NTSTATUS code,
+                         const basic_ansi_string_view<Traits>& str)
+      : MyBase(persistent_message_t{}, data(str)), m_code{code} {}
 
   template <size_t N>
-  explicit constexpr kernel_error(NTSTATUS code, const char (&msg)[N])
-      : MyBase(msg), m_code{code} {}
+  constexpr kernel_error(NTSTATUS code, const char (&str)[N])
+      : MyBase(str), m_code{code} {}
 
-  explicit kernel_error(NTSTATUS code, const unicode_string& nt_str);
-  explicit kernel_error(NTSTATUS code, const unicode_string_non_paged& str);
-
-  NTSTATUS code() const noexcept override;
+  [[nodiscard]] NTSTATUS code() const noexcept override;
 
  private:
   NTSTATUS m_code;
 };
 
+struct format_error : runtime_error {
+  using MyBase = runtime_error;
+  using MyBase::MyBase;
+  [[nodiscard]] NTSTATUS code() const noexcept override;
+};
+
 // Make sure this is not inlined as it is slow and dramatically enlarges code,
 // thus making other inlinings more difficult. Throws are also generally the
-// slow path.
+// slow path
 template <class Exc, class... Types>
 [[noreturn]] NOINLINE void throw_exception(Types&&... args) {
   throw Exc(forward<Types>(args)...);
 }
 
 template <class Exc, class Ty, class... Types>
-static void throw_exception_if(const Ty& cond, Types&&... args) {
+FORCEINLINE void throw_exception_if(const Ty& cond, Types&&... args) {
   if (cond) {
     throw_exception<Exc>(forward<Types>(args)...);
   }
 }
 
 template <class Exc, class Ty, class... Types>
-static void throw_exception_if_not(const Ty& cond, Types&&... args) {
+FORCEINLINE void throw_exception_if_not(const Ty& cond, Types&&... args) {
   if (!cond) {
     throw_exception<Exc>(forward<Types>(args)...);
   }

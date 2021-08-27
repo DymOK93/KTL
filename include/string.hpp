@@ -1,11 +1,11 @@
 ﻿#pragma once
 #include <container_helpers.h>
-#include <ktlexcept.hpp>
 #include <new_delete.h>
 #include <algorithm.hpp>
 #include <assert.hpp>
 #include <compressed_pair.hpp>
 #include <iterator.hpp>
+#include <ktlexcept.hpp>
 #include <limits.hpp>
 #include <string_algorithm_impl.hpp>
 #include <string_view.hpp>
@@ -1177,7 +1177,7 @@ class basic_winnt_string {
   template <class TransferPolicy>
   void grow(size_type new_capacity, TransferPolicy transfer_handler) {
     throw_exception_if_not<length_error>(new_capacity <= max_size(),
-                                         L"string is too long");
+                                         "string is too long");
     grow_unchecked(new_capacity, transfer_handler);
   }
 
