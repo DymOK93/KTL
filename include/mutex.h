@@ -690,30 +690,27 @@ namespace th::details {
  
  template<class... Mtxs, size_t... Idxs>
  void lock_target_from_locks(const int target, index_sequence<Idxs...>, Mtxs&... mtxs) {
-   int ignored[] = {
+   [[maybe_unused]] int ignored[] = {
      ((target == static_cast<int>(Idxs)) ? (((void)mtxs.lock()), 0) : 0)...
    };
-   (void)ignored;
  }
  
  template<class... Mtxs, size_t... Idxs>
  bool try_lock_target_from_locks(const int target, index_sequence<Idxs...>, Mtxs&... mtxs) {
    bool result = false;
    
-   int ignored[] = {
+   [[maybe_unused]] int ignored[] = {
      ((target == static_cast<int>(Idxs)) ? ((result = mtxs.try_lock()), 0) : 0)...
    };
-   (void)ignored;
    
    return result;
  }
  
  template<class... Mtxs, size_t... Idxs>
  void unlock_locks(const int first, const int last, index_sequence<Idxs...>, Mtxs&... mtxs) {
-   int ignored[] = {
+   [[maybe_unused]] int ignored[] = {
      ((first <= static_cast<int>(Idxs) && static_cast<int>(Idxs) < last) ? (((void)mtxs.unlock()), 0) : 0)...
    };
-   (void)ignored;
  }
  
  template<class... Mtxs>
