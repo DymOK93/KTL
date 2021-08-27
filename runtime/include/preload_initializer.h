@@ -10,7 +10,7 @@ class preload_initializer {
       DRIVER_OBJECT& driver_object,
       UNICODE_STRING& registry_path) noexcept = 0;  // TODO: int purecall()
  protected:
-  ~preload_initializer() = default;
+  virtual ~preload_initializer() = default;
 };
 
 class preload_initializer_registry {

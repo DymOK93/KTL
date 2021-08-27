@@ -5,11 +5,9 @@
 #include <utility.hpp>
 
 namespace ktl {
-class bad_weak_ptr : public exception {
- public:
+struct bad_weak_ptr : public exception {
   using MyBase = exception;
 
- public:
   constexpr bad_weak_ptr() noexcept
       : MyBase{"bad weak ptr"} {}
 };
