@@ -807,7 +807,7 @@ void lock(Mtx1& mtx1, Mtx2& mtx2, MtxNs&... mtxns) {
 }
  
 template<class... Mtxs>
-class scoped_lock {
+class scoped_lock : non_copyable {
 public:
   explicit scoped_lock(Mtxs&... mtxs) : m_mtxs(mtxs...) { 
     ktl::lock(mtxs...);
@@ -816,16 +816,13 @@ public:
   explicit scoped_lock(adopt_lock_tag, Mtxs&... mtxs) : m_mtxs(mtxs...) { /* Don't lock */ }
   
   ~scoped_lock() { apply([](Mtxs&... mtxs) { (..., (void) mtxs.unlock()); }, m_mtxs); }
-  
-  scoped_lock(const scoped_lock&) = delete;
-  scoped_lock& operator=(const scoped_lock&) = delete;
 
 private:
   tuple<Mtxs&...> m_mtxs;
 };
  
 template<class Mtx>
-class scoped_lock<Mtx> {
+class scoped_lock<Mtx> : non_copyable {
 public:
   using mutex_type = Mtx;
   
@@ -835,23 +832,15 @@ public:
   
   ~scoped_lock() { m_mtx.unlock(); }
   
-  scoped_lock(const scoped_lock&) = delete;
-  scoped_lock& operator=(const scoped_lock&) = delete;
-  
 private:
   Mtx& m_mtx;
 }
  
 template<>
-class scoped_lock<> {
+class scoped_lock<> : non_copyable {
 public:
   explicit scoped_lock() = default;
   explicit scoped_lock(adopt_lock_tag) { }
-  
-  ~scoped_lock() = default;
-  
-  scoped_lock(const scoped_lock&) = delete;
-  scoped_lock& operator=(const scoped_lock&) = delete;
 }
 
 template<class... Mtxs>
