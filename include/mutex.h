@@ -848,7 +848,7 @@ public:
   explicit scoped_lock() = default;
   explicit scoped_lock(adopt_lock_tag) { }
   
-  ~scoped_lock() { }
+  ~scoped_lock() = default;
   
   scoped_lock(const scoped_lock&) = delete;
   scoped_lock& operator=(const scoped_lock&) = delete;
