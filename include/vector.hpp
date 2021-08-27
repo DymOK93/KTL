@@ -8,7 +8,7 @@ using std::vector;
 #else
 #include <basic_types.h>
 #include <container_helpers.h>
-#include <exception.h>
+#include <ktlexcept.hpp>
 #include <algorithm.hpp>
 #include <allocator.hpp>
 #include <assert.hpp>

@@ -562,7 +562,7 @@ struct error_handler {
 
   // This function is intentionally not constexpr to give a compile-time error.
   // [[noreturn]] FMT_API void on_error(const char* message);
-  [[noreturn]] FMT_API void on_error(const wchar_t* message);
+  [[noreturn]] FMT_API void on_error(const char* message);
 };
 FMT_END_DETAIL_NAMESPACE
 
@@ -620,7 +620,7 @@ class basic_format_parse_context : private ErrorHandler {
     // will be checked during formatting anyway.
     if (next_arg_id_ >= 0)
       return next_arg_id_++;
-    on_error(L"cannot switch from manual to automatic argument indexing");
+    on_error("cannot switch from manual to automatic argument indexing");
     return 0;
   }
 
@@ -630,14 +630,14 @@ class basic_format_parse_context : private ErrorHandler {
    */
   constexpr void check_arg_id(int) {
     if (next_arg_id_ > 0)
-      on_error(L"cannot switch from automatic to manual argument indexing");
+      on_error("cannot switch from automatic to manual argument indexing");
     else
       next_arg_id_ = -1;
   }
 
   constexpr void check_arg_id(basic_winnt_string_view<Char>) {}
 
-  constexpr void on_error(const wchar_t* message) {
+  constexpr void on_error(const char* message) {
     ErrorHandler::on_error(message);
   }
 
@@ -1627,7 +1627,7 @@ class basic_format_context {
 
   constexpr auto error_handler() -> detail::error_handler { return {}; }
 
-  void on_error(const wchar_t* message) { error_handler().on_error(message); }
+  void on_error(const char* message) { error_handler().on_error(message); }
 
   // Returns an iterator to the beginning of the output range.
   constexpr auto out() -> iterator { return out_; }
@@ -2040,7 +2040,7 @@ class dynamic_specs_handler
     specs_.precision_ref = make_arg_ref(arg_id);
   }
 
-  constexpr void on_error(const wchar_t* message) {
+  constexpr void on_error(const char* message) {
     context_.on_error(message);
   }
 
@@ -2172,7 +2172,7 @@ constexpr auto parse_align(const Char* begin,
       if (p != begin) {
         auto c = *begin;
         if (c == '{')
-          handler.on_error(L"invalid fill character '{'"), begin;
+          handler.on_error("invalid fill character '{'"), begin;
         handler.on_fill(
             basic_winnt_string_view<Char>(begin, to_unsigned(p - begin)));
         begin = p + 1;
@@ -2207,13 +2207,13 @@ constexpr auto do_parse_arg_id(const Char* begin,
     else
       ++begin;
     if (begin == end || (*begin != '}' && *begin != ':'))
-      handler.on_error(L"invalid format string");
+      handler.on_error("invalid format string");
     else
       handler(index);
     return begin;
   }
   if (!is_name_start(c)) {
-    handler.on_error(L"invalid format string");
+    handler.on_error("invalid format string");
     return begin;
   }
   auto it = begin;
@@ -2249,7 +2249,7 @@ constexpr auto parse_width(const Char* begin,
       handler.on_dynamic_width(id);
     }
 
-    constexpr void on_error(const wchar_t* message) {
+    constexpr void on_error(const char* message) {
       if (message)
         handler.on_error(message);
     }
@@ -2261,13 +2261,13 @@ constexpr auto parse_width(const Char* begin,
     if (width != -1)
       handler.on_width(width);
     else
-      handler.on_error(L"number is too big");
+      handler.on_error("number is too big");
   } else if (*begin == '{') {
     ++begin;
     if (begin != end)
       begin = parse_arg_id(begin, end, width_adapter{handler});
     if (begin == end || *begin != '}')
-      handler.on_error(L"invalid format string"), begin;
+      handler.on_error("invalid format string"), begin;
     ++begin;
   }
   return begin;
@@ -2287,7 +2287,7 @@ constexpr auto parse_precision(const Char* begin,
       handler.on_dynamic_precision(id);
     }
 
-    constexpr void on_error(const wchar_t* message) {
+    constexpr void on_error(const char* message) {
       if (message)
         handler.on_error(message);
     }
@@ -2300,15 +2300,15 @@ constexpr auto parse_precision(const Char* begin,
     if (precision != -1)
       handler.on_precision(precision);
     else
-      handler.on_error(L"number is too big");
+      handler.on_error("number is too big");
   } else if (c == '{') {
     ++begin;
     if (begin != end)
       begin = parse_arg_id(begin, end, precision_adapter{handler});
     if (begin == end || *begin++ != '}')
-      handler.on_error(L"invalid format string"), begin;
+      handler.on_error("invalid format string"), begin;
   } else {
-    handler.on_error(L"missing precision specifier"), begin;
+    handler.on_error("missing precision specifier"), begin;
   }
   handler.end_precision();
   return begin;
@@ -2402,7 +2402,7 @@ constexpr auto parse_replacement_field(const Char* begin,
       arg_id = handler.on_arg_id(id);
     }
 
-    constexpr void on_error(const wchar_t* message) {
+    constexpr void on_error(const char* message) {
       if (message)
         handler.on_error(message);
     }
@@ -2410,7 +2410,7 @@ constexpr auto parse_replacement_field(const Char* begin,
 
   ++begin;
   if (begin == end)
-    handler.on_error(L"invalid format string"), end;
+    handler.on_error("invalid format string"), end;
   if (*begin == '}') {
     handler.on_replacement_field(handler.on_arg_id(), begin);
   } else if (*begin == '{') {
@@ -2424,9 +2424,9 @@ constexpr auto parse_replacement_field(const Char* begin,
     } else if (c == ':') {
       begin = handler.on_format_specs(adapter.arg_id, begin + 1, end);
       if (begin == end || *begin != '}')
-        handler.on_error(L"unknown format specifier"), end;
+        handler.on_error("unknown format specifier"), end;
     } else {
-      handler.on_error(L"missing '}' in format string"), end;
+      handler.on_error("missing '}' in format string"), end;
     }
   }
   return begin + 1;
@@ -2451,7 +2451,7 @@ constexpr inline void parse_format_string(
         begin = p = parse_replacement_field(p - 1, end, handler);
       } else if (c == '}') {
         if (p == end || *p != '}')
-          return handler.on_error(L"unmatched '}' in format string");
+          return handler.on_error("unmatched '}' in format string");
         handler.on_text(begin, p);
         begin = ++p;
       }
@@ -2469,7 +2469,7 @@ constexpr inline void parse_format_string(
           return handler_.on_text(pbegin, pend);
         ++p;
         if (p == pend || *p != '}')
-          return handler_.on_error(L"unmatched '}' in format string");
+          return handler_.on_error("unmatched '}' in format string");
         handler_.on_text(pbegin, p);
         pbegin = p + 1;
       }
@@ -2521,14 +2521,14 @@ class compile_parse_context
   constexpr auto next_arg_id() -> int {
     int id = base::next_arg_id();
     if (id >= num_args_)
-      this->on_error(L"argument not found");
+      this->on_error("argument not found");
     return id;
   }
 
   constexpr void check_arg_id(int id) {
     base::check_arg_id(id);
     if (id >= num_args_)
-      this->on_error(L"argument not found");
+      this->on_error("argument not found");
   }
   using base::check_arg_id;
 };
@@ -2546,7 +2546,7 @@ constexpr void check_int_type_spec(char spec, ErrorHandler&& eh) {
     case 'c':
       break;
     default:
-      eh.on_error(L"invalid type specifier");
+      eh.on_error("invalid type specifier");
       break;
   }
 }
@@ -2560,7 +2560,7 @@ constexpr auto check_char_specs(const basic_format_specs<Char>& specs,
     return false;
   }
   if (specs.align == align::numeric || specs.sign != sign::none || specs.alt)
-    eh.on_error(L"invalid format specifier for char");
+    eh.on_error("invalid format specifier for char");
   return true;
 }
 
@@ -2620,7 +2620,7 @@ constexpr auto parse_float_type_spec(const basic_format_specs<Char>& specs,
       result.format = float_format::hex;
       break;
     default:
-      eh.on_error(L"invalid type specifier");
+      eh.on_error("invalid type specifier");
       break;
   }
   return result;
@@ -2632,20 +2632,20 @@ constexpr auto check_cstring_type_spec(Char spec, ErrorHandler&& eh = {})
   if (spec == 0 || spec == 's')
     return true;
   if (spec != 'p')
-    eh.on_error(L"invalid type specifier");
+    eh.on_error("invalid type specifier");
   return false;
 }
 
 template <typename Char, typename ErrorHandler = error_handler>
 constexpr void check_string_type_spec(Char spec, ErrorHandler&& eh = {}) {
   if (spec != 0 && spec != 's')
-    eh.on_error(L"invalid type specifier");
+    eh.on_error("invalid type specifier");
 }
 
 template <typename Char, typename ErrorHandler>
 constexpr void check_pointer_type_spec(Char spec, ErrorHandler&& eh) {
   if (spec != 0 && spec != 'p')
-    eh.on_error(L"invalid type specifier");
+    eh.on_error("invalid type specifier");
 }
 
 // A parse_format_specs handler that checks if specifiers are consistent with
@@ -2657,7 +2657,7 @@ class specs_checker : public Handler {
 
   constexpr void require_numeric_argument() {
     if (!is_arithmetic_type(arg_type_))
-      this->on_error(L"format specifier requires numeric argument");
+      this->on_error("format specifier requires numeric argument");
   }
 
  public:
@@ -2674,7 +2674,7 @@ class specs_checker : public Handler {
     require_numeric_argument();
     if (is_integral_type(arg_type_) && arg_type_ != type::int_type &&
         arg_type_ != type::long_long_type && arg_type_ != type::char_type) {
-      this->on_error(L"format specifier requires signed argument");
+      this->on_error("format specifier requires signed argument");
     }
     Handler::on_sign(s);
   }
@@ -2696,7 +2696,7 @@ class specs_checker : public Handler {
 
   constexpr void end_precision() {
     if (is_integral_type(arg_type_) || arg_type_ == type::pointer_type)
-      this->on_error(L"precision not allowed for this argument type");
+      this->on_error("precision not allowed for this argument type");
   }
 };
 
@@ -2764,11 +2764,11 @@ class format_string_checker {
 #if FMT_USE_NONTYPE_TEMPLATE_PARAMETERS
     auto index = get_arg_index_by_name<Args...>(id);
     if (index == invalid_arg_index)
-      on_error(L"named argument is not found");
+      on_error("named argument is not found");
     return context_.check_arg_id(index), index;
 #else
     (void)id;
-    on_error(L"compile-time checks for named arguments require C++20 support");
+    on_error("compile-time checks for named arguments require C++20 support");
     return 0;
 #endif
   }
@@ -2782,7 +2782,7 @@ class format_string_checker {
     return id >= 0 && id < num_args ? parse_funcs_[id](context_) : begin;
   }
 
-  constexpr void on_error(const wchar_t* message) {
+  constexpr void on_error(const char* message) {
     context_.on_error(message);
   }
 };

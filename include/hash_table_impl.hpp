@@ -38,7 +38,6 @@
 #define ROBIN_HOOD_VERSION_PATCH 1  // for backwards-compatible bug fixes
 
 #include <basic_types.h>
-#include <exception.h>
 #include <algorithm.hpp>
 #include <allocator.hpp>
 #include <functional.hpp>
@@ -46,6 +45,7 @@
 #include <initializer_list.hpp>
 #include <intrinsic.hpp>
 #include <iterator.hpp>
+#include <ktlexcept.hpp>
 #include <limits.hpp>
 #include <tuple.hpp>
 #include <type_traits.hpp>
@@ -1311,7 +1311,7 @@ class Table
   typename enable_if<!is_void<Q>::value, Q&>::type at(key_type const& key) {
     auto kv = mKeyVals + findIdx(key);
     if (kv == reinterpret_cast_no_cast_align_warning<Node*>(mInfo)) {
-      throw_exception<out_of_range>(L"key not found");
+      throw_exception<out_of_range>("key not found");
     }
     return kv->getSecond();
   }
@@ -1324,7 +1324,7 @@ class Table
       key_type const& key) const {
     auto kv = mKeyVals + findIdx(key);
     if (kv == reinterpret_cast_no_cast_align_warning<Node*>(mInfo)) {
-      throw_exception<out_of_range>(L"key not found");
+      throw_exception<out_of_range>("key not found");
     }
     return kv->getSecond();
   }
@@ -1590,7 +1590,7 @@ class Table
   }
 
   [[noreturn]] static void throwOverflowError() {
-    throw_exception<overflow_error>(L"robin_hood map overflow");
+    throw_exception<overflow_error>("robin_hood map overflow");
   }
 
   template <typename OtherKey, typename... Args>

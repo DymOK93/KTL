@@ -307,8 +307,7 @@ struct runtime_named_field {
   constexpr OutputIt format(OutputIt out, const Args&... args) const {
     bool found = (try_format_argument(out, name, args) || ...);
     ktl::throw_exception_if<format_error>(
-        !found, L"argument with specified name is not found",
-        ktl::constexpr_message_tag{});
+        !found, "argument with specified name is not found");
     return out;
   }
 };
@@ -323,8 +322,7 @@ struct spec_field {
   formatter<T, Char> fmt;
 
   template <typename OutputIt, typename... Args>
-  constexpr inline OutputIt format(OutputIt out,
-                                       const Args&... args) const {
+  constexpr inline OutputIt format(OutputIt out, const Args&... args) const {
     const auto& vargs =
         fmt::make_format_args<basic_format_context<OutputIt, Char>>(args...);
     basic_format_context<OutputIt, Char> ctx(out, vargs);
@@ -423,7 +421,7 @@ struct arg_id_handler {
     return 0;
   }
 
-  constexpr void on_error(const wchar_t* message) {
+  constexpr void on_error(const char* message) {
     ktl::throw_exception<format_error>(message);
   }
 };
@@ -483,7 +481,7 @@ constexpr auto compile_format_string(S format_str) {
   constexpr auto str = basic_winnt_string_view<char_type>(format_str);
   if constexpr (str[POS] == '{') {
     if constexpr (POS + 1 == str.size())
-      ktl::throw_exception<format_error>(L"unmatched '{' in format string");
+      ktl::throw_exception<format_error>("unmatched '{' in format string");
     if constexpr (str[POS + 1] == '{') {
       return parse_tail<Args, POS + 2, ID>(make_text(str, POS, 1), format_str);
     } else if constexpr (str[POS + 1] == '}' || str[POS + 1] == ':') {
@@ -532,7 +530,7 @@ constexpr auto compile_format_string(S format_str) {
     }
   } else if constexpr (str[POS] == '}') {
     if constexpr (POS + 1 == str.size())
-      ktl::throw_exception<format_error>(L"unmatched '}' in format string");
+      ktl::throw_exception<format_error>("unmatched '}' in format string");
     return parse_tail<Args, POS + 2, ID>(make_text(str, POS, 1), format_str);
   } else {
     constexpr auto end = parse_text(str, POS + 1);
@@ -573,7 +571,7 @@ template <typename CompiledFormat,
           typename Char = typename CompiledFormat::char_type,
           FMT_ENABLE_IF(detail::is_compiled_format<CompiledFormat>::value)>
 inline ktl::basic_winnt_string<Char> format(const CompiledFormat& cf,
-                                                const Args&... args) {
+                                            const Args&... args) {
   auto s = ktl::basic_winnt_string<Char>();
   cf.format(ktl::back_inserter(s), args...);
   return s;
@@ -584,17 +582,16 @@ template <typename OutputIt,
           typename... Args,
           FMT_ENABLE_IF(detail::is_compiled_format<CompiledFormat>::value)>
 constexpr inline OutputIt format_to(OutputIt out,
-                                        const CompiledFormat& cf,
-                                        const Args&... args) {
+                                    const CompiledFormat& cf,
+                                    const Args&... args) {
   return cf.format(out, args...);
 }
 
 template <typename S,
           typename... Args,
           FMT_ENABLE_IF(detail::is_compiled_string<S>::value)>
-inline ktl::basic_winnt_string<typename S::char_type> format(
-    const S&,
-    Args&&... args) {
+inline ktl::basic_winnt_string<typename S::char_type> format(const S&,
+                                                             Args&&... args) {
   if constexpr (ktl::is_same<typename S::char_type, char>::value) {
     constexpr auto str = basic_winnt_string_view<typename S::char_type>(S());
     if constexpr (str.size() == 2 && str[0] == '{' && str[1] == '}') {

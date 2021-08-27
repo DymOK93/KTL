@@ -1,5 +1,5 @@
 #pragma once
-#include <exception.h>
+#include <ktlexcept.hpp>
 #include <assert.hpp>
 #include <hash.hpp>
 #include <type_traits.hpp>
@@ -22,7 +22,7 @@ struct bad_optional_access : exception {
 
  public:
   constexpr bad_optional_access() noexcept
-      : MyBase{L"optional is empty", constexpr_message_tag{}} {}
+      : MyBase{"optional is empty"} {}
 
   NTSTATUS code() const noexcept override final { return STATUS_END_OF_FILE; }
 };

@@ -9,7 +9,7 @@ using std::weak_ptr;
 }  // namespace ktl
 #else
 #include <crt_attributes.h>
-#include <exception.h>
+#include <ktlexcept.hpp>
 #include <heap.h>
 #include <allocator.hpp>
 #include <atomic.hpp>
@@ -810,6 +810,12 @@ struct custom_deleter_tag_t {};
 inline constexpr custom_deleter_tag_t custom_deleter_tag;
 struct custom_allocator_tag_t {};
 inline constexpr custom_allocator_tag_t custom_allocator_tag;
+
+struct bad_weak_ptr : exception {
+  using MyBase = exception;
+
+  constexpr bad_weak_ptr() noexcept : MyBase{"bad weak ptr"} {}
+};
 
 template <class Ty>
 class shared_ptr

@@ -11,9 +11,9 @@
 #include <stdio.h>
 
 #include <bugcheck.h>
-#include <exception.h>
 #include <algorithm.hpp>
 #include <intrinsic.hpp>
+#include <ktlexcept.hpp>
 #include <limits.hpp>
 
 #ifndef FMT_STATIC_THOUSANDS_SEPARATOR
@@ -205,10 +205,9 @@ class fp {
   // normalized form.
   static constexpr const int double_significand_size =
       ktl::numeric_limits<double>::digits - 1;
-  static constexpr const uint64_t implicit_bit =
-      1ULL << double_significand_size;
-  static constexpr const int significand_size =
-      bits<significand_type>::value;
+  static constexpr const uint64_t implicit_bit = 1ULL
+                                                 << double_significand_size;
+  static constexpr const int significand_size = bits<significand_type>::value;
 
   fp() : f(0), e(0) {}
   fp(uint64_t f_val, int e_val) : f(f_val), e(e_val) {}
@@ -683,9 +682,9 @@ inline uint64_t power_of_10_64(int exp) {
 // definitely do not round to value (Delta in Grisu3).
 template <typename Handler>
 inline digits::result grisu_gen_digits(fp value,
-                                           uint64_t error,
-                                           int& exp,
-                                           Handler& handler) {
+                                       uint64_t error,
+                                       int& exp,
+                                       Handler& handler) {
   const fp one(1ULL << -value.e, value.e);
   // The integral part of scaled value (p1 in Grisu) = value / one. It cannot be
   // zero because it contains a product of two 64-bit numbers with MSB set (due
@@ -850,9 +849,7 @@ struct uint128_wrapper {
 
   constexpr uint128_wrapper(uint128_t u) : internal_{u} {}
 
-  constexpr uint64_t high() const noexcept {
-    return uint64_t(internal_ >> 64);
-  }
+  constexpr uint64_t high() const noexcept { return uint64_t(internal_ >> 64); }
   constexpr uint64_t low() const noexcept { return uint64_t(internal_); }
 
   uint128_wrapper& operator+=(uint64_t n) noexcept {
@@ -864,8 +861,7 @@ struct uint128_wrapper {
   uint64_t low_;
 
   constexpr uint128_wrapper(uint64_t high, uint64_t low) noexcept
-      : high_{high},
-        low_{low} {}
+      : high_{high}, low_{low} {}
 
   constexpr uint64_t high() const noexcept { return high_; }
   constexpr uint64_t low() const noexcept { return low_; }
@@ -2602,8 +2598,7 @@ int snprintf_float(T value,
 
 template <>
 struct formatter<detail::bigint> {
-  constexpr format_parse_context::iterator parse(
-      format_parse_context& ctx) {
+  constexpr format_parse_context::iterator parse(format_parse_context& ctx) {
     return ctx.begin();
   }
 
@@ -2629,8 +2624,7 @@ struct formatter<detail::bigint> {
 
 FMT_FUNC detail::utf8_to_utf16::utf8_to_utf16(string_view s) {
   for_each_codepoint(s, [this](uint32_t cp, int error) {
-    ktl::throw_exception_if<ktl::runtime_error>(error != 0, L"invalid utf8",
-                                                ktl::constexpr_message_tag{});
+    ktl::throw_exception_if<ktl::runtime_error>(error != 0, L"invalid utf8");
     if (cp <= 0xFFFF) {
       buffer_.push_back(static_cast<wchar_t>(cp));
     } else {
@@ -2658,8 +2652,8 @@ FMT_FUNC detail::utf8_to_utf16::utf8_to_utf16(string_view s) {
 //  FMT_THROW(format_error(message));
 //}
 
-FMT_FUNC void detail::error_handler::on_error(const wchar_t* message) {
-  ktl::throw_exception<format_error>(message);
+FMT_FUNC void detail::error_handler::on_error(const char* message) {
+  ktl::throw_exception<format_error>(message, ktl::impermanent_message_tag{});
 }
 
 // FMT_FUNC void report_system_error(int error_code,
