@@ -1885,8 +1885,6 @@ using sign_t = sign::type;
 
 FMT_BEGIN_DETAIL_NAMESPACE
 
-void throw_format_error(const wchar_t* message);
-
 // Workaround an array initialization issue in gcc 4.8.
 template <typename Char>
 struct fill_t {
@@ -1898,8 +1896,7 @@ struct fill_t {
  public:
   constexpr void operator=(basic_winnt_string_view<Char> s) {
     auto size = s.size();
-    if (size > max_size)
-      return throw_format_error(L"invalid fill");
+    ktl::throw_exception_if<ktl::format_error>(size > max_size, "invalid fill");
     for (size_t i = 0; i < size; ++i)
       data_[i] = s[i];
     size_ = static_cast<unsigned char>(size);

@@ -79,13 +79,14 @@
 #if FMT_MSC_VER || FMT_NVCC
 FMT_BEGIN_NAMESPACE
 namespace detail {
-template <typename Exception>
-inline void do_throw(const Exception& x) {
+template <class Exc>
+FORCEINLINE void do_throw(const Exc& exc) {
   // Silence unreachable code warnings in MSVC and NVCC because these
   // are nearly impossible to fix in a generic code.
   volatile bool b = true;
-  if (b)
-    throw x;
+  if (b) {
+    ktl::throw_exception<Exc>(exc);
+  }
 }
 }  // namespace detail
 FMT_END_NAMESPACE
@@ -768,19 +769,6 @@ template <typename T, size_t SIZE, typename Allocator>
 struct is_contiguous<basic_memory_buffer<T, SIZE, Allocator>> : ktl::true_type {
 };
 
-namespace detail {
-// FMT_API void print(ktl::FILE*, string_view);
-}
-
-/** A formatting error such as invalid format string. */
-FMT_CLASS_API
-struct FMT_API format_error : public ktl::runtime_error {
-  using MyBase = ktl::runtime_error;
-
-  using MyBase::MyBase;
-  ~format_error() noexcept FMT_OVERRIDE FMT_MSC_DEFAULT;
-};
-
 /**
   \rst
   Constructs a `~fmt::format_arg_store` object that contains references
@@ -831,14 +819,6 @@ constexpr auto compile_string_to_view(detail::std_string_view<Char> s)
 }  // namespace detail_exported
 
 FMT_BEGIN_DETAIL_NAMESPACE
-
-// TODO: throw_format_error
-// inline void throw_format_error(const char* message) {
-//  FMT_THROW(format_error(message));
-//}
-inline void throw_format_error(const wchar_t* message) {
-  ktl::throw_exception<format_error>(message);
-}
 
 template <typename T>
 struct is_integral : ktl::is_integral<T> {};
@@ -1645,7 +1625,7 @@ constexpr inline auto write_int(OutputIt out,
     case 'c':
       return write_char(out, static_cast<Char>(abs_value), specs);
     default:
-      ktl::throw_exception<format_error>(L"invalid type specifier");
+      ktl::throw_exception<ktl::format_error>("invalid type specifier");
   }
 }
 
@@ -1969,8 +1949,8 @@ auto write(OutputIt out,
   }
   int precision = specs.precision >= 0 || !specs.type ? specs.precision : 6;
   if (fspecs.format == float_format::exp) {
-    ktl::throw_exception_if<format_error>(precision == max_value<int>(),
-                                          L"number is too big");
+    ktl::throw_exception_if<ktl::format_error>(precision == max_value<int>(),
+                                               "number is too big");
     ++precision;
   }
   if (const_check(ktl::is_same<T, float>()))
@@ -2109,7 +2089,7 @@ constexpr auto write(OutputIt out, Char value) -> OutputIt {
 template <typename Char, typename OutputIt>
 FMT_CONSTEXPR_CHAR_TRAITS auto write(OutputIt out, const Char* value)
     -> OutputIt {
-  ktl::throw_exception_if<format_error>(!value, "string pointer is null");
+  ktl::throw_exception_if<ktl::format_error>(!value, "string pointer is null");
   auto length = ktl::char_traits<Char>::length(value);
   out = write(out, basic_winnt_string_view<Char>(value, length));
   return out;

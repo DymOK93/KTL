@@ -2624,7 +2624,7 @@ struct formatter<detail::bigint> {
 
 FMT_FUNC detail::utf8_to_utf16::utf8_to_utf16(string_view s) {
   for_each_codepoint(s, [this](uint32_t cp, int error) {
-    ktl::throw_exception_if<ktl::runtime_error>(error != 0, L"invalid utf8");
+    ktl::throw_exception_if<ktl::runtime_error>(error != 0, "invalid utf8");
     if (cp <= 0xFFFF) {
       buffer_.push_back(static_cast<wchar_t>(cp));
     } else {
@@ -2648,12 +2648,10 @@ FMT_FUNC detail::utf8_to_utf16::utf8_to_utf16(string_view s) {
 //  format_error_code(out, error_code, message);
 //}
 //
-// FMT_FUNC void detail::error_handler::on_error(const char* message) {
-//  FMT_THROW(format_error(message));
-//}
 
-FMT_FUNC void detail::error_handler::on_error(const char* message) {
-  ktl::throw_exception<format_error>(message, ktl::impermanent_message_tag{});
+FMT_FUNC void detail::error_handler::on_error(const char* message){
+    FMT_THROW((ktl::format_error{ktl::persistent_message_t{},
+                                 ktl::ansi_string_view{message}}));
 }
 
 // FMT_FUNC void report_system_error(int error_code,
@@ -2689,8 +2687,9 @@ namespace detail {
 //    detail::utf8_to_utf16 u16(string_view(text.data(), text.size()));
 //    auto written = detail::dword();
 //    if (detail::WriteConsoleW(reinterpret_cast<void*>(_get_osfhandle(fd)),
-//                              u16.c_str(), static_cast<uint32_t>(u16.size()),
-//                              &written, nullptr)) {
+//                              u16.c_str(),
+//                              static_cast<uint32_t>(u16.size()), &written,
+//                              nullptr)) {
 //      return;
 //    }
 //    // Fallback to fwrite on failure. It can happen if the output has been
@@ -2702,7 +2701,8 @@ namespace detail {
 }  // namespace detail
 
 // TODO: vprint_mojibake
-// FMT_FUNC void vprint(ktl::FILE* f, string_view format_str, format_args args)
+// FMT_FUNC void vprint(ktl::FILE* f, string_view format_str, format_args
+// args)
 // {
 //  memory_buffer buffer;
 //  detail::vformat_to(buffer, format_str, args);
