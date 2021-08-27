@@ -855,7 +855,7 @@ public:
 }
 
 template<class... Mtxs>
-scoped_lock(Mtxs&...) -> scoped_lock<Mtxs...>
+scoped_lock(Mtxs&...) -> scoped_lock<Mtxs...>;
 
 template<class... Mtxs>
 scoped_lock(adopt_lock_tag, Mtxs&...) -> scoped_lock<Mtxs...>;
