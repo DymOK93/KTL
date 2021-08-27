@@ -688,9 +688,81 @@ class irql_guard {
  
 namespace th::details {
  
+ template<class... Mtxs, size_t... Idxs>
+ void lock_target_from_locks(const int target, index_sequence<Idxs...>, Mtxs&... mtxs) {
+   int ignored[] = {
+     ((target == static_cast<int>(Idxs)) ? (((void)mtxs.lock()), 0) : 0)...
+   };
+   (void)ignored;
+ }
+ 
+ template<class... Mtxs, size_t... Idxs>
+ bool try_lock_target_from_locks(const int target, index_sequence<Idxs...>, Mtxs&... mtxs) {
+   bool result = false;
+   
+   int ignored[] = {
+     ((target == static_cast<int>(Idxs)) ? ((result = mtxs.try_lock()), 0) : 0)...
+   };
+   (void)ignored;
+   
+   return result;
+ }
+ 
+ template<class... Mtxs, size_t... Idxs>
+ void unlock_locks(const int first, const int last, index_sequence<Idxs...>, Mtxs&... mtxs) {
+   int ignored[] = {
+     ((first <= static_cast<int>(Idxs) && static_cast<int>(Idxs) < last) ? (((void)mtxs.unlock()), 0) : 0)...
+   };
+   (void)ignored;
+ }
+ 
  template<class... Mtxs>
- int lock_attempt(int prev, Mtxs&... mtxs) {
-   // TODO: implement deadlock-avoidable lock attempt
+ int try_lock_range(const int first, const int last, Mtxs&... mtxs) {
+   using indices_t = index_sequence_for<Mtxs...>;
+   
+   int current = first;
+   
+   try {
+     for (; current < last; ++current) {
+       if (!try_lock_target_from_locks(current, indices_t{}, mtxs...)) {
+         unlock_locks(first, current, indices_t{}, mtxs...);
+         return current;
+       }
+     }
+   }
+   catch(...) {
+     unlock_locks(first, current, indices_t{}, mtxs...);
+     throw;
+   }
+   
+   return -1;
+ }
+ 
+ template<class... Mtxs>
+ int lock_attempt(const int prev, Mtxs&... mtxs) {
+   using indices_t = index_sequence_for<Mtxs...>;
+   lock_target_from_locks(prev, indices_t{}, mtxs...);
+   
+   int failed = -1;
+   int rollback_start = prev;
+   
+   try {
+     failed = try_lock_range(0, prev, mtxs...);
+     if (failed == -1) {
+       rollback_start = 0;
+       failed = try_lock_range(prev + 1, sizeof...(Mtxs), mtxs...);
+       if (failed == -1) {
+         return -1;
+       }
+     }
+   }
+   catch(...) {
+     unlock_locks(rollback_start, prev + 1, indices_t{}, mtxs...);
+     throw;
+   }
+   
+   unlock_locks(rollback_start, prev + 1, indices_t{}, mtxs...);
+   return failed;
  }
  
  template<class Mtx1, class Mtx2, class Mtx3, class... MtxNs>
