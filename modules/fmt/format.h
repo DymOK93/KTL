@@ -33,6 +33,7 @@
 #ifndef FMT_FORMAT_H_
 #define FMT_FORMAT_H_
 
+#include <assert.hpp>  // ktl::uninitialized_copy
 #include <basic_types.h>  // uint32_t
 #include <ktlexcept.hpp>  // ktl::runtime_error
 #include <limits.hpp>     // ktl::numeric_limits
@@ -2004,7 +2005,7 @@ auto write(OutputIt out,
            monostate,
            basic_format_specs<Char> = {},
            locale_ref = {}) -> OutputIt {
-  crt_assert_with_msg(false, L"");
+  assert_with_msg(false, "locales are unsupported");
   return out;
 }
 

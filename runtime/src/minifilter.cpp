@@ -28,13 +28,13 @@ KtlRegisterFilter(DRIVER_OBJECT* driver_object,
 
 EXTERN_C NTSTATUS STDCALL KtlStartFiltering() noexcept {
   auto* filter{ktl::crt::details::filter_ctx.object};
-  crt_assert_with_msg(filter, L"filter isn't registered");
+  crt_assert_with_msg(filter, "filter isn't registered");
   return FltStartFiltering(filter);
 }
 
 EXTERN_C void STDCALL KtlUnregisterFilter() noexcept {
   auto& filter{ktl::crt::details::filter_ctx.object};
-  crt_assert_with_msg(filter, L"filter isn't registered");
+  crt_assert_with_msg(filter, "filter isn't registered");
   FltUnregisterFilter(filter);
   filter = nullptr;
 }

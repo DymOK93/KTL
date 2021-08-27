@@ -6,7 +6,7 @@ preload_initializer::preload_initializer() noexcept {
   [[maybe_unused]] const bool registered{
       preload_initializer_registry::get_instance().add(*this)};
   crt_assert_with_msg(registered,
-                      L"Registration of preload_initializer failed");
+                      "Registration of preload_initializer failed");
 }
 
 preload_initializer_registry&

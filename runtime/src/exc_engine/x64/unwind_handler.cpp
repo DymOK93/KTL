@@ -57,13 +57,18 @@ bool frame_walk_pdata::contains_address(const byte* addr) const noexcept {
 
 const function* frame_walk_pdata::find_function_entry(
     const byte* addr) const noexcept {
-  crt_assert(contains_address(addr));
-  auto pc_rva{make_rva(addr, m_image_base)};
+  if (!contains_address(addr)) {
+    set_termination_context(Bsod{BugCheckReason::NoMatchingExceptionHandler,
+                                 reinterpret_cast<bugcheck_arg_t>(addr)});
+    terminate();
+  }
+
+  const auto pc_rva{make_rva(addr, m_image_base)};
   uint32_t left_bound{0};
   uint32_t right_bound = m_function_count;
 
   while (left_bound < right_bound) {
-    uint32_t idx{left_bound + (right_bound - left_bound) / 2};
+    const uint32_t idx{left_bound + (right_bound - left_bound) / 2};
     const auto* fn_ptr{m_functions + idx};
     if (pc_rva < fn_ptr->begin) {
       right_bound = idx;
