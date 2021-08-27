@@ -853,6 +853,12 @@ public:
   scoped_lock(const scoped_lock&) = delete;
   scoped_lock& operator=(const scoped_lock&) = delete;
 }
+
+template<class... Mtxs>
+scoped_lock(Mtxs&...) -> scoped_lock<Mtxs...>
+
+template<class... Mtxs>
+scoped_lock(adopt_lock_tag, Mtxs&...) -> scoped_lock<Mtxs...>;
  
 // TODO: tuple, scoped_lock
 }  // namespace ktl
