@@ -813,7 +813,7 @@ public:
     ktl::lock(mtxs...);
   }
   
-  explicit scoped_lock(adopt_locj_tag, Mtxs&... mtxs) : m_mtxs(mtxs...) { /* Don't lock */ }
+  explicit scoped_lock(adopt_lock_tag, Mtxs&... mtxs) : m_mtxs(mtxs...) { /* Don't lock */ }
   
   ~scoped_lock() { apply([](Mtxs&... mtxs) { (..., (void) mtxs.unlock()); }, m_mtxs); }
   
@@ -823,6 +823,36 @@ public:
 private:
   tuple<Mtxs&...> m_mtxs;
 };
+ 
+template<class Mtx>
+class scoped_lock<Mtx> {
+public:
+  using mutex_type = Mtx;
+  
+  explicit scoped_lock(Mtx& mtx) : m_mtx(mtx) { m_mtx.lock(); }
+  
+  explicit scoped_lock(adopt_lock_tag, Mtx& mtx) : m_mtx(mtx) { /* Don't lock */ }
+  
+  ~scoped_lock() { m_mtx.unlock(); }
+  
+  scoped_lock(const scoped_lock&) = delete;
+  scoped_lock& operator=(const scoped_lock&) = delete;
+  
+private:
+  Mtx& m_mtx;
+}
+ 
+template<>
+class scoped_lock<> {
+public:
+  explicit scoped_lock() = default;
+  explicit scoped_lock(adopt_lock_tag) { }
+  
+  ~scoped_lock() { }
+  
+  scoped_lock(const scoped_lock&) = delete;
+  scoped_lock& operator=(const scoped_lock&) = delete;
+}
  
 // TODO: tuple, scoped_lock
 }  // namespace ktl
