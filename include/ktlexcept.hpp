@@ -89,17 +89,17 @@ struct kernel_error : runtime_error {
 
   template <class Traits = char_traits<char>>
   kernel_error(NTSTATUS code, const basic_ansi_string_view<Traits>& str)
-      : MyBase(data(str), size(str)), m_code{code} {}
+      : MyBase(str), m_code{code} {}
 
   template <class Traits = char_traits<wchar_t>>
   kernel_error(NTSTATUS code, const basic_unicode_string_view<Traits>& str)
-      : MyBase(data(str), size(str)), m_code{code} {}
+      : MyBase(str), m_code{code} {}
 
   template <class Traits = char_traits<char>>
   constexpr kernel_error(persistent_message_t,
                          NTSTATUS code,
                          const basic_ansi_string_view<Traits>& str)
-      : MyBase(persistent_message_t{}, data(str)), m_code{code} {}
+      : MyBase(persistent_message_t{}, str), m_code{code} {}
 
   template <size_t N>
   constexpr kernel_error(NTSTATUS code, const char (&str)[N])
