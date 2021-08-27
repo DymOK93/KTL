@@ -440,50 +440,48 @@ template <class Ty>
 inline constexpr bool is_move_constructible_v =
     is_move_constructible<Ty>::value;
 
+namespace tt::details {
 template <class, class Ty, class... Types>
-struct is_nothrow_constructible : false_type {};
+struct is_nothrow_constructible_impl : false_type {};
 
 template <class Ty, class... Types>
-struct is_nothrow_constructible<
+struct is_nothrow_constructible_impl<
     void_t<enable_if_t<is_constructible_v<Ty, Types...>>>,
     Ty,
     Types...> : bool_constant<noexcept(Ty(declval<Types>()...))> {};
+}  // namespace tt::details
 
 template <class Ty, class... Types>
 inline constexpr bool is_nothrow_constructible_v =
-    is_nothrow_constructible<void_t<>, Ty, Types...>::value;
+    tt::details::is_nothrow_constructible_impl<void_t<>, Ty, Types...>::value;
 
-template <class Ty>
-struct is_nothrow_copy_constructible {
-  static constexpr bool value =
-      is_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty>>>&& noexcept(
-          Ty(declval<add_const_t<add_lvalue_reference_t<Ty>>>()));
-};
+template <class Ty, class... Types>
+struct is_nothrow_constructible
+    : bool_constant<is_nothrow_constructible_v<Ty, Types...>> {};
 
 template <class Ty>
 inline constexpr bool is_nothrow_copy_constructible_v =
-    is_nothrow_copy_constructible<Ty>::value;
+    is_nothrow_constructible_v<Ty, add_const_t<add_lvalue_reference_t<Ty>>>;
 
 template <class Ty>
-struct is_nothrow_move_constructible {
-  static constexpr bool value =
-      is_constructible_v<Ty, add_rvalue_reference_t<Ty>>&& noexcept(
-          Ty(declval<add_rvalue_reference_t<Ty>>()));
-  ;
-};
+struct is_nothrow_copy_constructible
+    : bool_constant<is_nothrow_copy_constructible_v<Ty>> {};
 
 template <class Ty>
 inline constexpr bool is_nothrow_move_constructible_v =
-    is_nothrow_move_constructible<Ty>::value;
+    is_nothrow_constructible_v<Ty, add_rvalue_reference_t<Ty>>;
+
+template <class Ty>
+struct is_nothrow_move_constructible
+    : bool_constant<is_nothrow_move_constructible_v<Ty>> {};
 
 template <class To, class From, class = void>
 struct is_assignable : false_type {};
 
 template <class To, class From>
-struct is_assignable<
-    To,
-    From,
-    void_t<decltype(declval<add_lvalue_reference_t<To>>() = declval<From>())>>
+struct is_assignable<To,
+                     From,
+                     void_t<decltype(declval<To>() = declval<From>())>>
     : true_type {};
 
 template <class To, class From>
