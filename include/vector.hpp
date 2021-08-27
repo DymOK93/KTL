@@ -225,32 +225,32 @@ class vector {
   }
 
   reference operator[](size_type idx) noexcept {
-    assert_with_msg(idx < size(), L"index is out of range");
+    assert_with_msg(idx < size(), "index is out of range");
     return data()[idx];
   }
 
   const_reference operator[](size_type idx) const noexcept {
-    assert_with_msg(idx < size(), L"index is out of range");
+    assert_with_msg(idx < size(), "index is out of range");
     return data()[idx];
   }
 
   reference front() noexcept {
-    assert_with_msg(!empty(), L"front() called at empty vector");
+    assert_with_msg(!empty(), "front() called at empty vector");
     return data()[0];
   }
 
   reference back() noexcept {
-    assert_with_msg(!empty(), L"back() called at empty vector");
+    assert_with_msg(!empty(), "back() called at empty vector");
     return data()[size() - 1];
   }
 
   const_reference front() const noexcept {
-    assert_with_msg(!empty(), L"front() called at empty vector");
+    assert_with_msg(!empty(), "front() called at empty vector");
     return data()[0];
   }
 
   const_reference back() const noexcept {
-    assert_with_msg(!empty(), L"back() called at empty vector");
+    assert_with_msg(!empty(), "back() called at empty vector");
     return data()[size() - 1];
   }
 
@@ -363,15 +363,15 @@ class vector {
   }
 
   iterator erase(const_iterator pos) {
-    assert_with_msg(pos != end(), L"can't dereference end iterator");
+    assert_with_msg(pos != end(), "can't dereference end iterator");
     return erase_impl(pos - begin(), 1);
   }
 
   iterator erase(const_iterator first, const_iterator last) {
-    assert_with_msg(first <= last, L"transposed iterator range");
+    assert_with_msg(first <= last, "transposed iterator range");
     auto my_first{begin()};
     assert_with_msg(first >= my_first && last <= end(),
-                    L"iterator range does not belong to the vector");
+                    "iterator range does not belong to the vector");
     const auto offset{static_cast<size_type>(first - my_first)},
         count{static_cast<size_type>(last - first)};
     if (first == last) {
@@ -399,7 +399,7 @@ class vector {
   }
 
   void pop_back() {
-    assert_with_msg(!empty(), L"pop_back() called at empty vector");
+    assert_with_msg(!empty(), "pop_back() called at empty vector");
     allocator_traits_type::destroy(get_alloc(), addressof(back()));
     --get_size();
   }

@@ -43,7 +43,7 @@ void stall_for(const chrono::duration<Rep, Period>& stall_duration) {
       chrono::duration_cast<chrono::microseconds>(stall_duration).count();
 
   assert_with_msg(us_to_wait <= 50,
-                  L"wait duration in stall_for must not exceed 50 us");
+                  "wait duration in stall_for must not exceed 50 us");
 
   if (us_to_wait < 0) {
     return;
@@ -187,8 +187,8 @@ class system_thread : public th::details::worker_thread<system_thread> {
       : MyBase(
             create_thread(max_irql, forward<Fn>(fn), forward<Types>(args)...)) {
     assert_with_msg(native_handle(),
-                    L"opening thread failed; thread is running but get_id(), "
-                    L"join() and detach() are not available");
+                    "opening thread failed; thread is running but get_id(), "
+                    "join() and detach() are not available");
   }
 
   template <class Fn, class... Types>
@@ -197,8 +197,8 @@ class system_thread : public th::details::worker_thread<system_thread> {
                              forward<Fn>(fn),
                              forward<Types>(args)...)) {
     assert_with_msg(native_handle(),
-                    L"opening thread failed; thread is running but get_id(), "
-                    L"join() and detach() are not available");
+                    "opening thread failed; thread is running but get_id(), "
+                    "join() and detach() are not available");
   }
 
   system_thread(system_thread&&) noexcept = default;
@@ -302,7 +302,7 @@ class io_thread : public th::details::worker_thread<io_thread> {
                              forward<Fn>(fn),
                              forward<Types>(args)...)) {
     assert_with_msg(native_handle(),
-                    L"opening thread failed, but thread is running");
+                    "opening thread failed, but thread is running");
   }
 
   template <class Fn, class... Types>
@@ -312,7 +312,7 @@ class io_thread : public th::details::worker_thread<io_thread> {
                              forward<Fn>(fn),
                              forward<Types>(args)...)) {
     assert_with_msg(native_handle(),
-                    L"opening thread failed, but thread is running");
+                    "opening thread failed, but thread is running");
   }
 
   io_thread(io_thread&&) noexcept = default;

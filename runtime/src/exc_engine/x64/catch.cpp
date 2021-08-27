@@ -228,9 +228,9 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
   const unwind_info* unwind_info{image_base + ctx.fn->unwind_info};
 
   if (unwind_info->flags & 3) {  // Why 3?
-    auto mask{~static_cast<size_t>(1)};
-    auto unwind_slots =
-        (static_cast<size_t>(unwind_info->unwind_code_count + 1ull)) & mask;
+    const auto mask{~static_cast<size_t>(1)};
+    const auto unwind_slots =
+        (static_cast<size_t>(unwind_info->unwind_code_count) + 1ull) & mask;
     auto* frame_handler =
         image_base +
         *reinterpret_cast<
@@ -250,7 +250,7 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
     // в случае успешной проверки, отслеживать exc_action ==
     // win::ExceptionDisposition::CxxHandler мы не можем
     // Однако SEH-исключение всё равно не пролетит мимо:
-    // т.к. win::exception_record* != nullptr,  в __CxxFrameHandler4 сработает
+    // т.к. win::exception_record* != nullptr, в __CxxFrameHandler4 сработает
     // проверка и система упадёт в BSOD
   }
   return unwind_info;

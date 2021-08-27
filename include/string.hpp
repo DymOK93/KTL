@@ -345,32 +345,32 @@ class basic_winnt_string {
   }
 
   constexpr value_type& operator[](size_type idx) noexcept {
-    assert_with_msg(idx < size(), L"index is out of range");
+    assert_with_msg(idx < size(), "index is out of range");
     return data()[idx];
   }
 
   constexpr const value_type& operator[](size_type idx) const noexcept {
-    assert_with_msg(idx < size(), L"index is out of range");
+    assert_with_msg(idx < size(), "index is out of range");
     return data()[idx];
   }
 
   constexpr value_type& front() noexcept {
-    assert_with_msg(!empty(), L"front() called on empty string");
+    assert_with_msg(!empty(), "front() called on empty string");
     return data()[0];
   }
 
   constexpr const value_type& front() const noexcept {
-    assert_with_msg(!empty(), L"front() called on empty string");
+    assert_with_msg(!empty(), "front() called on empty string");
     return data()[0];
   }
 
   constexpr value_type& back() noexcept {
-    assert_with_msg(!empty(), L"back() called at empty string");
+    assert_with_msg(!empty(), "back() called at empty string");
     return data()[size() - 1];
   }
 
   constexpr const value_type& back() const noexcept {
-    assert_with_msg(!empty(), L"front() called at empty string");
+    assert_with_msg(!empty(), "front() called at empty string");
     return data()[size() - 1];
   }
 
@@ -1445,7 +1445,7 @@ auto operator+(basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>&& lhs,
 
   assert_with_msg(
       addressof(lhs) != addressof(rhs),
-      L"Unable to concatenate the same moved string to itself. See N4849 "
+      "Unable to concatenate the same moved string to itself. See N4849 "
       "[res.on.arguments]/1.3: If a function argument binds to an rvalue "
       "reference parameter, the implementation may assume that this "
       "parameter is a unique reference to this argument");

@@ -3,13 +3,13 @@
 #include <ntddk.h>
 
 namespace ktl::crt {
-void assertion_handler(const wchar_t* description,
-                       const wchar_t* msg = nullptr) noexcept;
+void assertion_handler(const char* description,
+                       const char* msg = nullptr) noexcept;
 
 template <class Cond>
 constexpr void assert_impl(const Cond& cond,
-                 const wchar_t* description,
-                 const wchar_t* msg = nullptr) {
+                           const char* description,
+                           const char* msg = nullptr) {
   if (!cond) {
     assertion_handler(description, msg);
   }
@@ -17,7 +17,7 @@ constexpr void assert_impl(const Cond& cond,
 }  // namespace ktl::crt
 
 #define ASSERT_DESCRIPTION(cond) \
-  CONCAT(L, CONCAT(CONCAT(STRINGIFY(cond), " "), IN_FILE_ON_LINE))
+  CONCAT(CONCAT(STRINGIFY(cond), " "), IN_FILE_ON_LINE)
 
 #define ASSERTION_CHECK(cond) \
   ktl::crt::assert_impl((cond), ASSERT_DESCRIPTION(cond))

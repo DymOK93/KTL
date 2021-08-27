@@ -10,7 +10,7 @@ bool isnan(Ty) {
 
 template <typename Ty, enable_if_t<is_floating_point_v<Ty>, int> = 0>
 bool isnan(Ty) {
-  assert_with_msg(false, L"floating point isn't supported");
+  assert_with_msg(false, "floating point isn't supported");
   return false;
 }
 
@@ -21,7 +21,7 @@ bool isinf(Ty) {
 
 template <typename Ty, enable_if_t<is_floating_point_v<Ty>, int> = 0>
 bool isinf(Ty) {
-  assert_with_msg(false, L"floating point isn't supported");
+  assert_with_msg(false, "floating point isn't supported");
   return false;
 }
 
@@ -32,13 +32,13 @@ bool isfinite(Ty) {
 
 template <typename Ty, enable_if_t<is_floating_point_v<Ty>, int> = 0>
 bool isfinite(Ty) {
-  assert_with_msg(false, L"floating point isn't supported");
+  assert_with_msg(false, "floating point isn't supported");
   return false;
 }
 
 template <typename Ty, enable_if_t<is_floating_point_v<Ty>, int> = 0>
 bool signbit(Ty) {
-  assert_with_msg(false, L"floating point isn't supported");
+  assert_with_msg(false, "floating point isn't supported");
   return false;
 }
 }  // namespace ktl

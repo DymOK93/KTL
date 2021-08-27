@@ -77,7 +77,7 @@ byte* exception_allocator::allocate_from_heap(size_t bytes_count) {
 void exception_allocator::free_to_heap(byte* ptr) noexcept {
   crt_assert_with_msg(
       get_current_irql() <= DISPATCH_LEVEL,
-      L"Deallocating to heap is disabled at IRQL > DISPATCH_LEVEL");
+      "Deallocating to heap is disabled at IRQL > DISPATCH_LEVEL");
   free(ptr);
 }
 
@@ -157,7 +157,7 @@ bool exception_base::is_shared() const noexcept {
 }
 
 auto exception_base::get_shared() const noexcept -> shared_data* {
-  crt_assert_with_msg(is_shared(), L"exception hasn't shared data");
+  crt_assert_with_msg(is_shared(), "exception hasn't shared data");
   return static_cast<shared_data*>(unmask(const_cast<void*>(m_data)));
 }
 
