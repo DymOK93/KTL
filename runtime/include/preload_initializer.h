@@ -1,27 +1,31 @@
 #pragma once
-#include <basic_types.h>
-
 #include <ntddk.h>
 
 namespace ktl {
 namespace crt {
-struct preload_initializer {
+class preload_initializer {
+ public:
   preload_initializer() noexcept;
-  virtual NTSTATUS run(DRIVER_OBJECT& driver_object,
-                       UNICODE_STRING& registry_path) noexcept = 0; // TODO: int purecall()
-
+  virtual NTSTATUS run(
+      DRIVER_OBJECT& driver_object,
+      UNICODE_STRING& registry_path) noexcept = 0;  // TODO: int purecall()
+ protected:
+  ~preload_initializer() = default;
 };
 
 class preload_initializer_registry {
- private:
   static constexpr size_t MAX_INITIALIZER_COUNT{32};
 
  public:
   static preload_initializer_registry& get_instance() noexcept;
 
+  preload_initializer_registry(const preload_initializer_registry&) = delete;
+  preload_initializer_registry& operator=(const preload_initializer_registry&) =
+      delete;
+
   bool add(preload_initializer& obj) noexcept;
   NTSTATUS run_all(DRIVER_OBJECT& driver_object,
-               UNICODE_STRING& registry_path) noexcept;
+                   UNICODE_STRING& registry_path) noexcept;
 
  private:
   preload_initializer_registry() noexcept = default;
