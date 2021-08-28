@@ -154,7 +154,7 @@ class spin_lock_base : non_relocatable {
   compressed_pair<LockPolicy, KSPIN_LOCK> m_storage;
 };
 
-enum class SpinlockType { Apc, Dpc, Mixed };
+enum class SpinlockType { Mixed, DpcOnly };
 
 template <SpinlockType Type>
 class spin_lock_policy_base {
@@ -163,11 +163,12 @@ class spin_lock_policy_base {
 };
 
 template <>
-class spin_lock_policy_base<SpinlockType::Dpc> {};
+class spin_lock_policy_base<SpinlockType::DpcOnly> {};
 
 template <SpinlockType Type>
 struct spin_lock_policy : spin_lock_policy_base<Type> {
   void lock(KSPIN_LOCK& target) const noexcept;
+  bool try_lock(KSPIN_LOCK& target) const noexcept;
   void unlock(KSPIN_LOCK& target) const noexcept;
 };
 
@@ -178,38 +179,38 @@ struct queued_spin_lock_policy {
   void unlock(KLOCK_QUEUE_HANDLE& queue_handle) const noexcept;
 };
 
-struct queued_spin_lock_dpc_policy {
-  void lock(KSPIN_LOCK& target,
-            KLOCK_QUEUE_HANDLE& queue_handle) const noexcept;
-  void unlock(KLOCK_QUEUE_HANDLE& queue_handle) const noexcept;
-};
-
-inline constexpr uint32_t DEVICE_SPIN_LOCK_TAG{0x0}, DPC_SPIN_LOCK_TAG{0x2},
-    APC_SPIN_LOCK_TAG{0x3};
+inline constexpr uint32_t
+    INTERRUPT_SPIN_LOCK{0x0}, // Acquired and released at DIRQL
+    NORMAL_SPIN_LOCK{0x1},    // Acquired and released at IRQL <= DISPATCH_EVEL
+    DPC_ONLY_SPIN_LOCK{0x2},  // Acquired and released at DISPATCH_EVEL
+    LOW_IRQL_SPIN_LOCK{0x3};  // Acquired and released at IRQL < DISPATCH_EVEL
 
 template <uint8_t>
-struct spin_lock_selector_impl {
-  static constexpr SpinlockType value = SpinlockType::MixedSpinLock;
+struct spin_lock_selector_impl;
+
+template <>
+struct spin_lock_selector_impl<INTERRUPT_SPIN_LOCK>; // Unsupported now
+
+template <>
+struct spin_lock_selector_impl<NORMAL_SPIN_LOCK> {
+  static constexpr SpinlockType value = SpinlockType::Mixed;
+};
+
+
+template <>
+struct spin_lock_selector_impl<DPC_ONLY_SPIN_LOCK> {
+  static constexpr SpinlockType value = SpinlockType::DpcOnly;
 };
 
 template <>
-struct spin_lock_selector_impl<DEVICE_SPIN_LOCK_TAG> {
-  static constexpr SpinlockType value = SpinlockType::Dpc;
-};
-
-template <>
-struct spin_lock_selector_impl<DPC_SPIN_LOCK_TAG> {
-  static constexpr SpinlockType value = SpinlockType::Dpc;
-};
-
-template <>
-struct spin_lock_selector_impl<APC_SPIN_LOCK_TAG> {
-  static constexpr SpinlockType value = SpinlockType::Apc;
+struct spin_lock_selector_impl<LOW_IRQL_SPIN_LOCK> {
+  static constexpr SpinlockType value = SpinlockType::Mixed;
 };
 
 template <irql_t MinIrql, irql_t MaxIrql>
 struct spin_lock_type_selector {
-  static_assert(MinIrql <= MaxIrql, "invalid spinlock type");
+  static_assert(MinIrql <= MaxIrql, "Invalid spinlock type: MinIrql must be less or equal MaxIrql");
+  static_assert(MaxIrql <= DISPATCH_LEVEL, "Interrupt spinlocks are unsupported now");
 
   static constexpr SpinlockType value =
       spin_lock_selector_impl<static_cast<uint8_t>(MinIrql <= APC_LEVEL) |
@@ -230,7 +231,7 @@ using queued_spin_lock_policy_selector_t =
     queued_spin_lock_policy<spin_lock_type_v<MinIrql, MaxIrql>>;
 }  // namespace th::details
 
-template <irql_t MinIrql = PASSIVE_LEVEL, irql_t MaxIrql = HIGH_LEVEL>
+template <irql_t MinIrql = PASSIVE_LEVEL, irql_t MaxIrql = DISPATCH_LEVEL>
 struct spin_lock
     : th::details::spin_lock_base<
           th::details::spin_lock_policy_selector_t<MinIrql, MaxIrql>> {
@@ -239,8 +240,8 @@ struct spin_lock
 
   using MyBase::MyBase;
 
-  // TODO: try_lock()
   void lock() noexcept { MyBase::get_policy().lock(*native_handle()); }
+  bool try_lock() noexcept { return MyBase::get_policy().try_lock(*native_handle()); }
   void unlock() noexcept { MyBase::get_policy().unlock(*native_handle()); }
 
   using MyBase::native_handle;
@@ -256,7 +257,6 @@ struct queued_spin_lock
 
   using MyBase::MyBase;
 
-  // TODO: try_lock()
   void lock(owner_handle_type& owner_handle) noexcept {
     MyBase::get_policy().lock(*native_handle(), owner_handle);
   }
@@ -493,7 +493,7 @@ class lock_guard_base : public mutex_guard_storage<Mutex>, non_relocatable {
   using mutex_type = typename MyBase::mutex_type;
 
  public:
-  lock_guard_base(mutex_type& mtx) : MyBase(mtx) { mtx.lock(); }
+  lock_guard_base(mutex_type& mtx) : MyBase(mtx) { MyBase::mutex()->lock(); }
   lock_guard_base(mutex_type mtx, adopt_lock_tag) : MyBase(mtx) {}
   ~lock_guard_base() { MyBase::mutex()->unlock(); }
 };
@@ -507,7 +507,9 @@ class lock_guard_base<Mutex, void_t<typename Mutex::owner_handle_type>>
   using owner_handle_type = typename mutex_type::owner_handle_type;
 
  public:
-  lock_guard_base(mutex_type& mtx) : MyBase(mtx) { mtx.lock(m_owner_handle); }
+  lock_guard_base(mutex_type& mtx) : MyBase(mtx) {
+    MyBase::mutex()->lock(m_owner_handle);
+  }
   lock_guard_base(mutex_type mtx, adopt_lock_tag) : MyBase(mtx) {}
   ~lock_guard_base() { MyBase::mutex()->unlock(m_owner_handle); }
 
