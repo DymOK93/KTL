@@ -214,7 +214,7 @@ struct spin_lock_type_selector {
 
   static constexpr SpinlockType value =
       spin_lock_selector_impl<static_cast<uint8_t>(MinIrql <= APC_LEVEL) |
-                              (static_cast<uint8_t>(MaxIrql < DISPATCH_LEVEL)
+                              (static_cast<uint8_t>(MaxIrql <= DISPATCH_LEVEL)
                                << 1)>::value;
 };
 
