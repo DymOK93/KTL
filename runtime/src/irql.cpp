@@ -1,4 +1,4 @@
-#include <irql.h>
+#include <irql.hpp>
 
 #include <ntddk.h>
 

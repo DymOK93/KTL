@@ -2,8 +2,8 @@
 // С " " вместо <> нет необходимости добавлять в зависимости lockfree/ целиком
 #include "node_allocator.hpp"
 
-#include <basic_types.h>
-#include <crt_attributes.h>
+#include <basic_types.hpp>
+#include <crt_attributes.hpp>
 #include <allocator.hpp>
 #include <assert.hpp>
 #include <atomic.hpp>

@@ -1,6 +1,6 @@
 #pragma once
-#include <basic_types.h>
-#include <irql.h>
+#include <basic_types.hpp>
+#include <irql.hpp>
 #include <assert.hpp>
 #include <chrono.hpp>
 #include <functional.hpp>
@@ -68,7 +68,7 @@ class thread_base : non_copyable {
   using native_handle_type = PETHREAD;
 
  protected:
-  using internal_object_type = void*;  // Due to problems with <ntifs.h>
+  using internal_object_type = void*;  // Due to problems with <ntifs.hpp>
 
  public:
   thread_base(thread_base&& other) noexcept;
@@ -80,7 +80,7 @@ class thread_base : non_copyable {
   [[nodiscard]] native_handle_type native_handle() const noexcept {
     return static_cast<native_handle_type>(
         m_thread);  // The real type of PETHREAD depends on included headers
-                    // (<ntifs.h>, <fltkrnel.h>)
+                    // (<ntifs.hpp>, <fltkrnel.hpp>)
   }
 
   priority_t get_priority() const noexcept;

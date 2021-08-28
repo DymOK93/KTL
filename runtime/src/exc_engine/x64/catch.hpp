@@ -3,8 +3,8 @@
  * Copyright (c) 2019-2021 Martin Vejnár (avakar)
  * */
 #pragma once
-#include <cpu_context.h>
-#include <exception_info.h>
+#include <cpu_context.hpp>
+#include <exception_info.hpp>
 #include <symbol.hpp>
 
 namespace ktl::crt::exc_engine::x64 {

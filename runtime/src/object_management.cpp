@@ -1,7 +1,7 @@
-#include "object_management.h"
+#include <object_management.hpp>
 
-#include <crt_assert.h>
-#include <crt_runtime.h>
+#include <crt_assert.hpp>
+#include <crt_runtime.hpp>
 
 #include <intrinsic.hpp>
 

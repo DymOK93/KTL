@@ -4,7 +4,7 @@
 #include <memory>
 #include <utility>
 #else
-#include <placement_new.h>
+#include <placement_new.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 #endif

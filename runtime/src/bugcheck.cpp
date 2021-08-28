@@ -1,4 +1,4 @@
-#include <bugcheck.h>
+#include <bugcheck.hpp>
 #include <ntddk.h>
 
 namespace ktl {

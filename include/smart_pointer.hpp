@@ -8,9 +8,9 @@ using std::unique_ptr;
 using std::weak_ptr;
 }  // namespace ktl
 #else
-#include <crt_attributes.h>
+#include <crt_attributes.hpp>
 #include <ktlexcept.hpp>
-#include <heap.h>
+#include <heap.hpp>
 #include <allocator.hpp>
 #include <atomic.hpp>
 #include <compressed_pair.hpp>

@@ -1,7 +1,7 @@
-#include <minifilter.h>
+#include <minifilter.hpp>
 
-#include <basic_runtime.h>
-#include <crt_assert.h>
+#include <basic_runtime.hpp>
+#include <crt_assert.hpp>
 
 namespace ktl::crt {
 namespace details {

@@ -1,7 +1,7 @@
 #pragma once
-#include <basic_types.h>
-#include <heap.h>
-#include <preload_initializer.h>
+#include <basic_types.hpp>
+#include <heap.hpp>
+#include <preload_initializer.hpp>
 
 #include <ntddk.h>
 

@@ -1,6 +1,6 @@
 #pragma once
-#include <basic_types.h>
-#include <crt_attributes.h>
+#include <basic_types.hpp>
+#include <crt_attributes.hpp>
 
 #include <ntddk.h>
 

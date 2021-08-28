@@ -2955,7 +2955,7 @@ FMT_API auto vformat(string_view fmt, format_args args) -> ktl::ansi_string;
 
   **Example**::
 
-    #include <fmt/core.h>
+    #include <fmt/core.hpp>
     ktl::string message = fmt::format("The answer is {}", 42);
   \endrst
 */
@@ -3082,7 +3082,7 @@ FMT_GCC_PRAGMA("GCC pop_options")
 FMT_END_NAMESPACE
 
 #ifdef FMT_HEADER_ONLY
-#include "format.h"
+#include "format.hpp"
 #endif
 
 namespace ktl {

@@ -37,7 +37,7 @@
   9  // for adding functionality in a backwards-compatible manner
 #define ROBIN_HOOD_VERSION_PATCH 1  // for backwards-compatible bug fixes
 
-#include <basic_types.h>
+#include <basic_types.hpp>
 #include <algorithm.hpp>
 #include <allocator.hpp>
 #include <functional.hpp>

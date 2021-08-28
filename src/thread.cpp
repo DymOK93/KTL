@@ -1,5 +1,5 @@
-#include <bugcheck.h>
-#include <thread.h>
+#include <bugcheck.hpp>
+#include <thread.hpp>
 #include <ktlexcept.hpp>
 #include <utility.hpp>
 

@@ -1,5 +1,5 @@
 #pragma once
-#include <../crt_attributes.h>
+#include <../crt_attributes.hpp>
 #include <flag_set.hpp>
 
 namespace ktl::crt::exc_engine::win {

@@ -1,6 +1,6 @@
 #pragma once
-#include <basic_types.h>
-#include <irql.h>
+#include <basic_types.hpp>
+#include <irql.hpp>
 #include <chrono.hpp>
 #include <compressed_pair.hpp>
 #include <limits.hpp>

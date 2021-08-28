@@ -1,6 +1,6 @@
 #pragma once
-#include <basic_types.h>
-#include <crt_attributes.h>
+#include <basic_types.hpp>
+#include <crt_attributes.hpp>
 
 EXTERN_C unsigned char _addcarry_u32(unsigned char c_in,
                                      unsigned int src1,

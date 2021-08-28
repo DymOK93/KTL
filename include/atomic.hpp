@@ -1,7 +1,7 @@
 #pragma once
-#include <basic_types.h>
-#include <crt_attributes.h>
-#include <irql.h>
+#include <basic_types.hpp>
+#include <crt_attributes.hpp>
+#include <irql.hpp>
 #include <intrinsic.hpp>
 #include <limits.hpp>
 #include <type_traits.hpp>

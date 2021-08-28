@@ -1,4 +1,4 @@
-#include <type_info.h>
+#include <type_info.hpp>
 
 type_info::type_info() noexcept
     : undecorated_name{nullptr}, decorated_name{""} {}

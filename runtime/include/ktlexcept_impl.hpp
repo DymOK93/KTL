@@ -1,5 +1,5 @@
 #pragma once
-#include <exception_base.h>
+#include <exception_base.hpp>
 
 #include <ntddk.h>
 

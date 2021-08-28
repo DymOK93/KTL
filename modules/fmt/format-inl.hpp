@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 
-#include <bugcheck.h>
+#include <bugcheck.hpp>
 #include <algorithm.hpp>
 #include <intrinsic.hpp>
 #include <ktlexcept.hpp>
@@ -21,10 +21,10 @@
 #endif
 
 #ifdef _WIN32
-// #  include <io.h>  // _isatty
+// #  include <io.hpp>  // _isatty
 #endif
 
-#include "format.h"
+#include "format.hpp"
 
 FMT_BEGIN_NAMESPACE
 namespace detail {

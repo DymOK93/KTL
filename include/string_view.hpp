@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <string_view>
 #else
-#include <container_helpers.h>
+#include <container_helpers.hpp>
 #include <ktlexcept.hpp>
 #include <algorithm.hpp>
 #include <assert.hpp>

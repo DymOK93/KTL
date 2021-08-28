@@ -9,9 +9,9 @@ set(KTL_EXC_X64_DIR "${KTL_EXC_ENGINE_SOURCE_DIR}/x64")
 
 set(
 	KTL_EXC_X64_HEADER_FILES
-		"catch.h"
-		"cpu_context.h"
-		"throw.h"
+		"catch.hpp"
+		"cpu_context.hpp"
+		"throw.hpp"
 )
 set(
 	KTL_EXC_X64_SOURCE_FILES

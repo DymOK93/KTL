@@ -1,4 +1,4 @@
-#include <heap.h>
+#include <heap.hpp>
 
 namespace ktl {
 namespace crt {

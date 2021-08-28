@@ -1,5 +1,5 @@
-#include <crt_assert.h>
-#include <preload_initializer.h>
+#include <crt_assert.hpp>
+#include <preload_initializer.hpp>
 
 namespace ktl::crt {
 preload_initializer::preload_initializer() noexcept {

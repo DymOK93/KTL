@@ -4,9 +4,9 @@
  */
 #pragma once
 
-#include <catch.h>
-#include <cpu_context.h>
-#include <exception_info.h>
+#include <catch.hpp>
+#include <cpu_context.hpp>
+#include <exception_info.hpp>
 #include <rva.hpp>
 #include <symbol.hpp>
 

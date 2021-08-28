@@ -8,8 +8,8 @@ using basic_allocator = std::allocator<Ty>;
 using std::allocator_traits;
 }  // namespace ktl
 #else
-#include <heap.h>
-#include <new_delete.h>
+#include <heap.hpp>
+#include <new_delete.hpp>
 #include <memory_impl.hpp>
 #include <memory_type_traits.hpp>
 #include <type_traits.hpp>
