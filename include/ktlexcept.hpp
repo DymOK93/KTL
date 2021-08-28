@@ -1,5 +1,5 @@
 #pragma once
-#include <crt_attributes.h>
+#include <crt_attributes.hpp>
 #include <char_traits.hpp>
 #include <exception.hpp>
 #include <string_fwd.hpp>

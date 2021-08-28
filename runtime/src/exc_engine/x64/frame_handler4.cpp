@@ -1,5 +1,5 @@
-#include <bugcheck.h>
-#include <throw.h>
+#include <bugcheck.hpp>
+#include <throw.hpp>
 #include <seh.hpp>
 
 namespace ktl::crt::exc_engine::x64 {

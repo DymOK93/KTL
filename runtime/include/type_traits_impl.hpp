@@ -125,7 +125,7 @@ using std::conjunction;
 using std::conjunction_v;
 }  // namespace ktl
 #else
-#include <crt_attributes.h>
+#include <crt_attributes.hpp>
 
 namespace ktl {
 template <class... Dummy>

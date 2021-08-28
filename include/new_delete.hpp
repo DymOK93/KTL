@@ -1,6 +1,6 @@
 #pragma once
-#include <heap.h>
-#include <placement_new.h>
+#include <heap.hpp>
+#include <placement_new.hpp>
 #include <exception.hpp>
 
 namespace ktl {

@@ -12,7 +12,7 @@
 #include <initializer_list.hpp>
 #include <tuple.hpp>
 
-#include "format.h"
+#include "format.hpp"
 
 FMT_BEGIN_NAMESPACE
 namespace detail {

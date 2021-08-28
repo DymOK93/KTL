@@ -6,8 +6,8 @@ namespace ktl {
 using std::vector;
 }
 #else
-#include <basic_types.h>
-#include <container_helpers.h>
+#include <basic_types.hpp>
+#include <container_helpers.hpp>
 #include <ktlexcept.hpp>
 #include <algorithm.hpp>
 #include <allocator.hpp>

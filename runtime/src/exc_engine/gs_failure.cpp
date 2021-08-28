@@ -1,5 +1,5 @@
-#include <../basic_types.h>
-#include <bugcheck.h>
+#include <../basic_types.hpp>
+#include <bugcheck.hpp>
 
 namespace ktl::crt::exc_engine {
 EXTERN_C [[noreturn]] void report_security_check_failure() {

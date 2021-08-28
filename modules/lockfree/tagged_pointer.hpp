@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include <basic_types.h>
+#include <basic_types.hpp>
 
 namespace ktl::lockfree {
 template <class Ty>

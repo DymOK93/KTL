@@ -10,7 +10,7 @@ using std::numeric_limits;
 #include <limits.h>
 #include <wchar.h>
 
-// workaround for kernel-mode version of <float.h>
+// workaround for kernel-mode version of <float.hpp>
 #ifndef FLT_TRUE_MIN
 #undef FLT_TRUE_MIN
 #define FLT_TRUE_MIN 1.401298464e-45F  // min positive value

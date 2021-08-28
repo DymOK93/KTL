@@ -1,5 +1,5 @@
 #pragma once
-#include <crt_assert.h>
+#include <crt_assert.hpp>
 #include <type_traits.hpp>
 
 namespace ktl {

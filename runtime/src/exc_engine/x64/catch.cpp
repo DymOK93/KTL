@@ -1,6 +1,6 @@
-﻿#include <bugcheck.h>
-#include <catch.h>
-#include <throw.h>
+﻿#include <bugcheck.hpp>
+#include <catch.hpp>
+#include <throw.hpp>
 #include <seh.hpp>
 
 EXTERN_C ktl::crt::exc_engine::symbol __ImageBase;

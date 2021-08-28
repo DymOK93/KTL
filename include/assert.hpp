@@ -1,5 +1,5 @@
 #pragma once
-#include <crt_assert.h>
+#include <crt_assert.hpp>
 
 #ifdef KTL_CPP_DBG
 #define assert(cond) ASSERTION_CHECK((cond))

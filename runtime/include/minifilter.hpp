@@ -1,7 +1,7 @@
 #pragma once
 #include <fltkernel.h>
 
-#include <crt_attributes.h>
+#include <crt_attributes.hpp>
 
 namespace ktl::crt {
 namespace details {

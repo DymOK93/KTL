@@ -34,14 +34,14 @@
 #define FMT_FORMAT_H_
 
 #include <assert.hpp>  // ktl::uninitialized_copy
-#include <basic_types.h>  // uint32_t
+#include <basic_types.hpp>  // uint32_t
 #include <ktlexcept.hpp>  // ktl::runtime_error
 #include <limits.hpp>     // ktl::numeric_limits
 #include <math.hpp>
 #include <memory.hpp>   // ktl::uninitialized_copy
 #include <utility.hpp>  // ktl::swap
 
-#include "core.h"
+#include "core.hpp"
 
 #ifdef __INTEL_COMPILER
 #define FMT_ICC_VERSION __INTEL_COMPILER
@@ -2808,7 +2808,7 @@ auto join(Range&& range, string_view sep)
 
   **Example**::
 
-    #include <fmt/format.h>
+    #include <fmt/format.hpp>
 
     ktl::ansi_string answer = fmt::to_string(42);
   \endrst
@@ -3052,12 +3052,12 @@ FMT_MODULE_EXPORT_END
 FMT_END_NAMESPACE
 
 #ifdef FMT_DEPRECATED_INCLUDE_XCHAR
-#include "xchar.h"
+#include "xchar.hpp"
 #endif
 
 #ifdef FMT_HEADER_ONLY
 #define FMT_FUNC inline
-#include "format-inl.h"
+#include "format-inl.hpp"
 #else
 #define FMT_FUNC
 #endif

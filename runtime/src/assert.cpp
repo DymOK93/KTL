@@ -1,4 +1,4 @@
-#include <crt_assert.h>
+#include <crt_assert.hpp>
 
 namespace ktl::crt {
 void assertion_handler(const char description, const char msg) noexcept {

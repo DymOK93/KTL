@@ -1,12 +1,12 @@
 #include <fltkernel.h>
 
-#include <basic_runtime.h>
-#include <basic_types.h>
-#include <crt_assert.h>
-#include <crt_runtime.h>
-#include <heap.h>
-#include <object_management.h>
-#include <preload_initializer.h>
+#include <basic_runtime.hpp>
+#include <basic_types.hpp>
+#include <crt_assert.hpp>
+#include <crt_runtime.hpp>
+#include <heap.hpp>
+#include <object_management.hpp>
+#include <preload_initializer.hpp>
 
 namespace ktl::crt {
 namespace details {

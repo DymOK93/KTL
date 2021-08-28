@@ -1,5 +1,5 @@
-#include <bugcheck.h>
-#include <cpu_context.h>
+#include <bugcheck.hpp>
+#include <cpu_context.hpp>
 #include <symbol.hpp>
 
 EXTERN_C ktl::crt::exc_engine::symbol __ImageBase;

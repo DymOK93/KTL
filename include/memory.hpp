@@ -4,8 +4,8 @@
 #include <memory>
 #include <utility>
 #else
-#include <heap.h>
-#include <new_delete.h>
+#include <heap.hpp>
+#include <new_delete.hpp>
 #include <allocator.hpp>
 #include <iterator.hpp>
 #include <memory_impl.hpp>

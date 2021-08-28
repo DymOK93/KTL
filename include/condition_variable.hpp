@@ -1,7 +1,7 @@
 #pragma once
 #include <atomic.hpp>
 #include <chrono.hpp>
-#include <mutex.h>
+#include <mutex.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 

@@ -1,6 +1,6 @@
 #pragma once
 #include <flag_set.hpp>
-#include <member_ptr.h>
+#include <member_ptr.hpp>
 #include <rva.hpp>
 
 namespace ktl::crt::exc_engine::x64 {

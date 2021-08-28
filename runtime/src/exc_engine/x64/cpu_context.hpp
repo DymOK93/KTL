@@ -1,5 +1,5 @@
 #pragma once
-#include <member_ptr.h>
+#include <member_ptr.hpp>
 #include <flag_set.hpp>
 #include <rva.hpp>
 

@@ -1,6 +1,6 @@
 #pragma once
-#include <basic_types.h>
-#include <chrono_impl.h>
+#include <basic_types.hpp>
+#include <chrono_impl.hpp>
 #include <limits.hpp>
 #include <ratio.hpp>
 #include <type_traits.hpp>

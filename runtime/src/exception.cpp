@@ -1,8 +1,8 @@
 #include <ntifs.h>
 
-#include <crt_assert.h>
-#include <irql.h>
-#include <placement_new.h>
+#include <crt_assert.hpp>
+#include <irql.hpp>
+#include <placement_new.hpp>
 #include <exception.hpp>
 #include <utility_impl.hpp>
 
