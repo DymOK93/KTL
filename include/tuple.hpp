@@ -1,5 +1,6 @@
 #pragma once
 #include <type_traits.hpp>
+#include <functional.hpp>
 #include <utility.hpp>
 
 namespace ktl {
@@ -483,6 +484,22 @@ template <class... LhsTypes, class... RhsTypes>
 constexpr bool operator>=(const tuple<LhsTypes...>& lhs,
                           const tuple<RhsTypes...>& rhs) {
   return !(lhs < rhs);
+}
+  
+namespace tt::details {
+ 
+template<class F, class Tpl, size_t... Idxs>
+constexpr decltype(auto) apply_impl(F&& f, Tpl&& tpl, index_sequence<Idxs...>) {
+  return invoke(forward<F>(f), get<Idxs>(forward<Tpl>(tpl))...);
+}
+  
+} // namespace tt::details
+  
+template<class F, class Tpl>
+constexpr decltype(auto) apply(F&& f, Tpl&& tpl) {
+  using idxs_t = make_index_sequence<
+    tuple_size_v<remove_reference_t<Tpl>>>;
+  return tt::details::apply_impl(forward<F>(f), forward<Tpl>(tpl), idxs_t{});
 }
 
 }  // namespace ktl
