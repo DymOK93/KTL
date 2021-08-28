@@ -18,8 +18,7 @@ static constexpr unsigned int MAX_DESTRUCTOR_COUNT{
 void CRTCALL invoke_constructors() noexcept {  //Вызов конструкторов
   for (ktl::crt::handler_t* ctor_ptr = __cxx_ctors_begin__;
        ctor_ptr < __cxx_ctors_end__; ++ctor_ptr) {
-    auto& constructor{*ctor_ptr};
-    if (constructor) {
+    if (auto& constructor =*ctor_ptr; constructor) {
       constructor();
     }
   }
@@ -28,7 +27,7 @@ void CRTCALL invoke_constructors() noexcept {  //Вызов конструкторов
 void CRTCALL invoke_destructors() noexcept {
   auto& dtor_count{ktl::crt::details::destructor_count};
   for (uint32_t idx = dtor_count; idx > 0; --idx) {
-    auto& destructor{ktl::crt::details::destructor_stack[idx - 1]};
+    auto& destructor{details::destructor_stack[idx - 1]};
     destructor();
   }
   dtor_count = 0;

@@ -5,7 +5,7 @@
 #include <ntddk.h>
 
 namespace ktl::crt {
-using handler_t = void(CRTCALL*)(void);
+using handler_t = void(CRTCALL*)();
 
 void CRTCALL invoke_constructors() noexcept;
 void CRTCALL invoke_destructors() noexcept;

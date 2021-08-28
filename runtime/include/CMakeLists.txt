@@ -10,32 +10,33 @@ set(KTL_MINIFILTER_RUNTIME_INCLUDE_DIR ${KTL_RUNTIME_INCLUDE_DIR})
 set(
 	KTL_RUNTIME_HEADER_FILES
 		"algorithm_impl.hpp"
-		"basic_runtime.h"
-		"basic_types.h"
-		"bugcheck.h"
+		"array_unwind.hpp"
+		"basic_runtime.hpp"
+		"basic_types.hpp"
+		"bugcheck.hpp"
 		"char_traits_impl.hpp"
-		"chrono_impl.h"
-		"crt_assert.h"
-		"crt_attributes.h"
-		"crt_runtime.h"
+		"chrono_impl.hpp"
+		"crt_assert.hpp"
+		"crt_attributes.hpp"
+		"crt_runtime.hpp"
 		"flag_set.hpp"
 		"functional_impl.hpp"
 		"intrinsic.hpp"
-		"heap.h"
-		"irql.h"
+		"heap.hpp"
+		"irql.hpp"
 		"limits_impl.hpp"
 		"memory_type_traits_impl.hpp"
-		"object_management.h"
-		"placement_new.h"
-		"preload_initializer.h"
-		"type_info.h"
+		"object_management.hpp"
+		"placement_new.hpp"
+		"preload_initializer.hpp"
+		"type_info.hpp"
 		"type_traits_impl.hpp"
 		"utility_impl.hpp"
 )
 
 set(
 	KTL_MINIFILTER_RUNTIME_HEADER_FILES
-		"minifilter.h"
+		"minifilter.hpp"
 )
 
 set(RUNTIME_LIB basic_runtime_interface)
