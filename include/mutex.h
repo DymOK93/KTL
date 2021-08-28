@@ -6,6 +6,8 @@
 #include <limits.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
+#include <tuple.hpp>
+#include <thread.h>
 
 #include <ntddk.h>
 
@@ -34,9 +36,9 @@ class sync_primitive_base : non_relocatable {
 
 template <class SyncPrimitive>
 class awaitable_sync_primitive
-    : public sync_primitive_base<SyncPrimitive> {  //Примитивы синхронизации,
-                                                   //поддерживающие ожидание с
-                                                   //таймером
+    : public sync_primitive_base<SyncPrimitive> {  //ГЏГ°ГЁГ¬ГЁГІГЁГўГ» Г±ГЁГ­ГµГ°Г®Г­ГЁГ§Г Г¶ГЁГЁ,
+                                                   //ГЇГ®Г¤Г¤ГҐГ°Г¦ГЁГўГ ГѕГ№ГЁГҐ Г®Г¦ГЁГ¤Г Г­ГЁГҐ Г±
+                                                   //ГІГ Г©Г¬ГҐГ°Г®Г¬
  public:
   using MyBase = th::details::sync_primitive_base<KMUTEX>;
   using sync_primitive_t = MyBase::sync_primitive_t;
@@ -683,6 +685,166 @@ class irql_guard {
  private:
   irql_t m_old_irql;
 };
+ 
+namespace th::details {
+ 
+ template<class... Mtxs, size_t... Idxs>
+ void lock_target_from_locks(const int target, index_sequence<Idxs...>, Mtxs&... mtxs) {
+   [[maybe_unused]] int ignored[] = {
+     ((target == static_cast<int>(Idxs)) ? (((void)mtxs.lock()), 0) : 0)...
+   };
+ }
+ 
+ template<class... Mtxs, size_t... Idxs>
+ bool try_lock_target_from_locks(const int target, index_sequence<Idxs...>, Mtxs&... mtxs) {
+   bool result = false;
+   
+   [[maybe_unused]] int ignored[] = {
+     ((target == static_cast<int>(Idxs)) ? ((result = mtxs.try_lock()), 0) : 0)...
+   };
+   
+   return result;
+ }
+ 
+ template<class... Mtxs, size_t... Idxs>
+ void unlock_locks(const int first, const int last, index_sequence<Idxs...>, Mtxs&... mtxs) {
+   [[maybe_unused]] int ignored[] = {
+     ((first <= static_cast<int>(Idxs) && static_cast<int>(Idxs) < last) ? (((void)mtxs.unlock()), 0) : 0)...
+   };
+ }
+ 
+ template<class... Mtxs>
+ int try_lock_range(const int first, const int last, Mtxs&... mtxs) {
+   using indices_t = index_sequence_for<Mtxs...>;
+   
+   int current = first;
+   
+   try {
+     for (; current < last; ++current) {
+       if (!try_lock_target_from_locks(current, indices_t{}, mtxs...)) {
+         unlock_locks(first, current, indices_t{}, mtxs...);
+         return current;
+       }
+     }
+   }
+   catch(...) {
+     unlock_locks(first, current, indices_t{}, mtxs...);
+     throw;
+   }
+   
+   return -1;
+ }
+ 
+ template<class... Mtxs>
+ int lock_attempt(const int prev, Mtxs&... mtxs) {
+   using indices_t = index_sequence_for<Mtxs...>;
+   lock_target_from_locks(prev, indices_t{}, mtxs...);
+   
+   int failed = -1;
+   int rollback_start = prev;
+   
+   try {
+     failed = try_lock_range(0, prev, mtxs...);
+     if (failed == -1) {
+       rollback_start = 0;
+       failed = try_lock_range(prev + 1, sizeof...(Mtxs), mtxs...);
+       if (failed == -1) {
+         return -1;
+       }
+     }
+   }
+   catch(...) {
+     unlock_locks(rollback_start, prev + 1, indices_t{}, mtxs...);
+     throw;
+   }
+   
+   unlock_locks(rollback_start, prev + 1, indices_t{}, mtxs...);
+   return failed;
+ }
+ 
+ template<class Mtx1, class Mtx2, class Mtx3, class... MtxNs>
+ void lock_impl(Mtx1& mtx1, Mtx2& mtx2, Mtx3& mtx3, MtxNs&... mtxns) {
+   int not_locked = 0;
+   while (not_locked != -1) {
+     not_locked = lock_attempt(not_locked, mtx1, mtx2, mtx3, mtxns...);
+   }
+ }
+ 
+ template<class Mtx1, class Mtx2>
+ bool lock_attempt_small(Mtx1& mtx1, Mtx2& mtx2) {
+   mtx1.lock();
+   
+   try {
+     if (mtx2.try_lock()) {
+       return false;
+     }
+   }
+   catch(...) {
+     mtx1.unlock();
+     throw;
+   }
+   
+   mtx1.unlock();
+   this_thread::yield();
+   
+   return true;
+ }
+ 
+ template<class Mtx1, class Mtx2>
+ void lock_impl(Mtx1& mtx1, Mtx2& mtx2) {
+   while(lock_attempt_small(mtx1, mtx2) && lock_attempt_small(mtx2, mtx1))
+     /* Don't give up... Try harder! */ ;
+ }
+ 
+} // namespace th::details
 
+template<class Mtx1, class Mtx2, class... MtxNs>
+void lock(Mtx1& mtx1, Mtx2& mtx2, MtxNs&... mtxns) {
+  th::details::lock_impl(mtx1, mtx2, mtxns...);
+}
+ 
+template<class... Mtxs>
+class scoped_lock : non_copyable {
+public:
+  explicit scoped_lock(Mtxs&... mtxs) : m_mtxs(mtxs...) { 
+    ktl::lock(mtxs...);
+  }
+  
+  explicit scoped_lock(adopt_lock_tag, Mtxs&... mtxs) : m_mtxs(mtxs...) { /* Don't lock */ }
+  
+  ~scoped_lock() { apply([](Mtxs&... mtxs) { (..., (void) mtxs.unlock()); }, m_mtxs); }
+
+private:
+  tuple<Mtxs&...> m_mtxs;
+};
+ 
+template<class Mtx>
+class scoped_lock<Mtx> : non_copyable {
+public:
+  using mutex_type = Mtx;
+  
+  explicit scoped_lock(Mtx& mtx) : m_mtx(mtx) { m_mtx.lock(); }
+  
+  explicit scoped_lock(adopt_lock_tag, Mtx& mtx) : m_mtx(mtx) { /* Don't lock */ }
+  
+  ~scoped_lock() { m_mtx.unlock(); }
+  
+private:
+  Mtx& m_mtx;
+}
+ 
+template<>
+class scoped_lock<> : non_copyable {
+public:
+  explicit scoped_lock() = default;
+  explicit scoped_lock(adopt_lock_tag) { }
+}
+
+template<class... Mtxs>
+scoped_lock(Mtxs&...) -> scoped_lock<Mtxs...>;
+
+template<class... Mtxs>
+scoped_lock(adopt_lock_tag, Mtxs&...) -> scoped_lock<Mtxs...>;
+ 
 // TODO: tuple, scoped_lock
 }  // namespace ktl
