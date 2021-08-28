@@ -7,7 +7,7 @@
 #include <type_traits.hpp>
 #include <utility.hpp>
 #include <tuple.hpp>
-#include <thread.h>
+#include <thread.hpp>
 
 #include <ntddk.h>
 
@@ -820,31 +820,30 @@ private:
  
 template<class Mtx>
 class scoped_lock<Mtx> : non_copyable {
-public:
+ public:
   using mutex_type = Mtx;
-  
+
   explicit scoped_lock(Mtx& mtx) : m_mtx(mtx) { m_mtx.lock(); }
-  
-  explicit scoped_lock(adopt_lock_tag, Mtx& mtx) : m_mtx(mtx) { /* Don't lock */ }
-  
+
+  explicit scoped_lock(adopt_lock_tag, Mtx& mtx) : m_mtx(mtx) { /* Don't lock */
+  }
+
   ~scoped_lock() { m_mtx.unlock(); }
-  
-private:
+
+ private:
   Mtx& m_mtx;
-}
+};
  
 template<>
 class scoped_lock<> : non_copyable {
 public:
   explicit scoped_lock() = default;
   explicit scoped_lock(adopt_lock_tag) { }
-}
+};
 
 template<class... Mtxs>
 scoped_lock(Mtxs&...) -> scoped_lock<Mtxs...>;
 
 template<class... Mtxs>
 scoped_lock(adopt_lock_tag, Mtxs&...) -> scoped_lock<Mtxs...>;
- 
-// TODO: tuple, scoped_lock
 }  // namespace ktl
