@@ -7,7 +7,7 @@ namespace ktl::crt {
 namespace details {
 using filter_unload_t = NTSTATUS(STDCALL*)(FLT_FILTER_UNLOAD_FLAGS);
 struct filter_context {
-  PFLT_FILTER object{nullptr};
+  PFLT_FILTER object;
 };
 }  // namespace details
 

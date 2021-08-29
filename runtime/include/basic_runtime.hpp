@@ -8,8 +8,8 @@ namespace ktl::crt {
 namespace details {
 using driver_unload_t = void(STDCALL*)(DRIVER_OBJECT*);
 struct driver_context {
-  DRIVER_OBJECT* object{nullptr};
-  driver_unload_t custom_unload{nullptr};
+  DRIVER_OBJECT* object;
+  driver_unload_t custom_unload;
 };
 }  // namespace details
 

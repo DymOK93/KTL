@@ -7,16 +7,13 @@
 
 namespace ktl::crt {
 namespace details {
-static global_handler_t destructor_stack[128] = {
-    nullptr};  // C++ Standard requires 32 or more
+static constexpr unsigned int MAX_DESTRUCTOR_COUNT{128}; // C++ Standard requires 32 or more
+static global_handler_t destructor_stack[MAX_DESTRUCTOR_COUNT]{nullptr};
 static uint32_t destructor_count{0};
 }  // namespace details
 
-static constexpr unsigned int MAX_DESTRUCTOR_COUNT{
-    sizeof(details::destructor_stack) / sizeof(global_handler_t)};
-
-void CRTCALL invoke_global_constructors() noexcept {  //Вызов конструкторов
-  for (global_handler_t* ctor_ptr = __cxx_ctors_begin__;
+void CRTCALL invoke_global_constructors() noexcept {  // Calling constructors of global objects during dynamic initialization
+  for (global_handler_t* ctor_ptr = __cxx_ctors_begin__;    // ctor_ptr is always guaranteed to be non-null 
        ctor_ptr < __cxx_ctors_end__; ++ctor_ptr) {
     if (auto& constructor = *ctor_ptr; constructor) {
       constructor();
@@ -65,13 +62,15 @@ void CRTCALL destroy_array_in_reversed_order(void* arr_end,
 }  // namespace ktl::crt
 
 int CRTCALL atexit(ktl::crt::global_handler_t destructor) {
-  if (auto& dtor_count = ktl::crt::details::destructor_count; destructor) {
+  using namespace ktl::crt;
+
+  if (auto& dtor_count = details::destructor_count; destructor) {
     auto* idx_addr{reinterpret_cast<volatile long*>(&dtor_count)};
     const auto idx{static_cast<uint32_t>(InterlockedIncrement(idx_addr) - 1)};
 
-    if (const bool registration_allowed = idx < ktl::crt::MAX_DESTRUCTOR_COUNT;
+    if (const bool registration_allowed = idx < details::MAX_DESTRUCTOR_COUNT;
         registration_allowed) {
-      ktl::crt::details::destructor_stack[idx] = destructor;
+      details::destructor_stack[idx] = destructor;
       return 0;
     }
     crt_assert_with_msg(

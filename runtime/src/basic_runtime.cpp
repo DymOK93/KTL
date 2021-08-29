@@ -4,8 +4,7 @@
 
 namespace ktl::crt {
 namespace details {
-driver_context
-    driver_ctx{};  // Not static due to usage in minifilter runtime library
+driver_context driver_ctx{};  // Non-static due to usage in mini-filter runtime library
 }
 }  // namespace ktl::crt
 
