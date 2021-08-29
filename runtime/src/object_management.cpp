@@ -7,34 +7,64 @@
 
 namespace ktl::crt {
 namespace details {
-static handler_t destructor_stack[128] = {
+static global_handler_t destructor_stack[128] = {
     nullptr};  // C++ Standard requires 32 or more
 static uint32_t destructor_count{0};
 }  // namespace details
 
 static constexpr unsigned int MAX_DESTRUCTOR_COUNT{
-    sizeof(details::destructor_stack) / sizeof(handler_t)};
+    sizeof(details::destructor_stack) / sizeof(global_handler_t)};
 
-void CRTCALL invoke_constructors() noexcept {  //Вызов конструкторов
-  for (ktl::crt::handler_t* ctor_ptr = __cxx_ctors_begin__;
+void CRTCALL invoke_global_constructors() noexcept {  //Вызов конструкторов
+  for (global_handler_t* ctor_ptr = __cxx_ctors_begin__;
        ctor_ptr < __cxx_ctors_end__; ++ctor_ptr) {
-    if (auto& constructor =*ctor_ptr; constructor) {
+    if (auto& constructor = *ctor_ptr; constructor) {
       constructor();
     }
   }
 }
 
-void CRTCALL invoke_destructors() noexcept {
-  auto& dtor_count{ktl::crt::details::destructor_count};
+void CRTCALL invoke_global_destructors() noexcept {
+  auto& dtor_count{details::destructor_count};
   for (uint32_t idx = dtor_count; idx > 0; --idx) {
     auto& destructor{details::destructor_stack[idx - 1]};
     destructor();
   }
   dtor_count = 0;
 }
+
+void CRTCALL construct_array(void* arr_begin,
+                             size_t element_size,
+                             size_t count,
+                             object_handler_t constructor,
+                             object_handler_t destructor) {
+  auto* current_obj{static_cast<byte*>(arr_begin)};
+  size_t idx{0};
+
+  try {
+    for (; idx < count; ++idx) {
+      constructor(current_obj);
+      current_obj += element_size;
+    }
+  } catch (...) {
+    destroy_array_in_reversed_order(current_obj, element_size, idx, destructor);
+    throw;
+  }
+}
+
+void CRTCALL destroy_array_in_reversed_order(void* arr_end,
+                                             size_t element_size,
+                                             size_t count,
+                                             object_handler_t destructor) {
+  auto* current_obj{static_cast<byte*>(arr_end)};
+  while (count-- > 0) {
+    current_obj -= element_size;
+    destructor(current_obj);
+  }
+}
 }  // namespace ktl::crt
 
-int CRTCALL atexit(ktl::crt::handler_t destructor) {
+int CRTCALL atexit(ktl::crt::global_handler_t destructor) {
   if (auto& dtor_count = ktl::crt::details::destructor_count; destructor) {
     auto* idx_addr{reinterpret_cast<volatile long*>(&dtor_count)};
     const auto idx{static_cast<uint32_t>(InterlockedIncrement(idx_addr) - 1)};

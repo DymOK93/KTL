@@ -1,16 +1,11 @@
-#include <fltkernel.h>
-
 #include <basic_runtime.hpp>
-#include <basic_types.hpp>
-#include <crt_assert.hpp>
-#include <crt_runtime.hpp>
-#include <heap.hpp>
 #include <object_management.hpp>
 #include <preload_initializer.hpp>
 
 namespace ktl::crt {
 namespace details {
-driver_context driver_ctx{};    // used in minifilter runtime library
+driver_context
+    driver_ctx{};  // Not static due to usage in minifilter runtime library
 }
 }  // namespace ktl::crt
 
@@ -22,7 +17,7 @@ driver_context driver_ctx{};    // used in minifilter runtime library
 EXTERN_C NTSTATUS STDCALL
 KtlDriverEntry(DRIVER_OBJECT* driver_object,
                UNICODE_STRING* registry_path) noexcept {
-  ktl::crt::invoke_constructors();
+  ktl::crt::invoke_global_constructors();
 
   NTSTATUS init_status;
   do {
@@ -53,7 +48,7 @@ void STDCALL KtlDriverUnload(DRIVER_OBJECT* driver_object) noexcept {
       drv_unload) {
     drv_unload(driver_object);
   }
-  ktl::crt::invoke_destructors();
+  ktl::crt::invoke_global_destructors();
 }
 
 namespace ktl::crt {

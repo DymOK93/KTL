@@ -10,7 +10,6 @@ set(KTL_MINIFILTER_RUNTIME_INCLUDE_DIR ${KTL_RUNTIME_INCLUDE_DIR})
 set(
 	KTL_RUNTIME_HEADER_FILES
 		"algorithm_impl.hpp"
-		"array_unwind.hpp"
 		"basic_runtime.hpp"
 		"basic_types.hpp"
 		"bugcheck.hpp"
