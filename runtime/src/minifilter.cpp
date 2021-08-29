@@ -18,7 +18,7 @@ KtlRegisterFilter(DRIVER_OBJECT* driver_object,
   drv_unload = &KtlDriverUnload;
 
   auto& filter{ktl::crt::details::filter_ctx.object};
-  NTSTATUS status{FltRegisterFilter(driver_object, &flt_registration, &filter)};
+  const NTSTATUS status{FltRegisterFilter(driver_object, &flt_registration, &filter)};
   if (!NT_SUCCESS(status)) {
     filter = nullptr;
     KdPrint(("Minifilter registration failed with status %#x", status));

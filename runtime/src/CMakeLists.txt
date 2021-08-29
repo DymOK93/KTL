@@ -8,6 +8,7 @@ set(KTL_RUNTIME_SOURCE_DIR "${KTL_RUNTIME_DIR}/src")
 
 set(
 	KTL_RUNTIME_SOURCE_FILES
+		"array_unwind.cpp"
 		"assert.cpp"
 		"basic_runtime.cpp"
 		"bugcheck.cpp"
