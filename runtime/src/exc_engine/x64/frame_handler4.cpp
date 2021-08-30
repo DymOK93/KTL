@@ -92,7 +92,7 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
     byte* frame_ptr,
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* dispatcher_ctx) noexcept {
-  if (exception_record) {
+  if (exception_record && exception_record->code != KTL_FAILURE) {
     KdPrint(
         ("SEH exception caught in CXX handler! Code: %x, address %p (in "
          "function [%u - %u, unwind info: %u], module starts at %p)\n",
@@ -111,7 +111,7 @@ EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH4(
     ktl::byte* frame_ptr,
     [[maybe_unused]] win::x64_cpu_context* cpu_ctx,
     dispatcher_context* ctx) noexcept {
-  /*No cookie check :( */
+  // No cookie check :(
   // We assume that the compiler will use only __GSHandlerCheck_SEH for SEH
   // exceptions and therefore don't check exception_record
   return __CxxFrameHandler4(exception_record, frame_ptr, cpu_ctx, ctx);
@@ -357,7 +357,7 @@ static int32_t lookup_region(const fh4::info* eh_info,
   const uint8_t* p = image_base + eh_info->regions;
 
   int32_t state = -1;
-  uint32_t region_count = read_unsigned(&p);
+  const uint32_t region_count = read_unsigned(&p);
   relative_virtual_address<const byte> fn_rva = 0;
   for (uint32_t idx = 0; idx != region_count; ++idx) {
     fn_rva += read_unsigned(&p);

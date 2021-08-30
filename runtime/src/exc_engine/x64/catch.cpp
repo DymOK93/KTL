@@ -218,6 +218,12 @@ static bool process_catch_block_unchecked(
   return false;
 }
 
+struct dummy_context {
+  byte padding[0x98];
+  uint64_t rsp;
+  const byte* rip;
+};
+
 static const unwind_info* execute_handler(dispatcher_context& ctx,
                                           frame_walk_context& cpu_ctx,
                                           machine_frame& mach) noexcept {
@@ -242,8 +248,17 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
     ctx.extra_data = &unwind_info->data[unwind_slots + 2];  // Why 2?
     byte* frame_ptr = reinterpret_cast<byte*>(
         unwind_info->frame_reg ? cpu_ctx.gp(unwind_info->frame_reg) : mach.rsp);
-    [[maybe_unused]] auto exc_action{
-        frame_handler(nullptr, frame_ptr, nullptr, &ctx)};
+
+    dummy_context dummy_ctx{};
+    dummy_ctx.rsp = mach.rsp;
+    dummy_ctx.rip = mach.rip;
+
+    win::exception_record excr{};
+    excr.code = KTL_FAILURE;
+
+    [[maybe_unused]] auto exc_action{frame_handler(
+        &excr, frame_ptr, reinterpret_cast<win::x64_cpu_context*>(&dummy_ctx),
+        &ctx)};
 
     // MSVC добавляет __GSHandlerCheck() в начало таблицы исключений
     // Поскольку он всегда возвращает win::ExceptionDisposition::ContinueSearch

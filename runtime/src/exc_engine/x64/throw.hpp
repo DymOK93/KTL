@@ -11,7 +11,7 @@
 #include <symbol.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
-// Отмеченные оффсеты используются в __GSHandlerCheck()
+// Marked offsets are used in nt!__GSHandlerCheck
 struct dispatcher_context {
   symbol* cookie;
   /*0x8*/ const byte* image_base;
