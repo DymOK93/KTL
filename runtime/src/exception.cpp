@@ -46,6 +46,7 @@ void exception_allocator::deallocate(byte* ptr) noexcept {
       not_in_buffer) {
     free_to_heap(ptr);
   } else {
+    memset(ptr, 0, SLOT_SIZE);
     auto& counter{reinterpret_cast<volatile LONG&>(m_current_slot)};
     const auto slot_index{InterlockedDecrement(&counter)};
     m_slots[slot_index] = ptr;
