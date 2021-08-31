@@ -1,12 +1,11 @@
 #pragma once
 #include <basic_types.hpp>
-#include <ntddk.h>
-#include <wchar.h>
 #include <type_traits_impl.hpp>
 
-namespace ktl {
-inline constexpr int EOF{-1};
+#include <stdio.h>
+#include <ntddk.h>
 
+namespace ktl {
 template <typename CharT, typename IntT>
 struct char_traits_base {
   using char_type = CharT;
@@ -114,7 +113,7 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
   static char_type* assign(char_type* ptr,
                            size_t count,
                            char_type ch) noexcept {
-    return reinterpret_cast<char_type*>(memset(ptr, ch, count));
+    return static_cast<char_type*>(memset(ptr, ch, count));
   }
 
   static constexpr void assign(char_type& dst, const char_type& src) noexcept {
@@ -128,13 +127,13 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
   static char_type* move(char_type* dst,
                          const char_type* src,
                          size_t count) noexcept {
-    return reinterpret_cast<char_type*>(memmove(dst, src, count));
+    return static_cast<char_type*>(memmove(dst, src, count));
   }
 
   static constexpr char_type* copy(char_type* dst,
                                    const char_type* src,
                                    size_t count) noexcept {
-    return reinterpret_cast<char_type*>(memcpy(dst, src, count));
+    return static_cast<char_type*>(memcpy(dst, src, count));
   }
 
   static constexpr int compare(const char_type* str1,
