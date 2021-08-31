@@ -68,6 +68,7 @@ byte* exception_allocator::allocate_from_heap(size_t bytes_count) {
     if (void* const buffer = alloc_non_paged(
             bytes_count, static_cast<std::align_val_t>(SLOT_ALIGNMENT));
         buffer) {
+      memset(buffer, 0, bytes_count);
       return static_cast<byte*>(buffer);
     }
   }
