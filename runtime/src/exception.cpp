@@ -22,7 +22,6 @@ NTSTATUS exception_allocator::run(
   if (!m_buffer) {
     return STATUS_NO_MEMORY;
   }
-  memset(m_buffer, 0, RESERVED_BYTES_COUNT);
   byte* buffer{m_buffer};
   for (auto& current_slot : m_slots) {
     current_slot = buffer;
@@ -46,7 +45,6 @@ void exception_allocator::deallocate(byte* ptr) noexcept {
       not_in_buffer) {
     free_to_heap(ptr);
   } else {
-    memset(ptr, 0, SLOT_SIZE);
     auto& counter{reinterpret_cast<volatile LONG&>(m_current_slot)};
     const auto slot_index{InterlockedDecrement(&counter)};
     m_slots[slot_index] = ptr;
@@ -69,7 +67,6 @@ byte* exception_allocator::allocate_from_heap(size_t bytes_count) {
     if (void* const buffer = alloc_non_paged(
             bytes_count, static_cast<std::align_val_t>(SLOT_ALIGNMENT));
         buffer) {
-      memset(buffer, 0, bytes_count);
       return static_cast<byte*>(buffer);
     }
   }
