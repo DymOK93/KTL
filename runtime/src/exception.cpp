@@ -22,7 +22,6 @@ NTSTATUS exception_allocator::run(
   if (!m_buffer) {
     return STATUS_NO_MEMORY;
   }
-  memset(m_buffer, 0, RESERVED_BYTES_COUNT);
   byte* buffer{m_buffer};
   for (auto& current_slot : m_slots) {
     current_slot = buffer;
