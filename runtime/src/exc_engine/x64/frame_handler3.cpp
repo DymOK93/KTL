@@ -1,6 +1,6 @@
 #include <bugcheck.hpp>
-#include <throw.hpp>
 #include <seh.hpp>
+#include <throw.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
 namespace fh3 {
@@ -16,15 +16,16 @@ static win::ExceptionDisposition frame_handler(
     win::x64_cpu_context*,
     x64::dispatcher_context* dispatcher_context) noexcept;
 
-
 EXTERN_C win::ExceptionDisposition __CxxFrameHandler3(
     win::exception_record* exception_record,
     byte* frame_ptr,
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* dispatcher_ctx) noexcept {
-  if (exception_record) {
-    terminate_if_not(
-        exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
+  if (exception_record != &win::exc_record_cookie) {
+    verify_seh_in_cxx_handler(exception_record->code, exception_record->address,
+                              exception_record->flags.value(),
+                              dispatcher_ctx->fn->unwind_info.value(),
+                              dispatcher_ctx->image_base);
     return win::ExceptionDisposition::ContinueSearch;
   }
   return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
@@ -61,7 +62,7 @@ static win::ExceptionDisposition frame_handler(
 
   const auto eh_info_rva{*static_cast<
       const relative_virtual_address<const x64::function_eh_info>*>(
-          dispatcher_context->extra_data)};
+      dispatcher_context->extra_data)};
 
   const auto* eh_info{image_base + eh_info_rva};
   const auto try_blocks{image_base + eh_info->try_blocks};
@@ -101,11 +102,17 @@ static win::ExceptionDisposition frame_handler(
         if (primary_frame_ptr < frame_ptr) {
           const auto* catch_handlers{image_base + try_block.catch_handlers};
           for (int32_t idx = 0; idx < try_block.catch_count; ++idx) {
-            const auto& catch_handler{catch_handlers[idx]};
-            if (catch_handler.handler == dispatcher_context->fn->begin) {
+            if (const auto& catch_handler = catch_handlers[idx];
+                catch_handler.handler == dispatcher_context->fn->begin) {
               const auto* node{frame_ptr + catch_handler.node_offset};
               primary_frame_ptr = node->primary_frame_ptr;
-              terminate_if_not(primary_frame_ptr >= frame_ptr);
+              if (primary_frame_ptr < frame_ptr) {
+                set_termination_context(
+                    {BugCheckReason::CorruptedExceptionHandler,
+                     reinterpret_cast<bugcheck_arg_t>(primary_frame_ptr),
+                     reinterpret_cast<bugcheck_arg_t>(frame_ptr)});
+                terminate();
+              }
               break;
             }
           }
@@ -163,15 +170,20 @@ static win::ExceptionDisposition frame_handler(
   }
 
   if (home_block_index == -1 && !target_catch_handler &&
-      eh_info->eh_flags.has_any_of(x64::EhFlag::IsNoexcept)) {
-    // call std::terminate
-    critical_failure();
+      eh_info->eh_flags.has_any_of(EhFlag::IsNoexcept)) {
+    set_termination_context(
+        {BugCheckReason::NoexceptViolation, home_block_index,
+         reinterpret_cast<bugcheck_arg_t>(target_catch_handler)});
+    terminate();
   }
 
-  terminate_if_not(target_state >= funclet_low_state);
+  if (target_state < funclet_low_state) {
+    set_termination_context({BugCheckReason::CorruptedFunctionUnwindState,
+                             target_state, funclet_low_state});
+    terminate();
+  }
 
-   x64::unwind_graph_edge const* unwind_graph =
-      image_base + eh_info->unwind_graph;
+  const unwind_graph_edge* unwind_graph = image_base + eh_info->unwind_graph;
   while (state > target_state) {
     const auto& edge{unwind_graph[state]};
     state = edge.next;

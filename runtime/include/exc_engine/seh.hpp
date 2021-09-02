@@ -51,4 +51,5 @@ using x64_frame_handler_t =
                          x64_cpu_context*,
                          void* dispatcher_context);
 
+inline exception_record exc_record_cookie{};
 }  // namespace ktl::crt::exc_engine::win

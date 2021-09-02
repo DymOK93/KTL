@@ -1,6 +1,5 @@
 #pragma once
 #include <basic_types.hpp>
-#include <crt_attributes.hpp>
 #include <irql.hpp>
 
 #include <ntddk.h>
@@ -12,9 +11,6 @@ terminate_handler_t get_terminate() noexcept;
 terminate_handler_t set_terminate(terminate_handler_t terminate) noexcept;
 
 [[noreturn]] void terminate() noexcept;
-void terminate_if_not(bool cond) noexcept;
-
-[[noreturn]] void critical_failure() noexcept;
 [[noreturn]] void abort() noexcept;
 
 namespace crt {
@@ -26,6 +22,8 @@ inline constexpr auto KTL_FAILURE{0xEA9B0000};  // 0xE, ('K' - 'A') % 10, ('T' -
                                                 // 10, ('L' - 'A') % 10
 
 enum class BugCheckReason : bugcheck_code_t {
+  CorruptedPeHeader,
+
   UnwindOnUnsafeException,
   InvalidTargetUnwind,
   CorruptedFunctionUnwindState,
@@ -39,6 +37,7 @@ enum class BugCheckReason : bugcheck_code_t {
   CorruptedExceptionRegistrationChain,
   NoexceptViolation,
   ExceptionSpecificationNotSupported,
+  CorruptedExceptionHandler,
   NoMatchingExceptionHandler,
 
   BufferSecurityCheckFailure,
@@ -50,17 +49,45 @@ enum class BugCheckReason : bugcheck_code_t {
   StdAbort
 };
 
-bugcheck_code_t to_bucgcheck_code(BugCheckReason reason) noexcept;
-
-struct Bsod {
+struct termination_context {
   BugCheckReason reason;
   bugcheck_arg_t arg1{0}, arg2{0}, arg3{0}, arg4{0};
 };
 
-Bsod set_termination_context(const Bsod& bsod) noexcept;
+termination_context set_termination_context(
+    const termination_context& bsod) noexcept;
 
-[[noreturn]] void bugcheck(BugCheckReason reason) noexcept;
-[[noreturn]] void bugcheck(const Bsod& bsod) noexcept;
-[[noreturn]] void abort_impl() noexcept;
+void verify_seh(NTSTATUS code, const void* addr, uint32_t flags) noexcept;
+
+void verify_seh_in_cxx_handler(NTSTATUS code,
+                               const void* addr,
+                               uint32_t flags,
+                               uint32_t unwind_info,
+                               const void* image_base) noexcept;
+
+namespace details {
+class termination_dispatcher {
+ public:
+  [[nodiscard]] terminate_handler_t get_handler() const noexcept;
+  terminate_handler_t set_handler(terminate_handler_t handler) noexcept;
+
+  termination_context set_context(const termination_context& bsod) noexcept;
+
+  void terminate() const noexcept;
+  [[noreturn]] void abort() const noexcept;
+
+ private:
+  void acquire_lock() const noexcept;
+  void release_lock() const noexcept;
+
+  static bugcheck_code_t to_bugcheck_code(BugCheckReason reason) noexcept;
+
+ private:
+  terminate_handler_t m_handler{nullptr};
+  mutable long m_spin_lock{};
+  mutable irql_t m_prev_irql;
+  termination_context m_context{BugCheckReason::StdAbort};
+};
+}  // namespace details
 }  // namespace crt
 }  // namespace ktl

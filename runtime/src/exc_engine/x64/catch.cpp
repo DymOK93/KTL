@@ -1,7 +1,7 @@
 ﻿#include <bugcheck.hpp>
 #include <catch.hpp>
-#include <throw.hpp>
 #include <seh.hpp>
+#include <throw.hpp>
 
 EXTERN_C ktl::crt::exc_engine::symbol __ImageBase;
 
@@ -97,9 +97,9 @@ EXTERN_C win::ExceptionDisposition __cxx_seh_frame_handler(
     byte*,
     win::x64_cpu_context*,
     void*) {
-  if (exception_record) {
-    terminate_if_not(
-        exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
+  if (exception_record != &win::exc_record_cookie) {
+    verify_seh(exception_record->code, exception_record->address,
+               exception_record->flags.value());
   }
   return win::ExceptionDisposition::ContinueSearch;
 }
@@ -109,9 +109,9 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
     byte* frame_ptr,
     win::x64_cpu_context*,
     void* dispatcher_ctx) {
-  if (exception_record) {
-    terminate_if_not(
-        exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
+  if (exception_record != &win::exc_record_cookie) {
+    verify_seh(exception_record->code, exception_record->address,
+               exception_record->flags.value());
     return win::ExceptionDisposition::ContinueSearch;
   }
 
@@ -121,7 +121,12 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
   auto& ci{ctx->throw_frame->catch_info};
 
   if (ctx->cookie == &rethrow_probe_cookie) {
-    terminate_if_not(frame->catch_info.exception_object_or_link);
+    if (!frame->catch_info.exception_object_or_link) {
+      set_termination_context({BugCheckReason::CorruptedExceptionHandler,
+                               reinterpret_cast<bugcheck_arg_t>(ctx->cookie),
+                               reinterpret_cast<bugcheck_arg_t>(frame)});
+      terminate();
+    }
 
     if (frame->catch_info.throw_info_if_owner)
       ci.exception_object_or_link = &frame->catch_info;
@@ -253,12 +258,9 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
     dummy_ctx.rsp = mach.rsp;
     dummy_ctx.rip = mach.rip;
 
-    win::exception_record excr{};
-    excr.code = KTL_FAILURE;
-
     [[maybe_unused]] auto exc_action{frame_handler(
-        &excr, frame_ptr, reinterpret_cast<win::x64_cpu_context*>(&dummy_ctx),
-        &ctx)};
+        &win::exc_record_cookie, frame_ptr,
+        reinterpret_cast<win::x64_cpu_context*>(&dummy_ctx), &ctx)};
 
     // MSVC добавляет __GSHandlerCheck() в начало таблицы исключений
     // Поскольку он всегда возвращает win::ExceptionDisposition::ContinueSearch

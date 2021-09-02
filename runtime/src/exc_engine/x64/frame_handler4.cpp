@@ -1,6 +1,6 @@
 #include <bugcheck.hpp>
-#include <throw.hpp>
 #include <seh.hpp>
+#include <throw.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
 namespace fh4 {
@@ -92,15 +92,11 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
     byte* frame_ptr,
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* dispatcher_ctx) noexcept {
-  if (exception_record && exception_record->code != KTL_FAILURE) {
-    KdPrint(
-        ("SEH exception caught in CXX handler! Code: %x, address %p (in "
-         "function [%u - %u, unwind info: %u], module starts at %p)\n",
-         exception_record->code, exception_record->address,
-         dispatcher_ctx->fn->begin.value(), dispatcher_ctx->fn->end.value(),
-         dispatcher_ctx->fn->unwind_info.value(), dispatcher_ctx->image_base));
-    terminate_if_not(
-        exception_record->flags.has_any_of(win::ExceptionFlag::Unwinding));
+  if (exception_record != &win::exc_record_cookie) {
+    verify_seh_in_cxx_handler(exception_record->code, exception_record->address,
+                              exception_record->flags.value(),
+                              dispatcher_ctx->fn->unwind_info.value(),
+                              dispatcher_ctx->image_base);
     return win::ExceptionDisposition::ContinueSearch;
   }
   return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
@@ -377,8 +373,13 @@ void destroy_objects(const byte* image_base,
                      int32_t final_state) noexcept {
   const uint8_t* unwind_graph{image_base + unwind_graph_rva};
   uint32_t unwind_node_count = read_unsigned(&unwind_graph);
-  terminate_if_not(initial_state >= 0 &&
-                   static_cast<uint32_t>(initial_state) < unwind_node_count);
+
+  if (initial_state < 0 ||
+      static_cast<uint32_t>(initial_state) >= unwind_node_count) {
+    set_termination_context({BugCheckReason::CorruptedEhUnwindData,
+                             initial_state, unwind_node_count});
+    terminate();
+  }
 
   const uint8_t *current_edge{unwind_graph}, *last_edge{current_edge};
   for (int32_t idx = 0; idx != initial_state; ++idx) {
@@ -396,7 +397,15 @@ void destroy_objects(const byte* image_base,
 
     uint32_t target_offset_and_type{read_unsigned(&unwind_entry)};
     uint32_t target_offset{target_offset_and_type >> 2};
-    terminate_if_not(target_offset != 0);
+
+    if (!target_offset) {
+      set_termination_context({BugCheckReason::CorruptedEhUnwindData,
+                               initial_state,
+                               unwind_node_count,
+                               reinterpret_cast<bugcheck_arg_t>(current_edge),
+                               target_offset_and_type});
+      terminate();
+    }
 
     auto edge_type{
         static_cast<fh4::unwind_edge::Type>(target_offset_and_type & 3)};
