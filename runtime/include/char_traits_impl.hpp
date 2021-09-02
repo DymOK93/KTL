@@ -195,7 +195,7 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
   static char_type* assign(char_type* ptr,
                            size_t count,
                            char_type ch) noexcept {
-    if (ch <= (numeric_limits<unsigned char>::max)()) {
+    if (static_cast<int_type>(ch) <= (numeric_limits<unsigned char>::max)()) {
       memset(ptr, ch, count);
     } else {
       /*
