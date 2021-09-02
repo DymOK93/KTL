@@ -1,9 +1,9 @@
 #pragma once
-#include <basic_types.hpp>
+#include <limits_impl.hpp>
 #include <type_traits_impl.hpp>
 
-#include <stdio.h>
 #include <ntddk.h>
+#include <stdio.h>
 
 namespace ktl {
 template <typename CharT, typename IntT>
@@ -14,8 +14,8 @@ struct char_traits_base {
   static char_type* assign(char_type* dst,
                            size_t count,
                            const char_type ch) noexcept {
-    for (char_type* place = dst; count > 0; --count, ++place) {
-      *place = ch;
+    while (count--) {
+      *dst++ = ch;
     }
     return dst;
   }
@@ -130,9 +130,9 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
     return static_cast<char_type*>(memmove(dst, src, count));
   }
 
-  static constexpr char_type* copy(char_type* dst,
-                                   const char_type* src,
-                                   size_t count) noexcept {
+  static char_type* copy(char_type* dst,
+                         const char_type* src,
+                         size_t count) noexcept {
     return static_cast<char_type*>(memcpy(dst, src, count));
   }
 
@@ -179,9 +179,7 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
     return lhs == rhs;
   }
 
-  [[nodiscard]] static constexpr int_type eof() noexcept {
-    return static_cast<int_type>(EOF);
-  }
+  [[nodiscard]] static constexpr int_type eof() noexcept { return EOF; }
 
   [[nodiscard]] static constexpr int_type not_eof(
       const int_type& meta) noexcept {
@@ -191,14 +189,23 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
 
 template <typename Elem>
 struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
- public:
   using char_type = Elem;
   using int_type = unsigned short;
 
   static char_type* assign(char_type* ptr,
                            size_t count,
                            char_type ch) noexcept {
-    return reinterpret_cast<char_type*>(wmemset(ptr, ch, count));
+    if (static_cast<int_type>(ch) <= (numeric_limits<unsigned char>::max)()) {
+      memset(ptr, ch, count);
+    } else {
+      /*
+       * memset is almost always implemented as compiler intrinsic,
+       * but wmemset in MSVC implemented as a simple loop
+       * and can be optimized into multiple movs or rep stosw
+       */
+      char_traits_base<char_type, int_type>::assign(ptr, count, ch);
+    }
+    return ptr;
   }
 
   static constexpr void assign(char_type& dst, const char_type& src) noexcept {
@@ -212,13 +219,13 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
   static char_type* move(char_type* dst,
                          const char_type* src,
                          size_t count) noexcept {
-    return reinterpret_cast<char_type*>(wmemmove(dst, src, count));
+    return char_traits_base<char_type, int_type>::move(dst, src, count);
   }
 
-  static constexpr char_type* copy(char_type* dst,
-                                   const char_type* src,
-                                   size_t count) noexcept {
-    return reinterpret_cast<Elem*>(wmemcpy(dst, src, count));
+  static char_type* copy(char_type* dst,
+                         const char_type* src,
+                         size_t count) noexcept {
+    return char_traits_base<char_type, int_type>::copy(dst, src, count);
   }
 
   static constexpr int compare(const char_type* str1,
