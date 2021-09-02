@@ -23,8 +23,7 @@ namespace ktl {
 namespace mm::details {
 template <class Ty>
 struct default_delete {
-  using enable_delete_null =
-      true_type;  //Не требует проверки на nullptr перед вызовом
+  using enable_delete_null = true_type;  // calling operator()(nullptr) is valid
 
   constexpr default_delete() = default;
 
@@ -39,8 +38,7 @@ struct default_delete {
 };
 template <class Ty>
 struct default_delete<Ty[]> {
-  using enable_delete_null =
-      true_type;  //Не требует проверки на nullptr перед вызовом
+  using enable_delete_null = true_type;  // calling operator()(nullptr) is valid
 
   constexpr default_delete() = default;
 
@@ -88,7 +86,7 @@ class unique_ptr {
       is_nothrow_copy_constructible_v<Dx>)
       : m_value{deleter, ptr} {}
 
-  // Dx - не ссылочный тип
+  // Dx isn't a reference
   template <
       class Dx = Deleter,
       enable_if_t<!is_reference_v<Dx> && is_move_constructible_v<Dx>, int> = 0>
@@ -96,7 +94,7 @@ class unique_ptr {
              Deleter&& deleter) noexcept(is_nothrow_move_constructible_v<Dx>)
       : m_value{move(deleter), ptr} {}
 
-  // Dx - ссылочный тип
+  // Dx isn't a reference
   template <class Dx = Deleter,
             enable_if_t<is_reference_v<Dx> &&
                             is_constructible_v<Dx, remove_reference_t<Dx> >,
@@ -169,9 +167,7 @@ class unique_ptr {
   void reset(pointer ptr = pointer{}) noexcept {
     pointer target{exchange(get_ref_to_ptr(), ptr)};
     if constexpr (mm::details::get_enable_delete_null_v<
-                      deleter_type>) {  //Поддерживает
-      //передачу nullptr в
-      //качестве аргумента
+                      deleter_type>) {  
       get_deleter()(target);
     } else {
       if (target) {
@@ -1049,7 +1045,7 @@ class shared_ptr
                                                      Alloc&& alloc,
                                                      Deleter&& dx) {
     using allocator_traits_type = allocator_traits<Alloc>;
-    using size_type = allocator_traits_type::size_type;
+    using size_type = typename allocator_traits_type::size_type;
 
     using ref_counter_t = mm::details::ref_counter_with_deleter_and_alloc<
         U, remove_reference_t<Deleter>, remove_reference_t<Alloc>,
