@@ -1,6 +1,5 @@
 #pragma once
 #include <member_ptr.hpp>
-#include <flag_set.hpp>
 #include <rva.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
@@ -55,6 +54,8 @@ struct function {
 
 ALIGN(16) struct xmm_register { unsigned char data[16]; };
 
+// Marked offsets are used by the nt!__C_specific_handler
+
 struct frame_walk_context {
   xmm_register xmm6;
   xmm_register xmm7;
@@ -65,7 +66,12 @@ struct frame_walk_context {
   xmm_register xmm12;
   xmm_register xmm13;
   xmm_register xmm14;
-  xmm_register xmm15;
+
+  uint64_t padding;          // 16-byte aligned
+  /*0x98*/ uint64_t rsp;     // 8-byte aligned
+  /*0xa0*/ const byte* rip;  // 8-byte aligned
+
+  xmm_register xmm15;        // 16-byte aligned
 
   uint64_t rbx;
   uint64_t rbp;
@@ -77,7 +83,11 @@ struct frame_walk_context {
   uint64_t r15;
 
   uint64_t& gp(uint8_t idx) noexcept;
+
 };
+
+static_assert(offsetof(frame_walk_context, rsp) == 0x98);
+static_assert(offsetof(frame_walk_context, rip) == 0xa0);
 
 struct machine_frame {
   const byte* rip;

@@ -123,7 +123,7 @@ uint64_t& frame_walk_context::gp(uint8_t idx) noexcept {
   };
   const int8_t offs = conv[idx];
   if (offs < 0) {
-    set_termination_context({BugCheckReason::CorruptedEhUnwindData, offs});
+    set_termination_context({BugCheckReason::CorruptedMachineState, offs});
     terminate();
   }
   return (&rbx)[offs];
@@ -131,7 +131,7 @@ uint64_t& frame_walk_context::gp(uint8_t idx) noexcept {
 
 static xmm_register& get_xmm(frame_walk_context& ctx, uint8_t idx) noexcept {
   if (idx < 6 || idx >= 16) {
-    set_termination_context({BugCheckReason::CorruptedEhUnwindData, idx});
+    set_termination_context({BugCheckReason::CorruptedMachineState, idx});
     terminate();
   }
   return (&ctx.xmm6)[idx - 6];

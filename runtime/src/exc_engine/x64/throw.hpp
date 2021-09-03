@@ -6,12 +6,10 @@
 
 #include <catch.hpp>
 #include <cpu_context.hpp>
-#include <exception_info.hpp>
-#include <rva.hpp>
 #include <symbol.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
-// Marked offsets are used in nt!__GSHandlerCheck
+// Marked offsets are used by the nt!__GSHandlerCheck
 struct dispatcher_context {
   symbol* cookie;
   /*0x8*/ const byte* image_base;

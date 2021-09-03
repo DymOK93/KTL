@@ -33,6 +33,7 @@ enum class BugCheckReason : bugcheck_code_t {
   UnwindingNonCxxFrame,
 
   SehHandlerNotInSafeseh,
+  CorruptedMachineState,
   DestructorThrewDuringUnwind,
   CorruptedExceptionRegistrationChain,
   NoexceptViolation,

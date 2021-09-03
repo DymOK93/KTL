@@ -223,12 +223,6 @@ static bool process_catch_block_unchecked(
   return false;
 }
 
-struct dummy_context {
-  byte padding[0x98];
-  uint64_t rsp;
-  const byte* rip;
-};
-
 static const unwind_info* execute_handler(dispatcher_context& ctx,
                                           frame_walk_context& cpu_ctx,
                                           machine_frame& mach) noexcept {
@@ -254,13 +248,13 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
     byte* frame_ptr = reinterpret_cast<byte*>(
         unwind_info->frame_reg ? cpu_ctx.gp(unwind_info->frame_reg) : mach.rsp);
 
-    dummy_context dummy_ctx{};
-    dummy_ctx.rsp = mach.rsp;
-    dummy_ctx.rip = mach.rip;
+    // Dummy arguments for case the __C_specific_handler is called 
+    cpu_ctx.rsp = mach.rsp;
+    cpu_ctx.rip = mach.rip;
 
     [[maybe_unused]] auto exc_action{frame_handler(
         &win::exc_record_cookie, frame_ptr,
-        reinterpret_cast<win::x64_cpu_context*>(&dummy_ctx), &ctx)};
+                      reinterpret_cast<win::x64_cpu_context*>(&cpu_ctx), &ctx)};
 
     // MSVC добавляет __GSHandlerCheck() в начало таблицы исключений
     // Поскольку он всегда возвращает win::ExceptionDisposition::ContinueSearch

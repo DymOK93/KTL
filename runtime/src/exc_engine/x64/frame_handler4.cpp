@@ -103,8 +103,8 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
 }
 
 EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH4(
-    ktl::crt::exc_engine::win::exception_record* exception_record,
-    ktl::byte* frame_ptr,
+    win::exception_record* exception_record,
+    byte* frame_ptr,
     [[maybe_unused]] win::x64_cpu_context* cpu_ctx,
     dispatcher_context* ctx) noexcept {
   // No cookie check :(
