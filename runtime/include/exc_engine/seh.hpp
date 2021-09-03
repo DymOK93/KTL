@@ -2,6 +2,8 @@
 #include <../crt_attributes.hpp>
 #include <flag_set.hpp>
 
+#include <wdm.h>
+
 namespace ktl::crt::exc_engine::win {
 enum class ExceptionFlag : uint32_t {
   NonContinuable = 0x01,
@@ -51,5 +53,6 @@ using x64_frame_handler_t =
                          x64_cpu_context*,
                          void* dispatcher_context);
 
-inline exception_record exc_record_cookie{};
+inline exception_record exc_record_cookie{
+    0, flag_set<ExceptionFlag>{EXCEPTION_UNWIND}};
 }  // namespace ktl::crt::exc_engine::win

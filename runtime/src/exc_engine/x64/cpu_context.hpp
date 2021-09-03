@@ -67,11 +67,10 @@ struct frame_walk_context {
   xmm_register xmm13;
   xmm_register xmm14;
 
-  uint64_t padding;          // 16-byte aligned
-  /*0x98*/ uint64_t rsp;     // 8-byte aligned
-  /*0xa0*/ const byte* rip;  // 8-byte aligned
+  uint64_t padding1;            // 16-byte aligned
+  /*0x98*/ uint64_t dummy_rsp;  // 8-byte aligned
 
-  xmm_register xmm15;        // 16-byte aligned
+  xmm_register xmm15;           // 16-byte aligned
 
   uint64_t rbx;
   uint64_t rbp;
@@ -82,12 +81,17 @@ struct frame_walk_context {
   uint64_t r14;
   uint64_t r15;
 
+  uint64_t padding2;               // 16-byte aligned
+  /*0xf8*/ const byte* dummy_rip;  // 8-byte aligned
+
   uint64_t& gp(uint8_t idx) noexcept;
 
 };
 
-static_assert(offsetof(frame_walk_context, rsp) == 0x98);
-static_assert(offsetof(frame_walk_context, rip) == 0xa0);
+static_assert(offsetof(frame_walk_context, dummy_rsp) == 0x98);
+static_assert(offsetof(frame_walk_context, dummy_rip) == 0xf8);
+
+constexpr int x = sizeof(frame_walk_context);
 
 struct machine_frame {
   const byte* rip;

@@ -62,7 +62,7 @@ enum class ThrowFlag : uint32_t {
 
 struct throw_info {
   flag_set<ThrowFlag> attributes;
-  relative_virtual_address<void __fastcall(void*)> destroy_exc_obj;
+  relative_virtual_address<void FASTCALL(void*)> destroy_exc_obj;
   relative_virtual_address<int(...)> compat_fn;
   relative_virtual_address<const catchable_type_list> catchables;
 };

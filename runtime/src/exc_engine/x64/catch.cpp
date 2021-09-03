@@ -149,18 +149,18 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
   return win::ExceptionDisposition::CxxHandler;
 }
 
-EXTERN_C const ktl::byte* __cxx_dispatch_exception(
+EXTERN_C const byte* __cxx_dispatch_exception(
     void* exception_object,
-    throw_info const* throw_info,
+    const throw_info* throw_info,
     throw_frame& frame) noexcept {
-  auto pdata{frame_walk_pdata::for_this_image()};
+  const auto pdata{frame_walk_pdata::for_this_image()};
   auto ctx{make_context(&unwind_cookie, frame, pdata)};
 
   auto& [_, cpu_ctx, mach, ci]{frame};
 
   ci.exception_object_or_link = exception_object;
   ci.throw_info_if_owner = throw_info;
-  ci.primary_frame_ptr = 0;
+  ci.primary_frame_ptr = nullptr;
 
   for (;;) {
     const auto* unwind_info{execute_handler(ctx, cpu_ctx, mach)};
@@ -247,10 +247,6 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
     ctx.extra_data = &unwind_info->data[unwind_slots + 2];  // Why 2?
     byte* frame_ptr = reinterpret_cast<byte*>(
         unwind_info->frame_reg ? cpu_ctx.gp(unwind_info->frame_reg) : mach.rsp);
-
-    // Dummy arguments for case the __C_specific_handler is called 
-    cpu_ctx.rsp = mach.rsp;
-    cpu_ctx.rip = mach.rip;
 
     [[maybe_unused]] auto exc_action{frame_handler(
         &win::exc_record_cookie, frame_ptr,

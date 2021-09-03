@@ -71,31 +71,32 @@ throw_fr struct
 	p3 qword ?
 	p4 qword ?
 
-	$xmm6  oword ?				; 0x40
-	$xmm7  oword ?				; 0x50
-	$xmm8  oword ?				; 0x60
-	$xmm9  oword ?				; 0x70
-	$xmm10 oword ?				; 0x80
-	$xmm11 oword ?				; 0x90
-	$xmm12 oword ?				; 0xa0
-	$xmm13 oword ?				; 0xb0
-	$xmm14 oword ?				; 0xc0
+	$xmm6  oword ?		; 0x40
+	$xmm7  oword ?		; 0x50
+	$xmm8  oword ?		; 0x60
+	$xmm9  oword ?		; 0x70
+	$xmm10 oword ?		; 0x80
+	$xmm11 oword ?		; 0x90
+	$xmm12 oword ?		; 0xa0
+	$xmm13 oword ?		; 0xb0
+	$xmm14 oword ?		; 0xc0
 
-	$padding1 qword ?			; 0xd0
-	$rsp_placeholder qword ?	; 0xd8
-	$rip_placeholder qword ?	; 0xe0
-	$padding2 qword ?			; 0xe8
+	$padding1	qword ?	; 0xd0
+	$dummy_rsp  qword ?	; 0xd8, used in _CONTEXT: 0x98
 
-	$xmm15 oword ?				; 0xf0
+	$xmm15 oword ?		; 0xf0
 
-	$rbx   qword ?				; 0x00
-	$rbp   qword ?				; 0x08
-	$rsi   qword ?				; 0x10
-	$rdi   qword ?				; 0x18
-	$r12   qword ?				; 0x20
-	$r13   qword ?				; 0x28
-	$r14   qword ?				; 0x30
-	$r15   qword ?				; 0x38
+	$rbx   qword ?		; 0x00
+	$rbp   qword ?		; 0x08
+	$rsi   qword ?		; 0x10
+	$rdi   qword ?		; 0x18
+	$r12   qword ?		; 0x20
+	$r13   qword ?		; 0x28
+	$r14   qword ?		; 0x30
+	$r15   qword ?		; 0x38
+
+	$padding2  qword ?		; 0x40
+	$dummy_rip qword ?		; 0x48, used in _CONTEXT: 0xf8
 
 	$rip   qword ?
 	$cs    qword ?
@@ -182,6 +183,11 @@ _CxxThrowException proc public frame: __cxx_seh_frame_handler
 	push r10
 	.allocstack 8
 
+	push r10		; dummy_rip
+	.allocstack 8
+	push 0			; padding2
+	.allocstack 8
+
 	push r15
 	.allocstack 8
 	push r14
@@ -205,8 +211,9 @@ _CxxThrowException proc public frame: __cxx_seh_frame_handler
 
 	; We index via `rax`, which points into the middle of the xmm context.
 	; This makes the offset fit in a signed byte, making the opcodes shorter.
-	base = throw_fr.$xmm12
+	base = throw_fr.$xmm11
 	lea rax, [rsp + base]
+	mov [rax - base + throw_fr.$dummy_rsp], r11		; dummy_rsp
 	movdqa [rax - base + throw_fr.$xmm6], xmm6
 	movdqa [rax - base + throw_fr.$xmm7], xmm7
 	movdqa [rax - base + throw_fr.$xmm8], xmm8
@@ -217,6 +224,7 @@ _CxxThrowException proc public frame: __cxx_seh_frame_handler
 	movdqa [rax - base + throw_fr.$xmm13], xmm13
 	movdqa [rax - base + throw_fr.$xmm14], xmm14
 	movdqa [rax - base + throw_fr.$xmm15], xmm15
+
 
 	; The dispatcher walks the function frames on the stack and looks for
 	; the C++ catch handler. During the walk it unwinds the frames.
@@ -295,7 +303,7 @@ __cxx_eh_apply_context proc private frame: __cxx_seh_frame_handler
 .savexmm128 xmm15, throw_fr.$xmm15
 .endprolog
 
-	base = throw_fr.$xmm12
+	base = throw_fr.$xmm11
 	lea rax, [rsp + base]
 	movdqa xmm6, [rax - base + throw_fr.$xmm6]
 	movdqa xmm7, [rax - base + throw_fr.$xmm7]
@@ -309,7 +317,7 @@ __cxx_eh_apply_context proc private frame: __cxx_seh_frame_handler
 	movdqa xmm15, [rax - base + throw_fr.$xmm15]
 
 	base = throw_fr.$rdi
-	lea rax, [rax + base - throw_fr.$xmm12]
+	lea rax, [rax + base - throw_fr.$xmm11]
 	mov rbx, [rax - base + throw_fr.$rbx]
 	mov rbp, [rax - base + throw_fr.$rbp]
 	mov rsi, [rax - base + throw_fr.$rsi]
