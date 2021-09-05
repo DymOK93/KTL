@@ -161,20 +161,27 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
       terminate();
     }
 
-    if (frame->catch_info.throw_info_if_owner)
+    if (frame->catch_info.throw_info_if_owner) {
       ci.exception_object_or_link = &frame->catch_info;
-    else
+    } else {
       ci.exception_object_or_link = frame->catch_info.exception_object_or_link;
+    }
+
   } else if (ctx->cookie == &unwind_cookie) {
+
     if (!ci.exception_object_or_link ||
         ci.exception_object_or_link == &frame->catch_info) {
+
       ci.exception_object_or_link = frame->catch_info.exception_object_or_link;
       ci.throw_info_if_owner = frame->catch_info.throw_info_if_owner;
+
     } else {
       __cxx_destroy_exception(frame->catch_info);
     }
+
     ci.primary_frame_ptr = frame->catch_info.primary_frame_ptr;
     ci.unwind_context = frame->catch_info.unwind_context;
+
   } else {
     return win::ExceptionDisposition::ContinueSearch;
   }
@@ -244,10 +251,11 @@ const unwind_info* execute_handler(dispatcher_context& ctx,
   ctx.fn = pdata.find_function_entry(mach.rip);
   const unwind_info* unwind_info{image_base + ctx.fn->unwind_info};
 
-  constexpr auto handler_mask{flag_set{HandlerInfo::Exception} |
-                              flag_set{HandlerInfo::Unwind}};
-  if (const auto flags = flag_set<HandlerInfo>{unwind_info->flags};
+  constexpr flag_set<HandlerInfo> handler_mask{HandlerInfo::Exception,
+                                               HandlerInfo::Unwind};
+  if (const flag_set<HandlerInfo> flags{unwind_info->flags};
       flags & handler_mask) {
+
     // The number of active slots is always odd
     const auto unwind_slots =
         (static_cast<size_t>(unwind_info->code_count) + 1ull) & ~1ull;
