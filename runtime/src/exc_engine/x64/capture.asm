@@ -183,7 +183,7 @@ _CxxThrowException proc public frame: __cxx_seh_frame_handler
 	push r10
 	.allocstack 8
 
-	push r10		; dummy_rip
+	push 0			; dummy_rip
 	.allocstack 8
 	push 0			; padding2
 	.allocstack 8

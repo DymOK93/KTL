@@ -4,10 +4,13 @@
 #include <rva.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
+// Also see
+// https://docs.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlvirtualunwind
+
 enum class HandlerInfo {
-    Exception = 0x1,
-    Unwind = 0x2,
-    HasAlignment = 0x4,
+  Exception = 0x1,
+  Unwind = 0x2,
+  HasAlignment = 0x4,
 };
 
 struct gs_handler_data {

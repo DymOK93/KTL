@@ -38,24 +38,14 @@ struct unwind_info {
 };
 
 struct function {
-  /* 0x00 */ relative_virtual_address<const byte> begin;
-  /* 0x04 */ relative_virtual_address<const byte> end;
-  /* 0x08 */ relative_virtual_address<const unwind_info> unwind_info;
+  /*0x00*/ relative_virtual_address<const byte> begin;
+  /*0x04*/ relative_virtual_address<const byte> end;
+  /*0x08*/ relative_virtual_address<const unwind_info> unwind_info;
 };
-
-/*struct frame_info_t
-{
-        relative_virtual_address<void const> function;
-        relative_virtual_address<win32_frame_handler_t> exception_routine;
-        relative_virtual_address<void const> extra_data;
-        relative_virtual_address<void const> rip;
-        uint64_t frame_ptr;
-};*/
 
 ALIGN(16) struct xmm_register { unsigned char data[16]; };
 
 // Marked offsets are used by the nt!__C_specific_handler
-
 struct frame_walk_context {
   xmm_register xmm6;
   xmm_register xmm7;
@@ -121,7 +111,4 @@ class frame_walk_pdata {
   uint32_t m_function_count;
   uint32_t m_image_size;
 };
-
 }  // namespace ktl::crt::exc_engine::x64
-
-#pragma once

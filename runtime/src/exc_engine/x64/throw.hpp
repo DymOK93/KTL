@@ -20,13 +20,13 @@ struct dispatcher_context {
   const byte* handler;
   /*0x38*/ const void* extra_data;
   void* history_table;
-  uint32_t scope_index;
+  /*0x48*/ uint32_t scope_index;
   symbol* cookie;
 };
 
-dispatcher_context make_context(symbol* cookie_,
-                                throw_frame& frame_,
-                                const frame_walk_pdata& pdata_) noexcept;
+dispatcher_context make_context(symbol* cookie,
+                                throw_frame& frame,
+                                const frame_walk_pdata& pdata) noexcept;
 }  // namespace ktl::crt::exc_engine::x64
 
 #pragma once
