@@ -11,7 +11,7 @@
 namespace ktl::crt::exc_engine::x64 {
 // Marked offsets are used by the nt!__GSHandlerCheck and nt!__C_speficic_handler
 struct dispatcher_context {
-  symbol* cookie;
+  /*0x0*/ const byte* last_instruction;
   /*0x8*/ const byte* image_base;
   /*0x10*/ const function* fn;
   const frame_walk_pdata* pdata;
@@ -21,6 +21,7 @@ struct dispatcher_context {
   /*0x38*/ const void* extra_data;
   void* history_table;
   uint32_t scope_index;
+  symbol* cookie;
 };
 
 dispatcher_context make_context(symbol* cookie_,

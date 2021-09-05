@@ -238,7 +238,7 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
    * https://docs.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlvirtualunwind
    */
   constexpr auto handler_mask{flag_set{HandlerInfo::Exception} |
-                              flag_set{HandlerInfo::Exception}};
+                              flag_set{HandlerInfo::Unwind}};
   if (const auto flags = flag_set<HandlerInfo>{unwind_info->flags};
       flags & handler_mask) {
     constexpr auto mask{
@@ -256,7 +256,7 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
     // Dummy fields
     cpu_ctx.dummy_rsp = mach.rsp;
     cpu_ctx.dummy_rip = mach.rip;
-    // ctx.cookie = (symbol*)mach.rip;
+    ctx.last_instruction = mach.rip;
     ctx.history_table = nullptr;
     ctx.scope_index = 0;
 

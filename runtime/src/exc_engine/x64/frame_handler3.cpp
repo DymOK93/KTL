@@ -190,7 +190,7 @@ static win::ExceptionDisposition frame_handler(
     if (edge.cleanup_handler) {
       byte const* funclet = image_base + edge.cleanup_handler;
       using fn_type = uintptr_t(byte const* funclet, byte const* frame_ptr);
-      (void)((fn_type*)funclet)(funclet, frame_ptr);
+      (void)((fn_type*)funclet)(funclet, frame_ptr); // TODO: Fix C-style cast
     }
   }
 
