@@ -101,9 +101,9 @@ class frame_walk_pdata {
   bool contains_address(const byte* addr) const noexcept;
   const function* find_function_entry(const byte* addr) const noexcept;
 
-  void unwind(unwind_info const& unwind_info,
+  static void unwind(const unwind_info& unwind_info,
               frame_walk_context& ctx,
-              machine_frame& mach) const noexcept;
+              machine_frame& mach)noexcept;
 
  private:
   const byte* m_image_base;

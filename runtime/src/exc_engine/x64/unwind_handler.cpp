@@ -12,35 +12,35 @@ namespace ktl::crt::exc_engine::x64 {
 namespace pe {
 template <typename Ty>
 struct dir_header {
-  /* 0x00 */ relative_virtual_address<Ty> relative_virtual_address;
-  /* 0x04 */ uint32_t size;
-  /* 0x08 */
+  /*0x00*/ relative_virtual_address<Ty> relative_virtual_address;
+  /*0x04*/ uint32_t size;
+  /*0x08*/
 };
 
-struct header_x64 {
-  /* 0x00 */ uint32_t magic;
+struct header {
+  /*0x00*/ uint32_t magic;
 
-  /* 0x04 */ uint16_t machine;
-  /* 0x06 */ uint8_t _06[0x12];
+  /*0x04*/ uint16_t machine;
+  /*0x06*/ uint8_t _06[0x12];
 
-  /* 0x18 */ uint16_t opt_magic;
-  /* 0x1a */ uint8_t _20[0x36];
-  /* 0x50 */ uint32_t image_size;
-  /* 0x54 */ uint32_t headers_size;
-  /* 0x58 */ uint8_t _58[0x2c];
-  /* 0x84 */ uint32_t directory_count;
+  /*0x18*/ uint16_t opt_magic;
+  /*0x1a*/ uint8_t _20[0x36];
+  /*0x50*/ uint32_t image_size;
+  /*0x54*/ uint32_t headers_size;
+  /*0x58*/ uint8_t _58[0x2c];
+  /*0x84*/ uint32_t directory_count;
 
-  /* 0x88 */ dir_header<void> export_table;
-  /* 0x90 */ dir_header<void> import_table;
-  /* 0x98 */ dir_header<void> resource_table;
-  /* 0xa0 */ dir_header<function> exception_table;
+  /*0x88*/ dir_header<void> export_table;
+  /*0x90*/ dir_header<void> import_table;
+  /*0x98*/ dir_header<void> resource_table;
+  /*0xa0*/ dir_header<function> exception_table;
 };
 
 struct dos_exe_header {
-  /* 0x00 */ uint16_t magic;
-  /* 0x02 */ uint8_t _02[0x3a];
-  /* 0x3c */ relative_virtual_address<header_x64> image_header;
-  /* 0x40 */
+  /*0x00*/ uint16_t magic;
+  /*0x02*/ uint8_t _02[0x3a];
+  /*0x3c*/ relative_virtual_address<header> image_header;
+  /*0x40*/
 };
 }  // namespace pe
 
@@ -73,8 +73,7 @@ const function* frame_walk_pdata::find_function_entry(
 
   while (left_bound < right_bound) {
     const uint32_t idx{left_bound + (right_bound - left_bound) / 2};
-    const auto* fn_ptr{m_functions + idx};
-    if (pc_rva < fn_ptr->begin) {
+    if (const auto* fn_ptr = m_functions + idx; pc_rva < fn_ptr->begin) {
       right_bound = idx;
     } else if (fn_ptr->end <= pc_rva) {
       left_bound = idx + 1;
@@ -91,7 +90,7 @@ frame_walk_pdata::frame_walk_pdata(const byte* image_base) noexcept
 
   do {
     BREAK_IF_FALSE(dos_hdr->magic == 0x5a4d)
-    pe::header_x64 const* pe_hdr{image_base + dos_hdr->image_header};
+    pe::header const* pe_hdr{image_base + dos_hdr->image_header};
 
     BREAK_IF_FALSE(dos_hdr->magic == 0x5a4d)
 
@@ -99,7 +98,7 @@ frame_walk_pdata::frame_walk_pdata(const byte* image_base) noexcept
     BREAK_IF_FALSE(pe_hdr->machine == 0x8664)
     BREAK_IF_FALSE(pe_hdr->opt_magic == 0x20b)
     BREAK_IF_FALSE(pe_hdr->headers_size >=
-                   dos_hdr->image_header.value() + sizeof(pe::header_x64))
+                   dos_hdr->image_header.value() + sizeof(pe::header))
     BREAK_IF_FALSE(pe_hdr->image_size >= pe_hdr->headers_size)
 
     BREAK_IF_FALSE(pe_hdr->directory_count >= 4)
@@ -137,9 +136,16 @@ static xmm_register& get_xmm(frame_walk_context& ctx, uint8_t idx) noexcept {
   return (&ctx.xmm6)[idx - 6];
 }
 
+template <class Ty>
+Ty get_unwind_data_as(const unwind_info& unwind_info,uint32_t idx) noexcept {
+  const auto* data{reinterpret_cast<const byte*>(unwind_info.data + idx)};
+  const auto value_ptr{reinterpret_cast<const Ty*>(data)};
+  return *value_ptr;
+}
+
 void frame_walk_pdata::unwind(const unwind_info& unwind_info,
                               frame_walk_context& ctx,
-                              machine_frame& mach) const noexcept {
+                              machine_frame& mach) noexcept {
   bool rip_updated = false;
   for (uint32_t idx = 0; idx < unwind_info.code_count; ++idx) {
     switch (const auto& entry = unwind_info.entries[idx]; entry.code) {
@@ -173,8 +179,7 @@ void frame_walk_pdata::unwind(const unwind_info& unwind_info,
 
       case UnwindCode::SaveFarNonVolatileReg:
         ctx.gp(entry.info) = *reinterpret_cast<const uint64_t*>(
-            mach.rsp +
-            *reinterpret_cast<const uint32_t*>(unwind_info.data + idx));
+            mach.rsp + get_unwind_data_as<uint32_t>(unwind_info, +idx));
         idx += 2;
         break;
 
