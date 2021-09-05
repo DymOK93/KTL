@@ -239,12 +239,12 @@ struct array<Ty, 0> {
   [[nodiscard]] constexpr Ty* data() noexcept { return nullptr; }
   [[nodiscard]] constexpr const Ty* data() const noexcept { return nullptr; }
 
+  Ty m_elems[1];
+
  private:
   [[noreturn]] static void throw_has_no_elements() {
     throw_exception<out_of_range>("array<Ty, 0> has no elements");
   }
-
-  Ty m_elems[1];
 };
 
 template <class Ty,
@@ -298,7 +298,7 @@ template <class Ty, size_t Size>
 #define KTL_ARRAY_GET_IMPL(Const, Ref, Move)                                \
   template <size_t Idx, class Ty, size_t Size>                              \
   constexpr decltype(auto) get(Const array<Ty, Size> Ref target) noexcept { \
-    return Move(target[Idx]);                                               \
+    return Move(target.m_elems[Idx]);                                               \
   }
 
 KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, &,  KTL_NO_MOVE)
