@@ -23,7 +23,7 @@ enum class Attributes : uint8_t {
   IsNoexcept = 0x40,
 };
 
-struct info {
+struct exc_info {
   flag_set<Attributes> flags;
   uint32_t bbt_flags;
   relative_virtual_address<const uint8_t> unwind_graph;
@@ -74,12 +74,12 @@ static void destroy_objects(
     int32_t initial_state,
     int32_t final_state) noexcept;
 
-static void load_exception_info(fh4::info& eh_info,
+static void load_exception_info(fh4::exc_info& eh_info,
                                 const uint8_t* data,
                                 const byte* image_base,
                                 const function& fn) noexcept;
 
-static int32_t lookup_region(const fh4::info* eh_info,
+static int32_t lookup_region(const fh4::exc_info* eh_info,
                              const byte* image_base,
                              relative_virtual_address<const byte> fn,
                              const byte* control_pc) noexcept;
@@ -133,7 +133,7 @@ static win::ExceptionDisposition frame_handler(
       static_cast<const fh4::gs4_data*>(dispatcher_context->extra_data)};
   const uint8_t* compressed_data{image_base + handler_data->func_info};
 
-  fh4::info eh_info = {};
+  fh4::exc_info eh_info = {};
   load_exception_info(eh_info, compressed_data, image_base,
                       *dispatcher_context->fn);
 
@@ -296,7 +296,7 @@ static relative_virtual_address<Ty> read_rva(const uint8_t** data) noexcept {
   return relative_virtual_address<Ty>{offset};
 }
 
-static void load_exception_info(fh4::info& eh_info,
+static void load_exception_info(fh4::exc_info& eh_info,
                                 const uint8_t* data,
                                 const byte* image_base,
                                 const function& fn) noexcept {
@@ -342,14 +342,14 @@ static void load_exception_info(fh4::info& eh_info,
         relative_virtual_address<byte*>(read_unsigned(&data));
 }
 
-static int32_t lookup_region(const fh4::info* eh_info,
+static int32_t lookup_region(const fh4::exc_info* eh_info,
                              const byte* image_base,
                              relative_virtual_address<const byte> fn,
                              const byte* control_pc) noexcept {
   if (!eh_info->regions)
     return -1;
 
-  relative_virtual_address pc = make_rva(control_pc, image_base + fn);
+  const auto pc{make_rva(control_pc, image_base + fn)};
   const uint8_t* p = image_base + eh_info->regions;
 
   int32_t state = -1;

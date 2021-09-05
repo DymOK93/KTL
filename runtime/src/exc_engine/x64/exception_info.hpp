@@ -4,9 +4,8 @@
 #include <rva.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
-// Also see
+// See all possible flags at
 // https://docs.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlvirtualunwind
-
 enum class HandlerInfo {
   Exception = 0x1,
   Unwind = 0x2,
@@ -96,11 +95,11 @@ struct catch_handler {
 };
 
 struct try_block {
-  /* 0x00 */ int32_t try_low;
-  /* 0x04 */ int32_t try_high;
-  /* 0x08 */ int32_t catch_high;
-  /* 0x0c */ int32_t catch_count;
-  /* 0x10 */ relative_virtual_address<const catch_handler> catch_handlers;
+  /*0x00*/ int32_t try_low;
+  /*0x04*/ int32_t try_high;
+  /*0x08*/ int32_t catch_high;
+  /*0x0c*/ int32_t catch_count;
+  /*0x10*/ relative_virtual_address<const catch_handler> catch_handlers;
 };
 
 struct eh_region {
@@ -124,26 +123,23 @@ enum class EhFlag : uint32_t {
 };
 
 struct function_eh_info {
-  /* 0x00 */ uint32_t magic;  // MSVC's magic number
-  /* 0x04 */ uint32_t state_count;
-  /* 0x08 */ relative_virtual_address<const unwind_graph_edge> unwind_graph;
-  /* 0x0c */ int32_t try_block_count;
-  /* 0x10 */ relative_virtual_address<const try_block> try_blocks;
-  /* 0x14 */ uint32_t region_count;
-  /* 0x18 */ relative_virtual_address<const eh_region> regions;
-  /* 0x1c */ relative_virtual_address<eh_node> eh_node_offset;
+  /*0x00*/ uint32_t magic;  // MSVC's magic number
+  /*0x04*/ uint32_t state_count;
+  /*0x08*/ relative_virtual_address<const unwind_graph_edge> unwind_graph;
+  /*0x0c*/ int32_t try_block_count;
+  /*0x10*/ relative_virtual_address<const try_block> try_blocks;
+  /*0x14*/ uint32_t region_count;
+  /*0x18*/ relative_virtual_address<const eh_region> regions;
+  /*0x1c*/ relative_virtual_address<eh_node> eh_node_offset;
 
   // `magic_num >= 0x19930521`
-  /* 0x20 */ uint32_t es_types;
+  /*0x20*/ uint32_t es_types;
 
   // `magic_num >= 0x19930522`
-  /* 0x24 */ flag_set<EhFlag> eh_flags;
+  /*0x24*/ flag_set<EhFlag> eh_flags;
 };
 
 struct eh_handler_data {
   relative_virtual_address<const function_eh_info> eh_info;
 };
-
 }  // namespace ktl::crt::exc_engine::x64
-
-#pragma once

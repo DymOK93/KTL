@@ -17,7 +17,7 @@ struct dir_header {
   /*0x08*/
 };
 
-struct header {
+struct extended_header {
   /*0x00*/ uint32_t magic;
 
   /*0x04*/ uint16_t machine;
@@ -36,16 +36,13 @@ struct header {
   /*0xa0*/ dir_header<function> exception_table;
 };
 
-struct dos_exe_header {
+struct dos_header {
   /*0x00*/ uint16_t magic;
   /*0x02*/ uint8_t _02[0x3a];
-  /*0x3c*/ relative_virtual_address<header> image_header;
+  /*0x3c*/ relative_virtual_address<extended_header> image_header;
   /*0x40*/
 };
 }  // namespace pe
-
-static xmm_register& get_xmm(frame_walk_context& ctx, uint8_t idx) noexcept;
-// frame_info unwind_one() noexcept;
 
 frame_walk_pdata frame_walk_pdata::for_this_image() noexcept {
   return frame_walk_pdata{__ImageBase};
@@ -86,11 +83,11 @@ const function* frame_walk_pdata::find_function_entry(
 
 frame_walk_pdata::frame_walk_pdata(const byte* image_base) noexcept
     : m_image_base(image_base) {
-  const auto* dos_hdr = reinterpret_cast<const pe::dos_exe_header*>(image_base);
+  const auto* dos_hdr = reinterpret_cast<const pe::dos_header*>(image_base);
 
   do {
     BREAK_IF_FALSE(dos_hdr->magic == 0x5a4d)
-    pe::header const* pe_hdr{image_base + dos_hdr->image_header};
+    const pe::extended_header* pe_hdr{image_base + dos_hdr->image_header};
 
     BREAK_IF_FALSE(dos_hdr->magic == 0x5a4d)
 
@@ -98,7 +95,7 @@ frame_walk_pdata::frame_walk_pdata(const byte* image_base) noexcept
     BREAK_IF_FALSE(pe_hdr->machine == 0x8664)
     BREAK_IF_FALSE(pe_hdr->opt_magic == 0x20b)
     BREAK_IF_FALSE(pe_hdr->headers_size >=
-                   dos_hdr->image_header.value() + sizeof(pe::header))
+                   dos_hdr->image_header.value() + sizeof(pe::extended_header))
     BREAK_IF_FALSE(pe_hdr->image_size >= pe_hdr->headers_size)
 
     BREAK_IF_FALSE(pe_hdr->directory_count >= 4)
@@ -137,7 +134,7 @@ static xmm_register& get_xmm(frame_walk_context& ctx, uint8_t idx) noexcept {
 }
 
 template <class Ty>
-Ty get_unwind_data_as(const unwind_info& unwind_info,uint32_t idx) noexcept {
+Ty get_unwind_data_as(const unwind_info& unwind_info, uint32_t idx) noexcept {
   const auto* data{reinterpret_cast<const byte*>(unwind_info.data + idx)};
   const auto value_ptr{reinterpret_cast<const Ty*>(data)};
   return *value_ptr;

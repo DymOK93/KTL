@@ -14,7 +14,7 @@ static win::ExceptionDisposition frame_handler(
     win::exception_record*,
     byte* frame_ptr,
     win::x64_cpu_context*,
-    x64::dispatcher_context* dispatcher_context) noexcept;
+    dispatcher_context* dispatcher_context) noexcept;
 
 EXTERN_C win::ExceptionDisposition __CxxFrameHandler3(
     win::exception_record* exception_record,
@@ -31,9 +31,9 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler3(
   return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
 }
 
-EXTERN_C ktl::crt::exc_engine::win::ExceptionDisposition __GSHandlerCheck_EH(
-    ktl::crt::exc_engine::win::exception_record* exception_record,
-    ktl::byte* frame_ptr,
+EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH(
+    win::exception_record* exception_record,
+    byte* frame_ptr,
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* ctx) noexcept {
   /*No cookie check :( */
@@ -44,7 +44,7 @@ static win::ExceptionDisposition frame_handler(
     win::exception_record*,
     byte* frame_ptr,
     win::x64_cpu_context*,
-    x64::dispatcher_context* dispatcher_context) noexcept {
+    dispatcher_context* dispatcher_context) noexcept {
   if (dispatcher_context->cookie == &x64::rethrow_probe_cookie) {
     return win::ExceptionDisposition::CxxHandler;
   }
@@ -72,10 +72,9 @@ static win::ExceptionDisposition frame_handler(
   int32_t home_block_index;
 
   if (primary_frame_ptr < frame_ptr) {
-    auto pc_rva{make_rva(reinterpret_cast<const byte*>(throw_frame->mach.rip),
-                         image_base)};
+    const auto pc_rva{make_rva(throw_frame->mach.rip, image_base)};
 
-    auto regions = image_base + eh_info->regions;
+    const auto regions = image_base + eh_info->regions;
     state = regions[eh_info->region_count - 1].state;
     for (uint32_t i = 1; i != eh_info->region_count; ++i) {
       if (pc_rva < regions[i].first_ip) {
@@ -97,8 +96,8 @@ static win::ExceptionDisposition frame_handler(
     // Identify the funclet we're currently in. If we're in a catch
     // funclet, locate the primary frame ptr and cache everything.
     for (; home_block_index > -1; --home_block_index) {
-      const auto& try_block{try_blocks[home_block_index]};
-      if (try_block.try_high < state && state <= try_block.catch_high) {
+      if (const auto& try_block = try_blocks[home_block_index];
+          try_block.try_high < state && state <= try_block.catch_high) {
         if (primary_frame_ptr < frame_ptr) {
           const auto* catch_handlers{image_base + try_block.catch_handlers};
           for (int32_t idx = 0; idx < try_block.catch_count; ++idx) {
@@ -133,9 +132,8 @@ static win::ExceptionDisposition frame_handler(
   const x64::catch_handler* target_catch_handler = nullptr;
   for (int32_t idx = home_block_index + 1;
        !target_catch_handler && idx < eh_info->try_block_count; ++idx) {
-    const auto& try_block{try_blocks[idx]};
-
-    if (try_block.try_low <= state && state <= try_block.try_high) {
+    if (const auto& try_block = try_blocks[idx];
+        try_block.try_low <= state && state <= try_block.try_high) {
       if (try_block.try_low < funclet_low_state) {
         continue;
       }
@@ -188,12 +186,12 @@ static win::ExceptionDisposition frame_handler(
     const auto& edge{unwind_graph[state]};
     state = edge.next;
     if (edge.cleanup_handler) {
-      byte const* funclet = image_base + edge.cleanup_handler;
-      using fn_type = uintptr_t(byte const* funclet, byte const* frame_ptr);
-      (void)((fn_type*)funclet)(funclet, frame_ptr); // TODO: Fix C-style cast
+      const auto raw_funclet{const_cast<byte*>(image_base + edge.cleanup_handler)};
+      using cleanup_handler_t = uintptr_t(const byte*, const byte*);
+      const auto cleanup_handler{reinterpret_cast<cleanup_handler_t*>(raw_funclet)};
+      cleanup_handler(raw_funclet, frame_ptr); 
     }
   }
-
   return win::ExceptionDisposition::CxxHandler;
 }
 }  // namespace ktl::crt::exc_engine::x64
