@@ -66,22 +66,23 @@ struct flag_set {
 };
 
 template <typename Enum>
-flag_set<Enum> operator|(flag_set<Enum> lhs, flag_set<Enum> rhs) noexcept {
-  return lhs.value() | rhs.value();
+constexpr auto operator|(flag_set<Enum> lhs, flag_set<Enum> rhs) noexcept {
+  return flag_set<Enum>{lhs.value() | rhs.value()};
 }
 
 template <typename Enum>
-flag_set<Enum> operator&(flag_set<Enum> lhs, flag_set<Enum> rhs) noexcept {
-  return lhs.value() & rhs.value();
+constexpr auto operator&(flag_set<Enum> lhs,
+                                  flag_set<Enum> rhs) noexcept {
+  return flag_set<Enum>{lhs.value() & rhs.value()};
 }
 
 template <typename Enum>
-bool operator==(flag_set<Enum> lhs, flag_set<Enum> rhs) noexcept {
+constexpr bool operator==(flag_set<Enum> lhs, flag_set<Enum> rhs) noexcept {
   return lhs.value() == rhs.value();
 }
 
 template <typename Enum>
-bool operator!=(flag_set<Enum> lhs, flag_set<Enum> rhs) noexcept {
+constexpr bool operator!=(flag_set<Enum> lhs, flag_set<Enum> rhs) noexcept {
   return !(lhs == rhs);
 }
 }  // namespace ktl

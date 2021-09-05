@@ -141,9 +141,8 @@ void frame_walk_pdata::unwind(const unwind_info& unwind_info,
                               frame_walk_context& ctx,
                               machine_frame& mach) const noexcept {
   bool rip_updated = false;
-  for (uint32_t idx = 0; idx < unwind_info.unwind_code_count; ++idx) {
-    const auto& entry = unwind_info.entries[idx];
-    switch (entry.code) {
+  for (uint32_t idx = 0; idx < unwind_info.code_count; ++idx) {
+    switch (const auto& entry = unwind_info.entries[idx]; entry.code) {
       case UnwindCode::PushNonVolatileReg:
         ctx.gp(entry.info) = *reinterpret_cast<const uint64_t*>(mach.rsp);
         mach.rsp += 8;

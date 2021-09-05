@@ -149,10 +149,9 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
   return win::ExceptionDisposition::CxxHandler;
 }
 
-EXTERN_C const byte* __cxx_dispatch_exception(
-    void* exception_object,
-    const throw_info* throw_info,
-    throw_frame& frame) noexcept {
+EXTERN_C const byte* __cxx_dispatch_exception(void* exception_object,
+                                              const throw_info* throw_info,
+                                              throw_frame& frame) noexcept {
   const auto pdata{frame_walk_pdata::for_this_image()};
   auto ctx{make_context(&unwind_cookie, frame, pdata)};
 
@@ -232,10 +231,20 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
   ctx.fn = pdata.find_function_entry(mach.rip);
   const unwind_info* unwind_info{image_base + ctx.fn->unwind_info};
 
-  if (unwind_info->flags & 3) {  // Why 3?
-    const auto mask{~static_cast<size_t>(1)};
+  /*
+   * UNW_FLAG_EHANDLER 0x1
+   * UNW_FLAG_UHANDLER 0x2
+   * See
+   * https://docs.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlvirtualunwind
+   */
+  constexpr auto handler_mask{flag_set{HandlerInfo::Exception} |
+                              flag_set{HandlerInfo::Exception}};
+  if (const auto flags = flag_set<HandlerInfo>{unwind_info->flags};
+      flags & handler_mask) {
+    constexpr auto mask{
+        ~static_cast<size_t>(1)};  // The number of active slots is always odd
     const auto unwind_slots =
-        (static_cast<size_t>(unwind_info->unwind_code_count) + 1ull) & mask;
+        (static_cast<size_t>(unwind_info->code_count) + 1ull) & mask;
     auto* frame_handler =
         image_base +
         *reinterpret_cast<
@@ -244,12 +253,19 @@ static const unwind_info* execute_handler(dispatcher_context& ctx,
 
     crt_assert(frame_handler);
 
+    // Dummy fields
+    cpu_ctx.dummy_rsp = mach.rsp;
+    cpu_ctx.dummy_rip = mach.rip;
+    // ctx.cookie = (symbol*)mach.rip;
+    ctx.history_table = nullptr;
+    ctx.scope_index = 0;
+
     ctx.extra_data = &unwind_info->data[unwind_slots + 2];  // Why 2?
     byte* frame_ptr = reinterpret_cast<byte*>(
         unwind_info->frame_reg ? cpu_ctx.gp(unwind_info->frame_reg) : mach.rsp);
 
-    [[maybe_unused]] auto exc_action{frame_handler(
-        &win::exc_record_cookie, frame_ptr,
+    [[maybe_unused]] auto exc_action{
+        frame_handler(&win::exc_record_cookie, frame_ptr,
                       reinterpret_cast<win::x64_cpu_context*>(&cpu_ctx), &ctx)};
 
     // MSVC добавляет __GSHandlerCheck() в начало таблицы исключений

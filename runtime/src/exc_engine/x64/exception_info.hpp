@@ -4,11 +4,13 @@
 #include <rva.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
+enum class HandlerInfo {
+    Exception = 0x1,
+    Unwind = 0x2,
+    HasAlignment = 0x4,
+};
 
 struct gs_handler_data {
-  static constexpr uint32_t EHANDLER = 1;
-  static constexpr uint32_t UHANDLER = 2;
-  static constexpr uint32_t HAS_ALIGNMENT = 4;
   static constexpr uint32_t COOKIE_OFFSET_MASK = ~7u;
 
   uint32_t cookie_offset;
@@ -68,10 +70,10 @@ struct throw_info {
 };
 
 enum class CatchFlag : uint32_t {
-  IsConst = 1,
-  IsVolatile = 2,
-  IsUnaligned = 4,
-  IsReference = 8,
+  IsConst = 0x1,
+  IsVolatile = 0x2,
+  IsUnaligned = 0x4,
+  IsReference = 0x8,
   IsResumable = 0x10,
   IsEllipsis = 0x40,
   IsBadAllocCompat = 0x80,

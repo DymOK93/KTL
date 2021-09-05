@@ -28,7 +28,7 @@ struct unwind_info {
   uint8_t version : 3;
   uint8_t flags : 5;
   uint8_t prolog_size;
-  uint8_t unwind_code_count;
+  uint8_t code_count;
   uint8_t frame_reg : 4;
   uint8_t frame_reg_disp : 4;
   union {
@@ -107,7 +107,7 @@ class frame_walk_pdata {
 
   static frame_walk_pdata for_this_image() noexcept;
 
-  const byte* image_base() const noexcept;
+  [[nodiscard]] const byte* image_base() const noexcept;
   bool contains_address(const byte* addr) const noexcept;
   const function* find_function_entry(const byte* addr) const noexcept;
 
