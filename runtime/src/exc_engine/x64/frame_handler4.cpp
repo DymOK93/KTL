@@ -58,59 +58,181 @@ struct unwind_edge {
 };
 }  // namespace fh4
 
-static win::ExceptionDisposition frame_handler(
-    win::exception_record*,
-    byte* frame_ptr,
-    win::x64_cpu_context*,
-    dispatcher_context* dispatcher_context) noexcept;
+static uint32_t read_unsigned(const uint8_t** data) noexcept {
+  const uint8_t enc_type{static_cast<uint8_t>((*data)[0] & 0xf)};
 
-static uint32_t read_unsigned(const uint8_t** data) noexcept;
-static int32_t read_int(const uint8_t** data) noexcept;
+  static constexpr uint8_t lengths[] = {
+      1, 2, 1, 3, 1, 2, 1, 4, 1, 2, 1, 3, 1, 2, 1, 5,
+  };
+  static constexpr uint8_t shifts[] = {
+      0x19, 0x12, 0x19, 0x0b, 0x19, 0x12, 0x19, 0x04,
+      0x19, 0x12, 0x19, 0x0b, 0x19, 0x12, 0x19, 0x00,
+  };
 
-static void destroy_objects(
-    const byte* image_base,
-    relative_virtual_address<const uint8_t> unwind_graph_rva,
-    byte* frame_ptr,
-    int32_t initial_state,
-    int32_t final_state) noexcept;
+  const uint8_t length = lengths[enc_type];
+
+  // XXX we're in UB land here
+  uint32_t result{*reinterpret_cast<const uint32_t*>(*data + length - 4)};
+  result >>= shifts[enc_type];
+
+  *data += length;
+  return result;
+}
+
+static int32_t read_int(const uint8_t** data) noexcept {
+  // XXX alignment
+
+  const int32_t result{*reinterpret_cast<const int32_t*>(*data)};
+  *data += 4;
+  return result;
+}
+
+template <typename Ty>
+static relative_virtual_address<Ty> read_rva(const uint8_t** data) noexcept {
+  uint32_t offset = read_int(data);
+  return relative_virtual_address<Ty>{offset};
+}
 
 static void load_exception_info(fh4::exc_info& eh_info,
                                 const uint8_t* data,
                                 const byte* image_base,
-                                const function& fn) noexcept;
+                                const function& fn) noexcept {
+  const flag_set flags{*reinterpret_cast<const fh4::Attributes*>(data++)};
+  eh_info.flags = flags;
+
+  if (flags.has_any_of(fh4::Attributes::Bbt)) {
+    eh_info.bbt_flags = read_unsigned(&data);
+  }
+
+  if (flags.has_any_of(fh4::Attributes::HasUnwindMap)) {
+    eh_info.unwind_graph = read_rva<const uint8_t>(&data);
+  }
+
+  if (flags.has_any_of(fh4::Attributes::HasTryBlockMap)) {
+    eh_info.try_blocks = read_rva<const uint8_t>(&data);
+  }
+
+  if (flags.has_any_of(fh4::Attributes::HasMultipleFunclets)) {
+    const uint8_t* funclet_map{image_base + read_rva<const uint8_t>(&data)};
+
+    const uint32_t count{read_unsigned(&funclet_map)};
+    eh_info.regions = 0;
+
+    for (uint32_t idx = 0; idx != count; ++idx) {
+      const auto fn_rva{read_rva<const void>(&funclet_map)};
+      const auto regions{read_rva<const uint8_t>(&funclet_map)};
+
+      if (fn_rva.value() == fn.begin.value()) {
+        eh_info.regions = regions;
+        break;
+      }
+    }
+  } else {
+    eh_info.regions = read_rva<const uint8_t>(&data);
+  }
+
+  if (flags.has_any_of(fh4::Attributes::IsCatchFunclet))
+    eh_info.primary_frame_ptr =
+        relative_virtual_address<byte*>(read_unsigned(&data));
+}
 
 static int32_t lookup_region(const fh4::exc_info* eh_info,
                              const byte* image_base,
                              relative_virtual_address<const byte> fn,
-                             const byte* control_pc) noexcept;
+                             const byte* control_pc) noexcept {
+  if (!eh_info->regions)
+    return -1;
 
-template <typename Ty = void>
-static relative_virtual_address<Ty> read_rva(const uint8_t** data) noexcept;
+  const auto pc{make_rva(control_pc, image_base + fn)};
+  const uint8_t* p = image_base + eh_info->regions;
 
-EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
-    win::exception_record* exception_record,
-    byte* frame_ptr,
-    win::x64_cpu_context* cpu_ctx,
-    dispatcher_context* dispatcher_ctx) noexcept {
-  if (exception_record != &win::exc_record_cookie) {
-    verify_seh_in_cxx_handler(exception_record->code, exception_record->address,
-                              exception_record->flags.value(),
-                              dispatcher_ctx->fn->unwind_info.value(),
-                              dispatcher_ctx->image_base);
-    return win::ExceptionDisposition::ContinueSearch;
+  int32_t state = -1;
+  const uint32_t region_count = read_unsigned(&p);
+  relative_virtual_address<const byte> fn_rva = 0;
+  for (uint32_t idx = 0; idx != region_count; ++idx) {
+    fn_rva += read_unsigned(&p);
+    if (pc < fn_rva)
+      break;
+
+    state = read_unsigned(&p) - 1;
   }
-  return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
+
+  return state;
 }
 
-EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH4(
-    win::exception_record* exception_record,
-    byte* frame_ptr,
-    [[maybe_unused]] win::x64_cpu_context* cpu_ctx,
-    dispatcher_context* ctx) noexcept {
-  // No cookie check :(
-  // We assume that the compiler will use only __GSHandlerCheck_SEH for SEH
-  // exceptions and therefore don't check exception_record
-  return __CxxFrameHandler4(exception_record, frame_ptr, cpu_ctx, ctx);
+void destroy_objects(const byte* image_base,
+                     relative_virtual_address<const uint8_t> unwind_graph_rva,
+                     byte* frame_ptr,
+                     int32_t initial_state,
+                     int32_t final_state) noexcept {
+  const uint8_t* unwind_graph{image_base + unwind_graph_rva};
+  const uint32_t unwind_node_count{read_unsigned(&unwind_graph)};
+
+  if (initial_state < 0 ||
+      static_cast<uint32_t>(initial_state) >= unwind_node_count) {
+    set_termination_context({BugCheckReason::CorruptedEhUnwindData,
+                             initial_state, unwind_node_count});
+    terminate();
+  }
+
+  const uint8_t *current_edge{unwind_graph}, *last_edge{current_edge};
+  for (int32_t idx = 0; idx != initial_state; ++idx) {
+    fh4::unwind_edge::skip(&current_edge);
+    if (idx == final_state) {
+      last_edge = current_edge;
+    }
+  }
+  if (initial_state == final_state) {
+    last_edge = current_edge;
+  }
+
+  for (;;) {
+    const uint8_t* unwind_entry{current_edge};
+
+    const uint32_t target_offset_and_type{read_unsigned(&unwind_entry)};
+    const uint32_t target_offset{target_offset_and_type >> 2};
+
+    if (!target_offset) {
+      set_termination_context({BugCheckReason::CorruptedEhUnwindData,
+                               initial_state, unwind_node_count,
+                               reinterpret_cast<bugcheck_arg_t>(current_edge),
+                               target_offset_and_type});
+      terminate();
+    }
+
+    switch (const auto edge_type =
+                static_cast<fh4::unwind_edge::Type>(target_offset_and_type & 3);
+            edge_type) {
+      case fh4::unwind_edge::Type::Trivial:
+        break;
+      case fh4::unwind_edge::Type::ObjectOffset: {
+        const auto destroy_fn{image_base +
+                              read_rva<void(byte*)>(&unwind_entry)};
+        byte* obj{frame_ptr + read_unsigned(&unwind_entry)};
+        destroy_fn(obj);
+        break;
+      }
+      case fh4::unwind_edge::Type::ObjectPtrOffset: {
+        const auto destroy_fn{image_base +
+                              read_rva<void(byte*)>(&unwind_entry)};
+        byte* obj{*reinterpret_cast<byte**>(frame_ptr +
+                                            read_unsigned(&unwind_entry))};
+        destroy_fn(obj);
+        break;
+      }
+      case fh4::unwind_edge::Type::Function: {
+        const auto destroy_fn{image_base +
+                              read_rva<void(void*, byte*)>(&unwind_entry)};
+        destroy_fn(reinterpret_cast<void*>(destroy_fn), frame_ptr);
+        break;
+      }
+    }
+
+    if (current_edge - last_edge < target_offset) {
+      break;
+    }
+    current_edge -= target_offset;
+  }
 }
 
 static win::ExceptionDisposition frame_handler(
@@ -159,15 +281,15 @@ static win::ExceptionDisposition frame_handler(
     const auto* throw_info{catch_info.get_throw_info()};
 
     const uint8_t* p{image_base + eh_info.try_blocks};
-    uint32_t try_block_count = read_unsigned(&p);
+    const uint32_t try_block_count{read_unsigned(&p)};
     for (uint32_t try_block_idx = 0; try_block_idx != try_block_count;
          ++try_block_idx) {
-      uint32_t try_low = read_unsigned(&p);
-      uint32_t try_high = read_unsigned(&p);
+      const uint32_t try_low{read_unsigned(&p)};
+      const uint32_t try_high{read_unsigned(&p)};
 
       [[maybe_unused]] uint32_t catch_high{read_unsigned(&p)};
 
-      auto handlers{read_rva<const uint8_t>(&p)};
+      const auto handlers{read_rva<const uint8_t>(&p)};
 
       if (try_low > static_cast<uint32_t>(initial_state) ||
           static_cast<uint32_t>(initial_state) > try_high) {
@@ -179,32 +301,32 @@ static win::ExceptionDisposition frame_handler(
         throw_info = throw_frame->catch_info.get_throw_info();
       }
 
-      const uint8_t* q = image_base + handlers;
-      uint32_t handler_count = read_unsigned(&q);
+      const uint8_t* q{image_base + handlers};
+      const uint32_t handler_count{read_unsigned(&q)};
 
       for (uint32_t handler_idx = 0; handler_idx != handler_count;
            ++handler_idx) {
         flag_set<fh4::CatchBlockFlag> handler_flags{*q++};
 
-        flag_set<CatchFlag> type_flags =
+        const flag_set type_flags{
             handler_flags.has_any_of(fh4::CatchBlockFlag::HasTypeFlags)
                 ? flag_set<CatchFlag>(read_unsigned(&q))
-                : flag_set<CatchFlag>{};
+                : flag_set<CatchFlag>{}};
 
         relative_virtual_address<type_info const> type =
             handler_flags.has_any_of(fh4::CatchBlockFlag::HasTypeInfo)
                 ? read_rva<type_info const>(&q)
                 : 0;
 
-        uint32_t continuation_addr_count =
-            handler_flags.get<fh4::CatchBlockFlag::ContinuationAddrCount>();
+        const uint32_t continuation_addr_count{
+            handler_flags.get<fh4::CatchBlockFlag::ContinuationAddrCount>()};
 
-        relative_virtual_address<void> catch_var =
+        const auto catch_var{
             handler_flags.has_any_of(fh4::CatchBlockFlag::HasCatchVar)
                 ? relative_virtual_address<void>{read_unsigned(&q)}
-                : 0;
+                : 0};
 
-        relative_virtual_address<const byte> handler = read_rva<const byte>(&q);
+        const auto handler{read_rva<const byte>(&q)};
 
         if (handler_flags.has_any_of(fh4::CatchBlockFlag::ImageRva)) {
           for (uint32_t k = 0; k != continuation_addr_count; ++k)
@@ -241,6 +363,32 @@ static win::ExceptionDisposition frame_handler(
   return win::ExceptionDisposition::CxxHandler;
 }
 
+EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
+    win::exception_record* exception_record,
+    byte* frame_ptr,
+    win::x64_cpu_context* cpu_ctx,
+    dispatcher_context* dispatcher_ctx) noexcept {
+  if (exception_record != &win::exc_record_cookie) {
+    verify_seh_in_cxx_handler(exception_record->code, exception_record->address,
+                              exception_record->flags.value(),
+                              dispatcher_ctx->fn->unwind_info.value(),
+                              dispatcher_ctx->image_base);
+    return win::ExceptionDisposition::ContinueSearch;
+  }
+  return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
+}
+
+EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH4(
+    win::exception_record* exception_record,
+    byte* frame_ptr,
+    [[maybe_unused]] win::x64_cpu_context* cpu_ctx,
+    dispatcher_context* ctx) noexcept {
+  // No cookie check :(
+  // We assume that the compiler will use only __GSHandlerCheck_SEH for SEH
+  // exceptions and therefore don't check exception_record
+  return __CxxFrameHandler4(exception_record, frame_ptr, cpu_ctx, ctx);
+}
+
 fh4::unwind_edge fh4::unwind_edge::read(const uint8_t** p) noexcept {
   unwind_edge result;
 
@@ -259,185 +407,5 @@ fh4::unwind_edge fh4::unwind_edge::read(const uint8_t** p) noexcept {
 
 void fh4::unwind_edge::skip(const uint8_t** p) noexcept {
   (void)read(p);
-}
-
-static uint32_t read_unsigned(const uint8_t** data) noexcept {
-  uint8_t enc_type{static_cast<uint8_t>((*data)[0] & 0xf)};
-
-  static constexpr uint8_t lengths[] = {
-      1, 2, 1, 3, 1, 2, 1, 4, 1, 2, 1, 3, 1, 2, 1, 5,
-  };
-  static constexpr uint8_t shifts[] = {
-      0x19, 0x12, 0x19, 0x0b, 0x19, 0x12, 0x19, 0x04,
-      0x19, 0x12, 0x19, 0x0b, 0x19, 0x12, 0x19, 0x00,
-  };
-
-  uint8_t length = lengths[enc_type];
-
-  // XXX we're in UB land here
-  uint32_t result{*reinterpret_cast<const uint32_t*>(*data + length - 4)};
-  result >>= shifts[enc_type];
-
-  *data += length;
-  return result;
-}
-
-static int32_t read_int(const uint8_t** data) noexcept {
-  // XXX alignment
-
-  int32_t result{*reinterpret_cast<const int32_t*>(*data)};
-  *data += 4;
-  return result;
-}
-
-template <typename Ty>
-static relative_virtual_address<Ty> read_rva(const uint8_t** data) noexcept {
-  uint32_t offset = read_int(data);
-  return relative_virtual_address<Ty>{offset};
-}
-
-static void load_exception_info(fh4::exc_info& eh_info,
-                                const uint8_t* data,
-                                const byte* image_base,
-                                const function& fn) noexcept {
-  flag_set<fh4::Attributes> flags{
-      *reinterpret_cast<const fh4::Attributes*>(data++)};  // ?
-  eh_info.flags = flags;
-
-  if (flags.has_any_of(fh4::Attributes::Bbt)) {
-    eh_info.bbt_flags = read_unsigned(&data);
-  }
-
-  if (flags.has_any_of(fh4::Attributes::HasUnwindMap)) {
-    eh_info.unwind_graph = read_rva<const uint8_t>(&data);
-  }
-
-  if (flags.has_any_of(fh4::Attributes::HasTryBlockMap)) {
-    eh_info.try_blocks = read_rva<const uint8_t>(&data);
-  }
-
-  if (flags.has_any_of(fh4::Attributes::HasMultipleFunclets)) {
-    const uint8_t* funclet_map{image_base + read_rva<const uint8_t>(&data)};
-
-    uint32_t count = read_unsigned(&funclet_map);
-    eh_info.regions = 0;
-
-    for (uint32_t idx = 0; idx != count; ++idx) {
-      relative_virtual_address<void const> fn_rva =
-          read_rva<void const>(&funclet_map);
-      relative_virtual_address<const uint8_t> regions =
-          read_rva<const uint8_t>(&funclet_map);
-
-      if (fn_rva.value() == fn.begin.value()) {
-        eh_info.regions = regions;
-        break;
-      }
-    }
-  } else {
-    eh_info.regions = read_rva<const uint8_t>(&data);
-  }
-
-  if (flags.has_any_of(fh4::Attributes::IsCatchFunclet))
-    eh_info.primary_frame_ptr =
-        relative_virtual_address<byte*>(read_unsigned(&data));
-}
-
-static int32_t lookup_region(const fh4::exc_info* eh_info,
-                             const byte* image_base,
-                             relative_virtual_address<const byte> fn,
-                             const byte* control_pc) noexcept {
-  if (!eh_info->regions)
-    return -1;
-
-  const auto pc{make_rva(control_pc, image_base + fn)};
-  const uint8_t* p = image_base + eh_info->regions;
-
-  int32_t state = -1;
-  const uint32_t region_count = read_unsigned(&p);
-  relative_virtual_address<const byte> fn_rva = 0;
-  for (uint32_t idx = 0; idx != region_count; ++idx) {
-    fn_rva += read_unsigned(&p);
-    if (pc < fn_rva)
-      break;
-
-    state = read_unsigned(&p) - 1;
-  }
-
-  return state;
-}
-
-void destroy_objects(const byte* image_base,
-                     relative_virtual_address<const uint8_t> unwind_graph_rva,
-                     byte* frame_ptr,
-                     int32_t initial_state,
-                     int32_t final_state) noexcept {
-  const uint8_t* unwind_graph{image_base + unwind_graph_rva};
-  uint32_t unwind_node_count = read_unsigned(&unwind_graph);
-
-  if (initial_state < 0 ||
-      static_cast<uint32_t>(initial_state) >= unwind_node_count) {
-    set_termination_context({BugCheckReason::CorruptedEhUnwindData,
-                             initial_state, unwind_node_count});
-    terminate();
-  }
-
-  const uint8_t *current_edge{unwind_graph}, *last_edge{current_edge};
-  for (int32_t idx = 0; idx != initial_state; ++idx) {
-    fh4::unwind_edge::skip(&current_edge);
-    if (idx == final_state) {
-      last_edge = current_edge;
-    }
-  }
-  if (initial_state == final_state) {
-    last_edge = current_edge;
-  }
-
-  for (;;) {
-    const uint8_t* unwind_entry{current_edge};
-
-    uint32_t target_offset_and_type{read_unsigned(&unwind_entry)};
-    uint32_t target_offset{target_offset_and_type >> 2};
-
-    if (!target_offset) {
-      set_termination_context({BugCheckReason::CorruptedEhUnwindData,
-                               initial_state,
-                               unwind_node_count,
-                               reinterpret_cast<bugcheck_arg_t>(current_edge),
-                               target_offset_and_type});
-      terminate();
-    }
-
-    auto edge_type{
-        static_cast<fh4::unwind_edge::Type>(target_offset_and_type & 3)};
-
-    switch (edge_type) {
-      case fh4::unwind_edge::Type::Trivial:
-        break;
-      case fh4::unwind_edge::Type::ObjectOffset: {
-        auto destroy_fn{image_base + read_rva<void(byte*)>(&unwind_entry)};
-        byte* obj{frame_ptr + read_unsigned(&unwind_entry)};
-        destroy_fn(obj);
-        break;
-      }
-      case fh4::unwind_edge::Type::ObjectPtrOffset: {
-        auto destroy_fn{image_base + read_rva<void(byte*)>(&unwind_entry)};
-        byte* obj{*reinterpret_cast<byte**>(frame_ptr +
-                                            read_unsigned(&unwind_entry))};
-        destroy_fn(obj);
-        break;
-      }
-      case fh4::unwind_edge::Type::Function: {
-        auto destroy_fn{image_base +
-                        read_rva<void(void*, byte*)>(&unwind_entry)};
-        destroy_fn(destroy_fn, frame_ptr);
-        break;
-      }
-    }
-
-    if (current_edge - last_edge < target_offset) {
-      break;
-    }
-    current_edge -= target_offset;
-  }
 }
 }  // namespace ktl::crt::exc_engine::x64

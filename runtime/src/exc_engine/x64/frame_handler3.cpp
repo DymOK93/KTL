@@ -14,36 +14,6 @@ static win::ExceptionDisposition frame_handler(
     win::exception_record*,
     byte* frame_ptr,
     win::x64_cpu_context*,
-    dispatcher_context* dispatcher_context) noexcept;
-
-EXTERN_C win::ExceptionDisposition __CxxFrameHandler3(
-    win::exception_record* exception_record,
-    byte* frame_ptr,
-    win::x64_cpu_context* cpu_ctx,
-    dispatcher_context* dispatcher_ctx) noexcept {
-  if (exception_record != &win::exc_record_cookie) {
-    verify_seh_in_cxx_handler(exception_record->code, exception_record->address,
-                              exception_record->flags.value(),
-                              dispatcher_ctx->fn->unwind_info.value(),
-                              dispatcher_ctx->image_base);
-    return win::ExceptionDisposition::ContinueSearch;
-  }
-  return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
-}
-
-EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH(
-    win::exception_record* exception_record,
-    byte* frame_ptr,
-    win::x64_cpu_context* cpu_ctx,
-    dispatcher_context* ctx) noexcept {
-  /*No cookie check :( */
-  return __CxxFrameHandler3(exception_record, frame_ptr, cpu_ctx, ctx);
-}
-
-static win::ExceptionDisposition frame_handler(
-    win::exception_record*,
-    byte* frame_ptr,
-    win::x64_cpu_context*,
     dispatcher_context* dispatcher_context) noexcept {
   if (dispatcher_context->cookie == &x64::rethrow_probe_cookie) {
     return win::ExceptionDisposition::CxxHandler;
@@ -186,12 +156,38 @@ static win::ExceptionDisposition frame_handler(
     const auto& edge{unwind_graph[state]};
     state = edge.next;
     if (edge.cleanup_handler) {
-      const auto raw_funclet{const_cast<byte*>(image_base + edge.cleanup_handler)};
+      const auto raw_funclet{
+          const_cast<byte*>(image_base + edge.cleanup_handler)};
       using cleanup_handler_t = uintptr_t(const byte*, const byte*);
-      const auto cleanup_handler{reinterpret_cast<cleanup_handler_t*>(raw_funclet)};
-      cleanup_handler(raw_funclet, frame_ptr); 
+      const auto cleanup_handler{
+          reinterpret_cast<cleanup_handler_t*>(raw_funclet)};
+      cleanup_handler(raw_funclet, frame_ptr);
     }
   }
   return win::ExceptionDisposition::CxxHandler;
+}
+
+EXTERN_C win::ExceptionDisposition __CxxFrameHandler3(
+    win::exception_record* exception_record,
+    byte* frame_ptr,
+    win::x64_cpu_context* cpu_ctx,
+    dispatcher_context* dispatcher_ctx) noexcept {
+  if (exception_record != &win::exc_record_cookie) {
+    verify_seh_in_cxx_handler(exception_record->code, exception_record->address,
+                              exception_record->flags.value(),
+                              dispatcher_ctx->fn->unwind_info.value(),
+                              dispatcher_ctx->image_base);
+    return win::ExceptionDisposition::ContinueSearch;
+  }
+  return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
+}
+
+EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH(
+    win::exception_record* exception_record,
+    byte* frame_ptr,
+    win::x64_cpu_context* cpu_ctx,
+    dispatcher_context* ctx) noexcept {
+  /*No cookie check :( */
+  return __CxxFrameHandler3(exception_record, frame_ptr, cpu_ctx, ctx);
 }
 }  // namespace ktl::crt::exc_engine::x64
