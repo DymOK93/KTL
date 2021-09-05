@@ -118,7 +118,7 @@ struct array {
 namespace cont::details {
 template <class First, class... Rest>
 struct enforce_same {
-  static_assert(conjunction_v<is_same<First, Rest>...>,
+  static_assert((is_same_v<First, Rest> && ...),
                 "N4687 26.3.7.2 [array.cons]/2: Requires: (is_same_v<T, U> && "
                 "...) is true. Otherwise the program is ill-formed");
   using type = First;
@@ -311,7 +311,7 @@ namespace cont::details {
   template <class Ty, size_t Size, size_t... Idx>                     \
   [[nodiscard]] constexpr array<remove_cv_t<Ty>, Size> to_array_impl( \
       Ty(Ref arr)[Size], index_sequence<Idx...>) {                    \
-    return {{move(arr[Idx])...}};                                     \
+    return {{Move(arr[Idx])...}};                                     \
   }
 
 KTL_TO_ARRAY_IMPL(const,         &,  KTL_NO_MOVE)
