@@ -5,6 +5,7 @@
 #pragma once
 #include <cpu_context.hpp>
 #include <exception_info.hpp>
+#include <seh.hpp>
 #include <symbol.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
@@ -21,10 +22,10 @@ struct catch_info {
   byte* primary_frame_ptr;
   void* exception_object_or_link;
   const throw_info* throw_info_if_owner;
-  uint64_t unwind_context{0};
+  uint64_t unwind_context;
 
-  void* get_exception_object() const noexcept;
-  const throw_info* get_throw_info() const noexcept;
+  [[nodiscard]] void* get_exception_object() const noexcept;
+  [[nodiscard]] const throw_info* get_throw_info() const noexcept;
 };
 
 struct throw_frame {
@@ -42,6 +43,11 @@ struct catch_frame {
   catch_info catch_info;
 };
 
+struct frame_handler {
+  win::x64_frame_handler_t* handler;
+  const void* data;
+};
+
 void probe_for_exception(const frame_walk_pdata& pdata,
                          throw_frame& frame) noexcept;
 
@@ -52,6 +58,6 @@ bool process_catch_block(
     void* catch_var,
     void* exception_object,
     const throw_info&
-        throw_info) noexcept;  // Согласно Стандарту, конструктор копирования
-                               // исключения не имеет права бросить исключение
+        throw_info) noexcept;  // According to the C++ Standard, copy c-tor of
+                               // exception can't throw
 }  // namespace ktl::crt::exc_engine::x64

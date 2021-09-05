@@ -1,6 +1,5 @@
 #pragma once
 #include <member_ptr.hpp>
-#include <flag_set.hpp>
 #include <rva.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
@@ -29,7 +28,7 @@ struct unwind_info {
   uint8_t version : 3;
   uint8_t flags : 5;
   uint8_t prolog_size;
-  uint8_t unwind_code_count;
+  uint8_t code_count;
   uint8_t frame_reg : 4;
   uint8_t frame_reg_disp : 4;
   union {
@@ -39,22 +38,14 @@ struct unwind_info {
 };
 
 struct function {
-  /* 0x00 */ relative_virtual_address<const byte> begin;
-  /* 0x04 */ relative_virtual_address<const byte> end;
-  /* 0x08 */ relative_virtual_address<const unwind_info> unwind_info;
+  /*0x00*/ relative_virtual_address<const byte> begin;
+  /*0x04*/ relative_virtual_address<const byte> end;
+  /*0x08*/ relative_virtual_address<const unwind_info> unwind_info;
 };
-
-/*struct frame_info_t
-{
-        relative_virtual_address<void const> function;
-        relative_virtual_address<win32_frame_handler_t> exception_routine;
-        relative_virtual_address<void const> extra_data;
-        relative_virtual_address<void const> rip;
-        uint64_t frame_ptr;
-};*/
 
 ALIGN(16) struct xmm_register { unsigned char data[16]; };
 
+// Marked offsets are used by the nt!__C_specific_handler
 struct frame_walk_context {
   xmm_register xmm6;
   xmm_register xmm7;
@@ -65,7 +56,11 @@ struct frame_walk_context {
   xmm_register xmm12;
   xmm_register xmm13;
   xmm_register xmm14;
-  xmm_register xmm15;
+
+  uint64_t padding1;            // 16-byte aligned
+  /*0x98*/ uint64_t dummy_rsp;  // 8-byte aligned
+
+  xmm_register xmm15;           // 16-byte aligned
 
   uint64_t rbx;
   uint64_t rbp;
@@ -76,8 +71,17 @@ struct frame_walk_context {
   uint64_t r14;
   uint64_t r15;
 
+  uint64_t padding2;               // 16-byte aligned
+  /*0xf8*/ const byte* dummy_rip;  // 8-byte aligned
+
   uint64_t& gp(uint8_t idx) noexcept;
+
 };
+
+static_assert(offsetof(frame_walk_context, dummy_rsp) == 0x98);
+static_assert(offsetof(frame_walk_context, dummy_rip) == 0xf8);
+
+constexpr int x = sizeof(frame_walk_context);
 
 struct machine_frame {
   const byte* rip;
@@ -93,13 +97,13 @@ class frame_walk_pdata {
 
   static frame_walk_pdata for_this_image() noexcept;
 
-  const byte* image_base() const noexcept;
+  [[nodiscard]] const byte* image_base() const noexcept;
   bool contains_address(const byte* addr) const noexcept;
   const function* find_function_entry(const byte* addr) const noexcept;
 
-  void unwind(unwind_info const& unwind_info,
+  static void unwind(const unwind_info& unwind_info,
               frame_walk_context& ctx,
-              machine_frame& mach) const noexcept;
+              machine_frame& mach)noexcept;
 
  private:
   const byte* m_image_base;
@@ -107,7 +111,4 @@ class frame_walk_pdata {
   uint32_t m_function_count;
   uint32_t m_image_size;
 };
-
 }  // namespace ktl::crt::exc_engine::x64
-
-#pragma once

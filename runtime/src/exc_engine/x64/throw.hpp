@@ -6,26 +6,27 @@
 
 #include <catch.hpp>
 #include <cpu_context.hpp>
-#include <exception_info.hpp>
-#include <rva.hpp>
 #include <symbol.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
-// Отмеченные оффсеты используются в __GSHandlerCheck()
+// Marked offsets are used by the nt!__GSHandlerCheck and nt!__C_speficic_handler
 struct dispatcher_context {
-  symbol* cookie;
+  /*0x0*/ const byte* last_instruction;
   /*0x8*/ const byte* image_base;
-  /*0x16*/ const function* fn;
+  /*0x10*/ const function* fn;
   const frame_walk_pdata* pdata;
   throw_frame* throw_frame;
   void* padding;
   const byte* handler;
-  /*0x56*/ const void* extra_data;
+  /*0x38*/ const void* extra_data;
+  void* history_table;
+  /*0x48*/ uint32_t scope_index;
+  symbol* cookie;
 };
 
-dispatcher_context make_context(symbol* cookie_,
-                                throw_frame& frame_,
-                                const frame_walk_pdata& pdata_) noexcept;
+dispatcher_context make_context(symbol* cookie,
+                                throw_frame& frame,
+                                const frame_walk_pdata& pdata) noexcept;
 }  // namespace ktl::crt::exc_engine::x64
 
 #pragma once
