@@ -295,30 +295,32 @@ template <class Ty, size_t Size>
 #define KTL_MOVE(val) move(val)
 #define KTL_NO_MOVE(val) val
 
-#define KTL_ARRAY_GET_IMPL(Const, Ref, Move)                                \
-  template <size_t Idx, class Ty, size_t Size>                              \
-  constexpr decltype(auto) get(Const array<Ty, Size> Ref target) noexcept { \
-    return Move(target.m_elems[Idx]);                                               \
+#define KTL_ARRAY_GET_IMPL(Const, Volatile, Ref, Move)      \
+  template <size_t Idx, class Ty, size_t Size>              \
+  constexpr decltype(auto) get(                             \
+      Const Volatile array<Ty, Size> Ref target) noexcept { \
+    return Move(target.m_elems[Idx]);                       \
   }
 
-KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, &,  KTL_NO_MOVE)
-KTL_ARRAY_GET_IMPL(const,         &,  KTL_NO_MOVE)
-KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, &&, KTL_MOVE)
-KTL_ARRAY_GET_IMPL(const,         &&, KTL_MOVE)
+KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, KTL_EMPTY_TAG, &,  KTL_NO_MOVE)
+KTL_ARRAY_GET_IMPL(const,         KTL_EMPTY_TAG, &,  KTL_NO_MOVE)
+KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, volatile,      &,  KTL_NO_MOVE)
+KTL_ARRAY_GET_IMPL(const,         volatile,      &,  KTL_NO_MOVE)
+KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, KTL_EMPTY_TAG, &&, KTL_MOVE)
+KTL_ARRAY_GET_IMPL(const,         KTL_EMPTY_TAG, &&, KTL_MOVE)
+KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, volatile,      &&, KTL_NO_MOVE)
+KTL_ARRAY_GET_IMPL(const,         volatile,      &&, KTL_NO_MOVE)
 
-namespace cont::details {
-#define KTL_TO_ARRAY_IMPL(Const, Ref, Move)                           \
-  template <class Ty, size_t Size, size_t... Idx>                     \
-  [[nodiscard]] constexpr array<remove_cv_t<Ty>, Size> to_array_impl( \
-      Ty(Ref arr)[Size], index_sequence<Idx...>) {                    \
-    return {{Move(arr[Idx])...}};                                     \
-  }
-
-KTL_TO_ARRAY_IMPL(const,         &,  KTL_NO_MOVE)
-KTL_TO_ARRAY_IMPL(KTL_EMPTY_TAG, &&, KTL_MOVE)
-}  // namespace cont::details
-
-#define KTL_TO_ARRAY(Const, Ref, Move, Trait, Msg)                           \
+#define KTL_TO_ARRAY_IMPL(Ref, Move, Trait, Msg)                             \
+  namespace cont::details {                                                  \
+  template <class Ty, size_t Size, size_t... Idx>                            \
+  [[nodiscard]] constexpr array<remove_cv_t<Ty>, Size> to_array_impl(        \
+      Ty(Ref arr)[Size],                                                     \
+      index_sequence<Idx...>) {                                              \
+    return {{Move(arr[Idx])...}};                                            \
+  }                                                                          \
+  }                                                                          \
+                                                                             \
   template <class Ty, size_t Size, size_t... Idx>                            \
   [[nodiscard]] constexpr array<remove_cv_t<Ty>, Size> to_array(             \
       Ty(Ref arr)[Size]) {                                                   \
@@ -331,14 +333,12 @@ KTL_TO_ARRAY_IMPL(KTL_EMPTY_TAG, &&, KTL_MOVE)
                                         make_index_sequence<Size>{});        \
   }
 
-KTL_TO_ARRAY(const,         &,  KTL_EMPTY_TAG, (is_constructible_v<Ty, Ty&>), copy)
-KTL_TO_ARRAY(KTL_EMPTY_TAG, &&, KTL_MOVE,      is_move_constructible_v<Ty>, move)
+KTL_TO_ARRAY_IMPL(&,  KTL_EMPTY_TAG, (is_constructible_v<Ty, Ty&>), copy)
+KTL_TO_ARRAY_IMPL(&&, KTL_MOVE,       is_move_constructible_v<Ty>,  move)
 
-#undef KTL_TO_ARRAY
 #undef KTL_TO_ARRAY_IMPL
 #undef KTL_ARRAY_GET_IMPL
 #undef KTL_NO_MOVE
 #undef KTL_MOVE
-#undef KTL_COPY
 #undef KTL_EMPTY_TAG
 }  // namespace ktl
