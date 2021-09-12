@@ -308,8 +308,8 @@ KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, volatile,      &,  KTL_NO_MOVE)
 KTL_ARRAY_GET_IMPL(const,         volatile,      &,  KTL_NO_MOVE)
 KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, KTL_EMPTY_TAG, &&, KTL_MOVE)
 KTL_ARRAY_GET_IMPL(const,         KTL_EMPTY_TAG, &&, KTL_MOVE)
-KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, volatile,      &&, KTL_NO_MOVE)
-KTL_ARRAY_GET_IMPL(const,         volatile,      &&, KTL_NO_MOVE)
+KTL_ARRAY_GET_IMPL(KTL_EMPTY_TAG, volatile,      &&, KTL_MOVE)
+KTL_ARRAY_GET_IMPL(const,         volatile,      &&, KTL_MOVE)
 
 #define KTL_TO_ARRAY_IMPL(Ref, Move, Trait, Msg)                             \
   namespace cont::details {                                                  \
