@@ -1,7 +1,7 @@
 #pragma once
-#include <ktlexcept.hpp>
 #include <assert.hpp>
 #include <hash.hpp>
+#include <ktlexcept.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
@@ -17,14 +17,13 @@ struct nullopt_t {
 inline constexpr nullopt_t nullopt{0};
 
 struct bad_optional_access : exception {
- public:
   using MyBase = exception;
 
- public:
-  constexpr bad_optional_access() noexcept
-      : MyBase{"optional is empty"} {}
+  constexpr bad_optional_access() noexcept : MyBase{"optional is empty"} {}
 
-  NTSTATUS code() const noexcept override final { return STATUS_END_OF_FILE; }
+  [[nodiscard]] NTSTATUS code() const noexcept final {
+    return STATUS_END_OF_FILE;
+  }
 };
 
 namespace opt::details {
@@ -394,7 +393,7 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
   Ty& emplace(Types&&... args) noexcept(
       is_nothrow_constructible_v<Ty, Types...>) {
     reset_if_needed();
-    construct_from_args(forward<Types>(args)...);
+    MyBase::construct_from_args(forward<Types>(args)...);
     return MyBase::get_ref();
   }
 
@@ -468,7 +467,8 @@ template <class Ty>
 optional(Ty) -> optional<Ty>;
 
 template <class Ty>
-void swap(optional<Ty>& lhs, optional<Ty>& rhs) {
+void swap(optional<Ty>& lhs,
+          optional<Ty>& rhs) noexcept(is_nothrow_swappable_v<Ty>) {
   if (bool lhs_not_empty = lhs.has_value();
       (lhs_not_empty ^ rhs.has_value()) == 0) {
     if (lhs_not_empty) {
@@ -496,7 +496,8 @@ constexpr optional<Ty> make_optional(Types&&... args) noexcept(
 
 template <class Ty>
 struct hash<optional<Ty>> {
-  [[nodiscard]] size_t operator()(const optional<Ty>& opt) const {
+  [[nodiscard]] size_t operator()(const optional<Ty>& opt) const
+      noexcept(noexcept(hash<remove_const_t<Ty>>{}(*opt))) {
     return hash<remove_const_t<Ty>>{}(*opt);
   }
 };
