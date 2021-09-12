@@ -42,8 +42,7 @@ static void copy_to_catch_block(const byte* image_base,
         catchable->offset.apply(reinterpret_cast<uintptr_t>(exception_object))};
     memcpy(catch_var, reinterpret_cast<void*>(address), catchable->size);
 
-  } else if (catchable->properties.has_any_of(
-                 CatchableProperty::HasVirtualBase)) {
+  } else if (catchable->properties.has_any_of(CatchableProperty::HasVirtualBase)) {
     auto* raw_copy_ctor{const_cast<byte*>(image_base + catchable->copy_fn)};
     auto* copy_ctor{reinterpret_cast<copy_ctor_virtual_base_t*>(raw_copy_ctor)};
     copy_ctor(catch_var, exception_object, 1 /* is most derived */);

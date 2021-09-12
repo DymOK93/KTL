@@ -32,7 +32,7 @@ termination_context set_termination_context(
 void verify_seh(NTSTATUS code, const void* addr, uint32_t flags) noexcept {
   DbgPrintEx(
       DPFLTR_DEFAULT_ID, DPFLTR_ERROR_LEVEL,
-      "SEH exception caught with flag EXCEPTION_UNWIND! Code: %x, address: %p, flags: %u\n",
+      "SEH exception caught with flag EXCEPTION_UNWIND! Code: 0x%08X, address: %p, flags: %u\n",
       code, addr, flags);
   if (const bool unwinding =
           flag_set<exc_engine::win::ExceptionFlag>{flags}.has_any_of(
@@ -50,7 +50,7 @@ void verify_seh_in_cxx_handler(NTSTATUS code,
                                uint32_t unwind_info,
                                const void* image_base) noexcept {
   DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_ERROR_LEVEL,
-             "SEH exception caught in CXX handler! Code: %x, address: %p, "
+             "SEH exception caught in CXX handler! Code: 0x%08X, address: %p, "
              "flags: %u, function "
              "unwind info offset: %u, image_base: %p)\n",
              code, addr, flags, unwind_info, image_base);
