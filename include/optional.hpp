@@ -276,6 +276,7 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
 
   constexpr non_trivial_optional_base& operator=(nullopt_t) noexcept {
     reset();
+    return *this;
   }
 
   non_trivial_optional_base&
