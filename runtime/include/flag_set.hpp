@@ -10,12 +10,9 @@ struct flag_set {
 
   constexpr flag_set(Enum en) noexcept : m_value{static_cast<value_type>(en)} {}
 
-  template <typename First,
-            typename... Enums,
-            enable_if_t<conjunction_v<is_same<First, Enums>...>, int> = 0>
-  constexpr flag_set(First flag, Enums... flags) noexcept
-      : m_value{static_cast<value_type>(flag) &
-                static_cast<value_type>(flags)...} {}
+  template <typename... Enums>
+  constexpr flag_set(Enums... flags) noexcept
+      : m_value{(static_cast<value_type>(flags) | ...)} {}
 
   constexpr explicit flag_set(value_type value) noexcept : m_value{value} {}
 

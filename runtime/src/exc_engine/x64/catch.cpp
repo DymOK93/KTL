@@ -46,7 +46,7 @@ static void copy_to_catch_block(const byte* image_base,
                  CatchableProperty::HasVirtualBase)) {
     auto* raw_copy_ctor{const_cast<byte*>(image_base + catchable->copy_fn)};
     auto* copy_ctor{reinterpret_cast<copy_ctor_virtual_base_t*>(raw_copy_ctor)};
-    copy_ctor(catch_var, exception_object, 1 /* is most derived */); 
+    copy_ctor(catch_var, exception_object, 1 /* is most derived */);
 
   } else {
     auto* raw_copy_ctor{const_cast<byte*>(image_base + catchable->copy_fn)};
@@ -168,10 +168,8 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
     }
 
   } else if (ctx->cookie == &unwind_cookie) {
-
     if (!ci.exception_object_or_link ||
         ci.exception_object_or_link == &frame->catch_info) {
-
       ci.exception_object_or_link = frame->catch_info.exception_object_or_link;
       ci.throw_info_if_owner = frame->catch_info.throw_info_if_owner;
 

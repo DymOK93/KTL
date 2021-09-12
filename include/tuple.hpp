@@ -93,8 +93,8 @@ class tuple_base<index_sequence<Indices...>, Types...>
   constexpr tuple_base& operator=(const tuple_base&) = default;
   constexpr tuple_base& operator=(tuple_base&&) = default;
 
-  template <
-      enable_if_t<conjunction_v<is_copy_constructible<Types>...>, int> = 0>
+  template <enable_if_t<conjunction_v<is_copy_constructible<Types>...>,
+                        int> = 0>
   constexpr tuple_base(const Types&... args) noexcept(
       conjunction_v<is_nothrow_copy_constructible<Types>...>)
       : MyElementBase<Indices, Types>{args}... {}
@@ -102,9 +102,9 @@ class tuple_base<index_sequence<Indices...>, Types...>
   template <
       class... OtherTypes,
       enable_if_t<sizeof...(OtherTypes) == sizeof...(Types) &&
-                      conjunction_v<is_constructible<Types, OtherTypes>...>,
+                      conjunction_v<is_constructible<Types, OtherTypes&&>...>,
                   int> = 0>
-  explicit constexpr tuple_base(OtherTypes&&... args) noexcept(
+  constexpr tuple_base(OtherTypes&&... args) noexcept(
       conjunction_v<is_nothrow_constructible<Types, OtherTypes>...>)
       : MyElementBase<Indices, Types>{forward<OtherTypes>(args)}... {}
 
