@@ -86,7 +86,7 @@ class unique_ptr {
       is_nothrow_copy_constructible_v<Dx>)
       : m_value{deleter, ptr} {}
 
-  // Dx isn't a reference
+  // Dx isn't a reference type
   template <
       class Dx = Deleter,
       enable_if_t<!is_reference_v<Dx> && is_move_constructible_v<Dx>, int> = 0>
@@ -94,14 +94,14 @@ class unique_ptr {
              Deleter&& deleter) noexcept(is_nothrow_move_constructible_v<Dx>)
       : m_value{move(deleter), ptr} {}
 
-  // Dx isn't a reference
+  // Dx is a reference type
   template <class Dx = Deleter,
             enable_if_t<is_reference_v<Dx> &&
                             is_constructible_v<Dx, remove_reference_t<Dx> >,
                         int> = 0>
-  unique_ptr(pointer ptr, remove_reference_t<Dx>&& deleter) =
-      delete;  //Нельзя сконструировать ссылочный тип Dx& с аргументом Dx&&
-               //(r-value ref)
+  unique_ptr(pointer ptr, remove_reference_t<Dx>&& deleter)
+      = delete; // Preventing unwanted assignments 
+  
 
   template <class Dx = Deleter,
             enable_if_t<is_move_constructible_v<Dx>, int> = 0>
