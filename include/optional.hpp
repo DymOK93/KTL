@@ -1,7 +1,7 @@
 #pragma once
-#include <ktlexcept.hpp>
 #include <assert.hpp>
 #include <hash.hpp>
+#include <ktlexcept.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
 
@@ -17,14 +17,13 @@ struct nullopt_t {
 inline constexpr nullopt_t nullopt{0};
 
 struct bad_optional_access : exception {
- public:
   using MyBase = exception;
 
- public:
-  constexpr bad_optional_access() noexcept
-      : MyBase{"optional is empty"} {}
+  constexpr bad_optional_access() noexcept : MyBase{"optional is empty"} {}
 
-  NTSTATUS code() const noexcept override final { return STATUS_END_OF_FILE; }
+  [[nodiscard]] NTSTATUS code() const noexcept final {
+    return STATUS_END_OF_FILE;
+  }
 };
 
 namespace opt::details {
@@ -116,7 +115,9 @@ class common_optional_base : public optional_storage<Ty> {
   using MyBase::MyBase;
 
   constexpr explicit operator bool() const noexcept { return has_value(); }
-  constexpr bool has_value() const noexcept { return this->m_initialized; }
+  [[nodiscard]] constexpr bool has_value() const noexcept {
+    return this->m_initialized;
+  }
 
   constexpr const Ty* operator->() const noexcept { return get_ptr(); }
   constexpr Ty* operator->() noexcept { return get_ptr(); }
@@ -132,21 +133,24 @@ class common_optional_base : public optional_storage<Ty> {
     return addressof(this->m_value);
   }
 
-  constexpr void construct_from_value(const Ty& value) noexcept {
-    this->m_initialized = true;
+  constexpr void construct_from_value(const Ty& value) noexcept(
+      is_nothrow_copy_constructible_v<Ty>) {
     this->m_value = value;
+    this->m_initialized = true;
   }
 
   template <class U>
-  constexpr void construct_from_value(const U& value) noexcept {
-    this->m_initialized = true;
+  constexpr void construct_from_value(const U& value) noexcept(
+      is_nothrow_constructible_v<Ty, U>) {
     this->m_value = static_cast<value_type>(value);
+    this->m_initialized = true;
   }
 
   template <class... Types>
-  constexpr void construct_from_args(Types&&... args) noexcept {
-    this->m_initialized = true;
+  constexpr void construct_from_args(Types&&... args) noexcept(
+      is_nothrow_constructible_v<Ty, Types...>) {
     construct_at(get_ptr(), forward<Types>(args)...);
+    this->m_initialized = true;
   }
 };
 
@@ -164,6 +168,8 @@ class trivial_optional_base : public common_optional_base<Ty> {
   constexpr trivial_optional_base(const trivial_optional_base&) noexcept =
       default;
 
+  constexpr trivial_optional_base(trivial_optional_base&&) noexcept = default;
+
   template <class U, enable_if_t<is_convertible_v<U, Ty>, int> = 0>
   constexpr trivial_optional_base(
       const trivial_optional_base<U>&
@@ -173,10 +179,16 @@ class trivial_optional_base : public common_optional_base<Ty> {
     }
   }
 
-  constexpr trivial_optional_base& operator=(nullopt_t) noexcept { reset(); }
+  constexpr trivial_optional_base& operator=(nullopt_t) noexcept {
+    reset();
+    return *this;
+  }
 
   constexpr trivial_optional_base& operator=(
       const trivial_optional_base&) noexcept = default;
+
+  constexpr trivial_optional_base& operator=(trivial_optional_base&&) noexcept =
+      default;
 
   template <class U = Ty, enable_if_t<is_convertible_v<U, Ty>, int> = 0>
   constexpr trivial_optional_base&
@@ -195,6 +207,8 @@ class trivial_optional_base : public common_optional_base<Ty> {
     MyBase::construct_from_value(forward<U>(value));
     return *this;
   }
+
+  ~trivial_optional_base() noexcept = default;
 
   using MyBase::has_value;
   using MyBase::operator bool;
@@ -277,6 +291,7 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
 
   constexpr non_trivial_optional_base& operator=(nullopt_t) noexcept {
     reset();
+    return *this;
   }
 
   non_trivial_optional_base&
@@ -394,7 +409,7 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
   Ty& emplace(Types&&... args) noexcept(
       is_nothrow_constructible_v<Ty, Types...>) {
     reset_if_needed();
-    construct_from_args(forward<Types>(args)...);
+    MyBase::construct_from_args(forward<Types>(args)...);
     return MyBase::get_ref();
   }
 
@@ -435,7 +450,8 @@ template <class Ty>
 class optional;
 
 template <class Ty>
-void swap(optional<Ty>& lhs, optional<Ty>& rhs);
+void swap(optional<Ty>& lhs,
+          optional<Ty>& rhs) noexcept(is_nothrow_swappable_v<Ty>);
 
 template <class Ty>
 class optional : public opt::details::optional_base_selector_t<Ty> {
@@ -468,7 +484,8 @@ template <class Ty>
 optional(Ty) -> optional<Ty>;
 
 template <class Ty>
-void swap(optional<Ty>& lhs, optional<Ty>& rhs) {
+void swap(optional<Ty>& lhs,
+          optional<Ty>& rhs) noexcept(is_nothrow_swappable_v<Ty>) {
   if (bool lhs_not_empty = lhs.has_value();
       (lhs_not_empty ^ rhs.has_value()) == 0) {
     if (lhs_not_empty) {
@@ -496,7 +513,8 @@ constexpr optional<Ty> make_optional(Types&&... args) noexcept(
 
 template <class Ty>
 struct hash<optional<Ty>> {
-  [[nodiscard]] size_t operator()(const optional<Ty>& opt) const {
+  [[nodiscard]] size_t operator()(const optional<Ty>& opt) const
+      noexcept(noexcept(hash<remove_const_t<Ty>>{}(*opt))) {
     return hash<remove_const_t<Ty>>{}(*opt);
   }
 };
