@@ -74,6 +74,10 @@ constexpr Ty&& get_value(tuple_element<Idx, Ty>&& element) {
   return forward<Ty>(element.value);
 }
 
+namespace tt::details {
+struct trivially_copyable_tag{};
+}
+
 template <class IndexType, class... Types>
 class tuple_base {};
 
@@ -93,8 +97,11 @@ class tuple_base<index_sequence<Indices...>, Types...>
   constexpr tuple_base& operator=(const tuple_base&) = default;
   constexpr tuple_base& operator=(tuple_base&&) = default;
 
-  template <enable_if_t<conjunction_v<is_copy_constructible<Types>...>,
-                        int> = 0>
+  template <
+      class U = tt::details::trivially_copyable_tag,
+      enable_if_t<
+          conjunction_v<is_copy_constructible<U>, is_copy_constructible<Types>...>,
+          int> = 0>
   constexpr tuple_base(const Types&... args) noexcept(
       conjunction_v<is_nothrow_copy_constructible<Types>...>)
       : MyElementBase<Indices, Types>{args}... {}
