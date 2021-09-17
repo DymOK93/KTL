@@ -109,9 +109,9 @@ class tuple_base<index_sequence<Indices...>, Types...>
   template <
       class... OtherTypes,
       enable_if_t<sizeof...(OtherTypes) == sizeof...(Types) &&
-                      conjunction_v<is_constructible<Types, OtherTypes>...>,
+                      conjunction_v<is_constructible<Types, OtherTypes&&>...>,
                   int> = 0>
-  explicit constexpr tuple_base(OtherTypes&&... args) noexcept(
+  constexpr tuple_base(OtherTypes&&... args) noexcept(
       conjunction_v<is_nothrow_constructible<Types, OtherTypes>...>)
       : MyElementBase<Indices, Types>{forward<OtherTypes>(args)}... {}
 

@@ -4,7 +4,7 @@
 
 #define BREAK_IF_FALSE(cond) \
   if (!(cond))               \
-    break;
+    break
 
 EXTERN_C ktl::crt::exc_engine::symbol __ImageBase;
 
@@ -86,20 +86,18 @@ frame_walk_pdata::frame_walk_pdata(const byte* image_base) noexcept
   const auto* dos_hdr = reinterpret_cast<const pe::dos_header*>(image_base);
 
   do {
-    BREAK_IF_FALSE(dos_hdr->magic == 0x5a4d)
+    BREAK_IF_FALSE(dos_hdr->magic == 0x5a4d);
     const pe::extended_header* pe_hdr{image_base + dos_hdr->image_header};
 
-    BREAK_IF_FALSE(dos_hdr->magic == 0x5a4d)
-
-    BREAK_IF_FALSE(pe_hdr->magic == 0x4550)
-    BREAK_IF_FALSE(pe_hdr->machine == 0x8664)
-    BREAK_IF_FALSE(pe_hdr->opt_magic == 0x20b)
+    BREAK_IF_FALSE(pe_hdr->magic == 0x4550);
+    BREAK_IF_FALSE(pe_hdr->machine == 0x8664);
+    BREAK_IF_FALSE(pe_hdr->opt_magic == 0x20b);
     BREAK_IF_FALSE(pe_hdr->headers_size >=
-                   dos_hdr->image_header.value() + sizeof(pe::extended_header))
-    BREAK_IF_FALSE(pe_hdr->image_size >= pe_hdr->headers_size)
+                   dos_hdr->image_header.value() + sizeof(pe::extended_header));
+    BREAK_IF_FALSE(pe_hdr->image_size >= pe_hdr->headers_size);
 
-    BREAK_IF_FALSE(pe_hdr->directory_count >= 4)
-    BREAK_IF_FALSE(pe_hdr->exception_table.size % sizeof(function) == 0)
+    BREAK_IF_FALSE(pe_hdr->directory_count >= 4);
+    BREAK_IF_FALSE(pe_hdr->exception_table.size % sizeof(function) == 0);
 
     m_functions = image_base + pe_hdr->exception_table.relative_virtual_address;
     m_function_count = pe_hdr->exception_table.size / sizeof(function);

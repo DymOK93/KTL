@@ -151,9 +151,9 @@ static int32_t lookup_region(const fh4::exc_info* eh_info,
   relative_virtual_address<const byte> fn_rva = 0;
   for (uint32_t idx = 0; idx != region_count; ++idx) {
     fn_rva += read_unsigned(&p);
-    if (pc < fn_rva)
+    if (pc < fn_rva) {
       break;
-
+    }
     state = read_unsigned(&p) - 1;
   }
 
@@ -200,9 +200,9 @@ void destroy_objects(const byte* image_base,
       terminate();
     }
 
-    switch (const auto edge_type =
-                static_cast<fh4::unwind_edge::Type>(target_offset_and_type & 3);
-            edge_type) {
+    const auto edge_type{
+        static_cast < fh4::unwind_edge::Type>(target_offset_and_type & 3)};
+    switch (edge_type) {
       case fh4::unwind_edge::Type::Trivial:
         break;
       case fh4::unwind_edge::Type::ObjectOffset: {
@@ -255,7 +255,7 @@ static win::ExceptionDisposition frame_handler(
       static_cast<const fh4::gs4_data*>(dispatcher_context->extra_data)};
   const uint8_t* compressed_data{image_base + handler_data->func_info};
 
-  fh4::exc_info eh_info = {};
+  fh4::exc_info eh_info{};
   load_exception_info(eh_info, compressed_data, image_base,
                       *dispatcher_context->fn);
 

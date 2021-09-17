@@ -81,8 +81,6 @@ struct frame_walk_context {
 static_assert(offsetof(frame_walk_context, dummy_rsp) == 0x98);
 static_assert(offsetof(frame_walk_context, dummy_rip) == 0xf8);
 
-constexpr int x = sizeof(frame_walk_context);
-
 struct machine_frame {
   const byte* rip;
   uint64_t cs;
