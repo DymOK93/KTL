@@ -1,13 +1,15 @@
-﻿#pragma once
+#pragma once
 #include <array.hpp>
 #include <container_helpers.hpp>
 #include <new_delete.hpp>
 #include <algorithm.hpp>
 #include <assert.hpp>
 #include <compressed_pair.hpp>
+#include <container_helpers.hpp>
 #include <iterator.hpp>
 #include <ktlexcept.hpp>
 #include <limits.hpp>
+#include <new_delete.hpp>
 #include <string_algorithm_impl.hpp>
 #include <string_view.hpp>
 #include <type_traits.hpp>
@@ -861,9 +863,7 @@ class basic_winnt_string {
     const size_type current_size{size()};
     cont::details::throw_if_index_greater_than_size(pos, current_size);
     const auto copied{(min)(static_cast<size_type>(current_size - pos), count)};
-    traits_type::copy(dst, data() + pos,
-                      copied);  // Пользователь отвечает за то, что диапазоны не
-                                // должны пересекаться
+    traits_type::copy(dst, data() + pos, copied);  // ranges must not overlap
     return copied;
   }
 
@@ -871,14 +871,13 @@ class basic_winnt_string {
 
   void resize(size_type new_size, value_type ch) {
     reserve(new_size);
-    const size_type current_size{size()};
-    if (current_size < new_size) {
-      traits_type::assign(data(), current_size, ch);
+    if (const size_type current_size = size(); current_size < new_size) {
+      traits_type::assign(data() + current_size, new_size - current_size, ch);
     }
     native_string_traits_type::set_size(get_native_str(), new_size);
   }
 
-  void swap(basic_winnt_string& other) { ::swap(*this, other); }
+  void swap(basic_winnt_string& other) noexcept { ktl::swap(*this, other); }
 
   template <size_t BufferSize, class ChAlloc>
   constexpr size_type find(
