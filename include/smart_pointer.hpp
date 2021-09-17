@@ -8,13 +8,13 @@ using std::unique_ptr;
 using std::weak_ptr;
 }  // namespace ktl
 #else
-#include <crt_attributes.hpp>
-#include <ktlexcept.hpp>
-#include <heap.hpp>
 #include <allocator.hpp>
 #include <atomic.hpp>
 #include <compressed_pair.hpp>
+#include <crt_attributes.hpp>
 #include <functional.hpp>
+#include <heap.hpp>
+#include <ktlexcept.hpp>
 #include <memory_type_traits.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
@@ -77,12 +77,12 @@ class unique_ptr {
 
   constexpr unique_ptr(nullptr_t) noexcept {}
 
-  explicit unique_ptr(pointer ptr) noexcept
+  constexpr explicit unique_ptr(pointer ptr) noexcept
       : m_value{zero_then_variadic_args{}, ptr} {}
 
   template <class Dx = Deleter,
             enable_if_t<is_constructible_v<Dx, const Dx&>, int> = 0>
-  unique_ptr(pointer ptr, const Deleter& deleter) noexcept(
+  constexpr unique_ptr(pointer ptr, const Deleter& deleter) noexcept(
       is_nothrow_copy_constructible_v<Dx>)
       : m_value{deleter, ptr} {}
 
@@ -90,8 +90,8 @@ class unique_ptr {
   template <
       class Dx = Deleter,
       enable_if_t<!is_reference_v<Dx> && is_move_constructible_v<Dx>, int> = 0>
-  unique_ptr(pointer ptr,
-             Deleter&& deleter) noexcept(is_nothrow_move_constructible_v<Dx>)
+  constexpr unique_ptr(pointer ptr, Deleter&& deleter) noexcept(
+      is_nothrow_move_constructible_v<Dx>)
       : m_value{move(deleter), ptr} {}
 
   // Dx is a reference type
@@ -99,13 +99,13 @@ class unique_ptr {
             enable_if_t<is_reference_v<Dx> &&
                             is_constructible_v<Dx, remove_reference_t<Dx> >,
                         int> = 0>
-  unique_ptr(pointer ptr, remove_reference_t<Dx>&& deleter)
-      = delete; // Preventing unwanted assignments 
-  
+  constexpr unique_ptr(pointer ptr, remove_reference_t<Dx>&& deleter) =
+      delete;  // Preventing unwanted assignments
 
   template <class Dx = Deleter,
             enable_if_t<is_move_constructible_v<Dx>, int> = 0>
-  unique_ptr(unique_ptr&& other) noexcept(is_nothrow_move_constructible_v<Dx>)
+  constexpr unique_ptr(unique_ptr&& other) noexcept(
+      is_nothrow_move_constructible_v<Dx>)
       : m_value{forward<deleter_type>(other.get_deleter()), other.release()} {}
 
   template <
@@ -125,12 +125,12 @@ class unique_ptr {
                                                     //должны совпадать
                             is_convertible<OtherDeleter, deleter_type> >::value,
           int> = 0>
-  unique_ptr(unique_ptr<OtherTy, OtherDeleter>&& other) noexcept(
+  constexpr unique_ptr(unique_ptr<OtherTy, OtherDeleter>&& other) noexcept(
       is_nothrow_constructible_v<deleter_type, OtherDeleter>)
       : m_value{forward<deleter_type>(other.get_deleter()), other.release()} {}
 
   template <class Dx = Deleter, enable_if_t<is_move_assignable_v<Dx>, int> = 0>
-  unique_ptr& operator=(unique_ptr&& other) noexcept(
+  constexpr unique_ptr& operator=(unique_ptr&& other) noexcept(
       is_nothrow_move_assignable_v<Dx>) {
     if (addressof(other) != this) {
       reset(other.release());
@@ -148,7 +148,8 @@ class unique_ptr {
                           pointer> &&
                       is_assignable_v<deleter_type, OtherDeleter>,
                   int> = 0>
-  unique_ptr& operator=(unique_ptr<OtherTy, OtherDeleter>&& other) noexcept(
+  constexpr unique_ptr&
+  operator=(unique_ptr<OtherTy, OtherDeleter>&& other) noexcept(
       is_nothrow_assignable_v<deleter_type, OtherDeleter>) {
     //Проверка addressof(other) != this не обязательная: в таком случае
     //будет выбран предыдущий шаблон, а там проверка есть
@@ -160,14 +161,15 @@ class unique_ptr {
   unique_ptr(const unique_ptr&) = delete;
   unique_ptr& operator=(const unique_ptr&) = delete;
 
-  ~unique_ptr() { reset(); }
+  constexpr ~unique_ptr() { reset(); }
 
-  pointer release() noexcept { return exchange(get_ref_to_ptr(), nullptr); }
+  constexpr pointer release() noexcept {
+    return exchange(get_ref_to_ptr(), nullptr);
+  }
 
-  void reset(pointer ptr = pointer{}) noexcept {
+  constexpr void reset(pointer ptr = pointer{}) noexcept {
     pointer target{exchange(get_ref_to_ptr(), ptr)};
-    if constexpr (mm::details::get_enable_delete_null_v<
-                      deleter_type>) {  
+    if constexpr (mm::details::get_enable_delete_null_v<deleter_type>) {
       get_deleter()(target);
     } else {
       if (target) {
@@ -180,126 +182,148 @@ class unique_ptr {
     swap(m_value, other.m_value);
   }
 
-  pointer get() const noexcept { return m_value.get_second(); }
+  constexpr pointer get() const noexcept { return m_value.get_second(); }
 
-  Deleter& get_deleter() noexcept { return m_value.get_first(); }
-  const Deleter& get_deleter() const noexcept { return m_value.get_first(); }
+  constexpr Deleter& get_deleter() noexcept { return m_value.get_first(); }
 
-  operator bool() const noexcept { return static_cast<bool>(get()); }
+  constexpr const Deleter& get_deleter() const noexcept {
+    return m_value.get_first();
+  }
 
-  add_lvalue_reference_t<Ty> operator*() const& noexcept { return *get(); }
+  constexpr explicit operator bool() const noexcept {
+    return static_cast<bool>(get());
+  }
 
-  add_rvalue_reference_t<Ty> operator*() const&& noexcept {
+  constexpr add_lvalue_reference_t<Ty> operator*() const& noexcept {
+    return *get();
+  }
+
+  constexpr add_rvalue_reference_t<Ty> operator*() const&& noexcept {
     return move(*get());
   }
 
-  pointer operator->() const noexcept { return m_value.get_second(); }
+  constexpr pointer operator->() const noexcept { return m_value.get_second(); }
 
  private:
-  pointer& get_ref_to_ptr() { return m_value.get_second(); }
+  constexpr pointer& get_ref_to_ptr() { return m_value.get_second(); }
 
  private:
   compressed_pair<deleter_type, pointer> m_value{};
 };
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
-bool operator==(const unique_ptr<Ty1, Dx1>& lhs,
-                const unique_ptr<Ty2, Dx2>& rhs) noexcept {
-  return lhs.get() == rhs.get();
+constexpr bool operator==(const unique_ptr<Ty1, Dx1>& lhs,
+                          const unique_ptr<Ty2, Dx2>& rhs) noexcept {
+  using common_t = common_type_t<typename unique_ptr<Ty1, Dx1>::pointer,
+                                 typename unique_ptr<Ty2, Dx2>::pointer>;
+  return equal_to<common_t>{}(static_cast<common_t>(lhs.get()),
+                              static_cast<common_t>(rhs.get()));
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
-bool operator!=(const unique_ptr<Ty1, Dx1>& lhs,
-                const unique_ptr<Ty1, Dx2>& rhs) noexcept {
+constexpr bool operator!=(const unique_ptr<Ty1, Dx1>& lhs,
+                          const unique_ptr<Ty1, Dx2>& rhs) noexcept {
   return !(lhs == rhs);
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
-bool operator<(const unique_ptr<Ty1, Dx1>& lhs,
-               const unique_ptr<Ty2, Dx2>& rhs) noexcept {
+constexpr bool operator<(const unique_ptr<Ty1, Dx1>& lhs,
+                         const unique_ptr<Ty2, Dx2>& rhs) noexcept {
   using common_t = common_type_t<typename unique_ptr<Ty1, Dx1>::pointer,
                                  typename unique_ptr<Ty2, Dx2>::pointer>;
-  return less<add_const<common_t> >{}(lhs.get(), rhs.get());
+  return less<common_t>{}(static_cast<common_t>(lhs.get()),
+                          static_cast<common_t>(rhs.get()));
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
-bool operator>(const unique_ptr<Ty1, Dx1>& lhs,
-               const unique_ptr<Ty2, Dx2>& rhs) noexcept {
-  using common_t = common_type_t<typename unique_ptr<Ty1, Dx1>::pointer,
-                                 typename unique_ptr<Ty2, Dx2>::pointer>;
-  return greater<add_const<common_t> >{}(lhs.get(), rhs.get());
+constexpr bool operator>(const unique_ptr<Ty1, Dx1>& lhs,
+                         const unique_ptr<Ty2, Dx2>& rhs) noexcept {
+  return rhs < lhs;
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
-bool operator<=(const unique_ptr<Ty1, Dx1>& lhs,
-                const unique_ptr<Ty2, Dx2>& rhs) noexcept {
+constexpr bool operator<=(const unique_ptr<Ty1, Dx1>& lhs,
+                          const unique_ptr<Ty2, Dx2>& rhs) noexcept {
   return !(lhs > rhs);
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
-bool operator>=(const unique_ptr<Ty1, Dx1>& lhs,
-                const unique_ptr<Ty2, Dx2>& rhs) noexcept {
+constexpr bool operator>=(const unique_ptr<Ty1, Dx1>& lhs,
+                          const unique_ptr<Ty2, Dx2>& rhs) noexcept {
   return !(lhs < rhs);
 }
 
 template <class Ty, class Dx>
-bool operator==(const unique_ptr<Ty, Dx>& ptr, nullptr_t) noexcept {
+constexpr bool operator==(const unique_ptr<Ty, Dx>& ptr, nullptr_t) noexcept {
   return !ptr;
 }
 
 template <class Ty, class Dx>
-bool operator!=(const unique_ptr<Ty, Dx>& ptr, nullptr_t) noexcept {
+constexpr bool operator!=(const unique_ptr<Ty, Dx>& ptr, nullptr_t) noexcept {
   return ptr;
 }
 
 template <class Ty, class Dx>
-bool operator==(nullptr_t, const unique_ptr<Ty, Dx>& ptr) noexcept {
+constexpr bool operator==(nullptr_t, const unique_ptr<Ty, Dx>& ptr) noexcept {
   return !ptr;
 }
 
 template <class Ty, class Dx>
-bool operator!=(nullptr_t, const unique_ptr<Ty, Dx>& ptr) noexcept {
+constexpr bool operator!=(nullptr_t, const unique_ptr<Ty, Dx>& ptr) noexcept {
   return ptr;
 }
 
 template <class Ty, class Dx>
-bool operator<(const unique_ptr<Ty, Dx>& ptr, nullptr_t null) noexcept {
-  return less<add_const<Ty> >(ptr.get(), null);
+constexpr bool operator<(const unique_ptr<Ty, Dx>& ptr,
+                         nullptr_t null) noexcept {
+  return less<const Ty*>{}(ptr.get(), null);
 }
 
 template <class Ty, class Dx>
-bool operator>(const unique_ptr<Ty, Dx>& ptr, nullptr_t null) noexcept {
-  return greater<add_const<Ty> >(ptr.get(), null);
+constexpr bool operator>(const unique_ptr<Ty, Dx>& ptr,
+                         nullptr_t null) noexcept {
+  return greater<const Ty*>{}(ptr.get(), null);
 }
 
 template <class Ty, class Dx>
-bool operator<(nullptr_t null, const unique_ptr<Ty, Dx>& ptr) noexcept {
-  return less<add_const<Ty> >(null, ptr.get());
+constexpr bool operator<(nullptr_t null,
+                         const unique_ptr<Ty, Dx>& ptr) noexcept {
+  return ptr < null;
 }
 
 template <class Ty, class Dx>
-bool operator>(nullptr_t null, const unique_ptr<Ty, Dx>& ptr) noexcept {
-  return greater<add_const<Ty> >(null, ptr.get());
+constexpr bool operator>(nullptr_t null,
+                         const unique_ptr<Ty, Dx>& ptr) noexcept {
+  return ptr > null;
 }
 
 template <class Ty, class Dx>
-bool operator<=(const unique_ptr<Ty, Dx>& ptr, nullptr_t null) noexcept {
+constexpr bool operator<=(const unique_ptr<Ty, Dx>& ptr,
+                          nullptr_t null) noexcept {
   return !(ptr > null);
 }
 
 template <class Ty, class Dx>
-bool operator<=(nullptr_t null, const unique_ptr<Ty, Dx>& ptr) noexcept {
+constexpr bool operator<=(nullptr_t null,
+                          const unique_ptr<Ty, Dx>& ptr) noexcept {
   return !(null > ptr);
 }
 
 template <class Ty, class Dx>
-bool operator>=(const unique_ptr<Ty, Dx>& ptr, nullptr_t null) noexcept {
+constexpr bool operator>=(const unique_ptr<Ty, Dx>& ptr,
+                          nullptr_t null) noexcept {
   return !(ptr < null);
 }
 
 template <class Ty, class Dx>
-bool operator>=(nullptr_t null, const unique_ptr<Ty, Dx>& ptr) noexcept {
+constexpr bool operator>=(nullptr_t null,
+                          const unique_ptr<Ty, Dx>& ptr) noexcept {
   return !(null < ptr);
+}
+
+template <class Ty, class Dx>
+constexpr Ty* get_pointer(const unique_ptr<Ty, Dx>& ptr) noexcept {
+  return ptr.get();
 }
 
 // C++17 deduction guide
@@ -968,7 +992,7 @@ class shared_ptr
   }
 
   size_t use_count() const noexcept { return MyBase::use_count(); }
-  constexpr operator bool() const noexcept { return get() != nullptr; }
+  constexpr explicit operator bool() const noexcept { return get() != nullptr; }
 
  protected:
   template <class ValTy, class... Types>
@@ -1101,107 +1125,109 @@ shared_ptr<Ty> weak_ptr<Ty>::lock() const noexcept {
 }
 
 template <class Ty1, class Ty2>
-bool operator==(const shared_ptr<Ty1>& lhs,
-                const shared_ptr<Ty2>& rhs) noexcept {
-  return lhs.get() == rhs.get();
+constexpr bool operator==(const shared_ptr<Ty1>& lhs,
+                          const shared_ptr<Ty2>& rhs) noexcept {
+  using common_t = common_type_t<typename shared_ptr<Ty1>::pointer,
+                                 typename shared_ptr<Ty2>::pointer>;
+  return equal_to<common_t>{}(static_cast<common_t>(lhs.get()),
+                              static_cast<common_t>(rhs.get()));
 }
 
 template <class Ty1, class Ty2>
-bool operator!=(const shared_ptr<Ty1>& lhs,
-                const shared_ptr<Ty2>& rhs) noexcept {
+constexpr bool operator!=(const shared_ptr<Ty1>& lhs,
+                          const shared_ptr<Ty2>& rhs) noexcept {
   return !(lhs == rhs);
 }
 
 template <class Ty1, class Ty2>
-bool operator<(const shared_ptr<Ty1>& lhs,
-               const shared_ptr<Ty2>& rhs) noexcept {
+constexpr bool operator<(const shared_ptr<Ty1>& lhs,
+                         const shared_ptr<Ty2>& rhs) noexcept {
   using common_t = common_type_t<typename shared_ptr<Ty1>::pointer,
                                  typename shared_ptr<Ty2>::pointer>;
-  return less<common_t>{}(lhs.get(), rhs.get());
+  return less<common_t>{}(static_cast<common_t>(lhs.get()),
+                          static_cast<common_t>(rhs.get()));
 }
 
 template <class Ty1, class Ty2>
-bool operator>(const shared_ptr<Ty1>& lhs,
-               const shared_ptr<Ty2>& rhs) noexcept {
-  using common_t = common_type_t<typename shared_ptr<Ty1>::pointer,
-                                 typename shared_ptr<Ty2>::pointer>;
-  return greater<common_t>{}(lhs.get(), rhs.get());
+constexpr bool operator>(const shared_ptr<Ty1>& lhs,
+                         const shared_ptr<Ty2>& rhs) noexcept {
+  return rhs < lhs;
 }
 
 template <class Ty1, class Ty2>
-bool operator<=(const shared_ptr<Ty1>& lhs,
-                const shared_ptr<Ty2>& rhs) noexcept {
+constexpr bool operator<=(const shared_ptr<Ty1>& lhs,
+                          const shared_ptr<Ty2>& rhs) noexcept {
   return !(lhs > rhs);
 }
 
 template <class Ty1, class Ty2>
-bool operator>=(const shared_ptr<Ty1>& lhs,
-                const shared_ptr<Ty2>& rhs) noexcept {
+constexpr bool operator>=(const shared_ptr<Ty1>& lhs,
+                          const shared_ptr<Ty2>& rhs) noexcept {
   return !(lhs < rhs);
 }
 
 template <class Ty>
-bool operator==(const shared_ptr<Ty>& ptr, nullptr_t) noexcept {
+constexpr bool operator==(const shared_ptr<Ty>& ptr, nullptr_t) noexcept {
   return !ptr;
 }
 
 template <class Ty>
-bool operator!=(const shared_ptr<Ty>& ptr, nullptr_t) noexcept {
+constexpr bool operator!=(const shared_ptr<Ty>& ptr, nullptr_t) noexcept {
   return ptr;
 }
 
 template <class Ty>
-bool operator==(nullptr_t, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator==(nullptr_t, const shared_ptr<Ty>& ptr) noexcept {
   return !ptr;
 }
 
 template <class Ty>
-bool operator!=(nullptr_t, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator!=(nullptr_t, const shared_ptr<Ty>& ptr) noexcept {
   return ptr;
 }
 
 template <class Ty>
-bool operator<(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
-  return less<add_const<Ty> >(ptr.get(), null);
+constexpr bool operator<(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
+  return less<const Ty*>{}(ptr.get(), null);
 }
 
 template <class Ty>
-bool operator>(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
-  return greater<add_const<Ty> >(ptr.get(), null);
+constexpr bool operator>(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
+  return greater<const Ty*>{}(ptr.get(), null);
 }
 
 template <class Ty>
-bool operator<(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator<(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
   return less<add_const<Ty> >(null, ptr.get());
 }
 
 template <class Ty>
-bool operator>(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
-  return greater<add_const<Ty> >(null, ptr.get());
+constexpr bool operator>(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
+  return greater<add_const_t<Ty> >(null, ptr.get());
 }
 
 template <class Ty>
-bool operator<=(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
+constexpr bool operator<=(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
   return !(ptr > null);
 }
 
 template <class Ty>
-bool operator<=(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator<=(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
   return !(null > ptr);
 }
 
 template <class Ty>
-bool operator>=(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
+constexpr bool operator>=(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
   return !(ptr < null);
 }
 
 template <class Ty>
-bool operator>=(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator>=(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
   return !(null < ptr);
 }
 
 template <class Ty>
-Ty* get_pointer(const shared_ptr<Ty>& ptr) noexcept {
+constexpr Ty* get_pointer(const shared_ptr<Ty>& ptr) noexcept {
   return ptr.get();
 }
 
@@ -1333,24 +1359,25 @@ class intrusive_ptr {
                 "intrusive_ptr_release()");
 
  public:
-  intrusive_ptr() noexcept = default;
+  constexpr intrusive_ptr() noexcept = default;
 
-  intrusive_ptr(Ty* ptr, bool add_ref = true) : m_ptr{ptr} {
+  constexpr intrusive_ptr(Ty* ptr, bool add_ref = true) : m_ptr{ptr} {
     if (ptr && add_ref) {
       intrusive_ptr_add_ref(get());
     }
   }
 
-  intrusive_ptr(const intrusive_ptr& other) : m_ptr{other.get()} {
+  constexpr intrusive_ptr(const intrusive_ptr& other) : m_ptr{other.get()} {
     if (auto* ptr = get(); ptr) {
       intrusive_ptr_add_ref(ptr);
     }
   }
 
-  intrusive_ptr(intrusive_ptr&& other) noexcept : m_ptr{other.detach()} {}
+  constexpr intrusive_ptr(intrusive_ptr&& other) noexcept
+      : m_ptr{other.detach()} {}
 
   template <class U, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
-  intrusive_ptr(const intrusive_ptr<U>& other)
+  constexpr intrusive_ptr(const intrusive_ptr<U>& other)
       : m_ptr{static_cast<Ty*>(other.get())} {
     if (auto* ptr = get(); ptr) {
       intrusive_ptr_add_ref(ptr);
@@ -1358,23 +1385,23 @@ class intrusive_ptr {
   }
 
   template <class U, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
-  intrusive_ptr(intrusive_ptr<U>&& other) noexcept
+  constexpr intrusive_ptr(intrusive_ptr<U>&& other) noexcept
       : m_ptr{static_cast<Ty*>(other.detach())} {}
 
-  ~intrusive_ptr() noexcept {
+  constexpr ~intrusive_ptr() noexcept {
     if (auto* ptr = get(); ptr) {
       intrusive_ptr_release(ptr);
     }
   }
 
-  intrusive_ptr& operator=(const intrusive_ptr& other) {
+  constexpr intrusive_ptr& operator=(const intrusive_ptr& other) {
     if (this != addressof(other)) {
       intrusive_ptr{other}.swap(*this);
     }
     return *this;
   }
 
-  intrusive_ptr& operator=(intrusive_ptr&& other) noexcept {
+  constexpr intrusive_ptr& operator=(intrusive_ptr&& other) noexcept {
     if (this != addressof(other)) {
       reset(other.detach(), false);
     }
@@ -1382,89 +1409,114 @@ class intrusive_ptr {
   }
 
   template <class U>
-  intrusive_ptr& operator=(const intrusive_ptr<U>& other) {
+  constexpr intrusive_ptr& operator=(const intrusive_ptr<U>& other) {
     intrusive_ptr{other}.swap(*this);
     return *this;
   }
 
   template <class U>
-  intrusive_ptr& operator=(intrusive_ptr<U>&& other) noexcept {
+  constexpr intrusive_ptr& operator=(intrusive_ptr<U>&& other) noexcept {
     if (this != addressof(other)) {
       reset(static_cast<Ty*>(other.detach(), false));
     }
     return *this;
   }
 
-  intrusive_ptr& operator=(Ty* ptr) {
+  constexpr intrusive_ptr& operator=(Ty* ptr) {
     reset(ptr);
     return *this;
   }
 
-  void reset(Ty* ptr = nullptr) { intrusive_ptr{ptr}.swap(*this); }
-  void reset(Ty* ptr, bool add_ref) { intrusive_ptr{ptr, add_ref}.swap(*this); }
+  constexpr void reset(Ty* ptr = nullptr) { intrusive_ptr{ptr}.swap(*this); }
 
-  Ty& operator*() const& noexcept { return *m_ptr; }
-  Ty&& operator*() const&& noexcept { return move(*m_ptr); }
-  Ty* operator->() const noexcept { return m_ptr; }
-  Ty* get() const noexcept { return m_ptr; }
+  constexpr void reset(Ty* ptr, bool add_ref) {
+    intrusive_ptr{ptr, add_ref}.swap(*this);
+  }
 
-  Ty* detach() noexcept { return exchange(m_ptr, nullptr); }
+  constexpr Ty& operator*() const& noexcept { return *m_ptr; }
+  constexpr Ty&& operator*() const&& noexcept { return move(*m_ptr); }
+  constexpr Ty* operator->() const noexcept { return m_ptr; }
+  constexpr Ty* get() const noexcept { return m_ptr; }
 
-  explicit operator bool() const noexcept { return m_ptr != nullptr; }
+  constexpr Ty* detach() noexcept { return exchange(m_ptr, nullptr); }
 
-  void swap(intrusive_ptr& other) noexcept { ktl::swap(m_ptr, other.m_ptr); }
+  constexpr explicit operator bool() const noexcept { return m_ptr != nullptr; }
+
+  constexpr void swap(intrusive_ptr& other) noexcept {
+    ktl::swap(m_ptr, other.m_ptr);
+  }
 
  private:
   Ty* m_ptr{nullptr};
 };
 
 template <class Ty, class U>
-bool operator==(const intrusive_ptr<Ty>& lhs,
-                const intrusive_ptr<U>& rhs) noexcept {
-  return equal_to<const Ty*>(lhs.get(), rhs.get());
+constexpr bool operator==(const intrusive_ptr<Ty>& lhs,
+                          const intrusive_ptr<U>& rhs) noexcept {
+  using common_ptr_t = common_type_t<const Ty*, const U*>;
+  return equal_to<common_ptr_t>{}(static_cast<common_ptr_t>(lhs.get()),
+                                  static_cast<common_ptr_t>(rhs.get()));
 }
 
 template <class Ty, class U>
-bool operator!=(const intrusive_ptr<Ty>& lhs,
-                const intrusive_ptr<U>& rhs) noexcept {
+constexpr bool operator!=(const intrusive_ptr<Ty>& lhs,
+                          const intrusive_ptr<U>& rhs) noexcept {
   return !(lhs == rhs);
 }
 
 template <class Ty>
-bool operator==(const intrusive_ptr<Ty>& lhs, Ty* rhs) noexcept {
-  return equal_to<const Ty*>(lhs.get(), rhs);
+constexpr bool operator==(const intrusive_ptr<Ty>& lhs, Ty* rhs) noexcept {
+  return equal_to<const Ty*>{}(lhs.get(), rhs);
 }
 
 template <class Ty>
-bool operator!=(const intrusive_ptr<Ty>& lhs, Ty* rhs) noexcept {
+constexpr bool operator!=(const intrusive_ptr<Ty>& lhs, Ty* rhs) noexcept {
   return !(lhs == rhs);
 }
 
 template <class Ty>
-bool operator==(Ty* lhs, const intrusive_ptr<Ty>& rhs) noexcept {
+constexpr bool operator==(Ty* lhs, const intrusive_ptr<Ty>& rhs) noexcept {
   return rhs == lhs;
 }
 
 template <class Ty>
-bool operator!=(Ty* lhs, intrusive_ptr<Ty> const& rhs) noexcept {
+constexpr bool operator!=(Ty* lhs, intrusive_ptr<Ty> const& rhs) noexcept {
   return rhs != lhs;
 }
 
 template <class Ty, class U>
-bool operator<(const intrusive_ptr<Ty>& lhs,
-               const intrusive_ptr<U>& rhs) noexcept {
+constexpr bool operator<(const intrusive_ptr<Ty>& lhs,
+                         const intrusive_ptr<U>& rhs) noexcept {
   using common_ptr_t = common_type_t<const Ty*, const U*>;
-  return less<common_ptr_t>(static_cast<common_ptr_t>(lhs.get()),
-                            static_cast<common_ptr_t>(rhs.get()));
+  return less<common_ptr_t>{}(static_cast<common_ptr_t>(lhs.get()),
+                              static_cast<common_ptr_t>(rhs.get()));
+}
+
+template <class Ty, class U>
+constexpr bool operator>(const intrusive_ptr<Ty>& lhs,
+                         const intrusive_ptr<U>& rhs) noexcept {
+  return rhs < lhs;
+}
+
+template <class Ty, class U>
+constexpr bool operator<=(const intrusive_ptr<Ty>& lhs,
+                          const intrusive_ptr<U>& rhs) noexcept {
+  return !(lhs > rhs);
+}
+
+template <class Ty, class U>
+constexpr bool operator>=(const intrusive_ptr<Ty>& lhs,
+                          const intrusive_ptr<U>& rhs) noexcept {
+  return !(lhs < rhs);
 }
 
 template <class Ty>
-void swap(intrusive_ptr<Ty>& lhs, intrusive_ptr<Ty>& rhs) noexcept {
+constexpr void swap(intrusive_ptr<Ty>& lhs, intrusive_ptr<Ty>& rhs) noexcept {
   lhs.swap(rhs);
 }
 
 template <class Ty>
-Ty* get_pointer(const intrusive_ptr<Ty>& ptr) noexcept {
+constexpr Ty* get_pointer(const intrusive_ptr<Ty>& ptr) noexcept {
   return ptr.get();
 }
 
