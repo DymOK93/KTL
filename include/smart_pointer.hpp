@@ -318,6 +318,11 @@ constexpr bool operator>=(nullptr_t null,
   return !(null < ptr);
 }
 
+template <class Ty, class Dx>
+constexpr Ty* get_pointer(const unique_ptr<Ty, Dx>& ptr) noexcept {
+  return ptr.get();
+}
+
 // C++17 deduction guide
 template <class Ty>
 unique_ptr(Ty*) -> unique_ptr<Ty>;
@@ -1117,7 +1122,7 @@ shared_ptr<Ty> weak_ptr<Ty>::lock() const noexcept {
 }
 
 template <class Ty1, class Ty2>
-bool operator==(const shared_ptr<Ty1>& lhs,
+constexpr bool operator==(const shared_ptr<Ty1>& lhs,
                 const shared_ptr<Ty2>& rhs) noexcept {
   using common_t = common_type_t<typename shared_ptr<Ty1>::pointer,
                                  typename shared_ptr<Ty2>::pointer>;
@@ -1126,13 +1131,13 @@ bool operator==(const shared_ptr<Ty1>& lhs,
 }
 
 template <class Ty1, class Ty2>
-bool operator!=(const shared_ptr<Ty1>& lhs,
+constexpr bool operator!=(const shared_ptr<Ty1>& lhs,
                 const shared_ptr<Ty2>& rhs) noexcept {
   return !(lhs == rhs);
 }
 
 template <class Ty1, class Ty2>
-bool operator<(const shared_ptr<Ty1>& lhs,
+constexpr bool operator<(const shared_ptr<Ty1>& lhs,
                const shared_ptr<Ty2>& rhs) noexcept {
   using common_t = common_type_t<typename shared_ptr<Ty1>::pointer,
                                  typename shared_ptr<Ty2>::pointer>;
@@ -1141,85 +1146,85 @@ bool operator<(const shared_ptr<Ty1>& lhs,
 }
 
 template <class Ty1, class Ty2>
-bool operator>(const shared_ptr<Ty1>& lhs,
+constexpr bool operator>(const shared_ptr<Ty1>& lhs,
                const shared_ptr<Ty2>& rhs) noexcept {
   return rhs < lhs;
 }
 
 template <class Ty1, class Ty2>
-bool operator<=(const shared_ptr<Ty1>& lhs,
+constexpr bool operator<=(const shared_ptr<Ty1>& lhs,
                 const shared_ptr<Ty2>& rhs) noexcept {
   return !(lhs > rhs);
 }
 
 template <class Ty1, class Ty2>
-bool operator>=(const shared_ptr<Ty1>& lhs,
+constexpr bool operator>=(const shared_ptr<Ty1>& lhs,
                 const shared_ptr<Ty2>& rhs) noexcept {
   return !(lhs < rhs);
 }
 
 template <class Ty>
-bool operator==(const shared_ptr<Ty>& ptr, nullptr_t) noexcept {
+constexpr bool operator==(const shared_ptr<Ty>& ptr, nullptr_t) noexcept {
   return !ptr;
 }
 
 template <class Ty>
-bool operator!=(const shared_ptr<Ty>& ptr, nullptr_t) noexcept {
+constexpr bool operator!=(const shared_ptr<Ty>& ptr, nullptr_t) noexcept {
   return ptr;
 }
 
 template <class Ty>
-bool operator==(nullptr_t, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator==(nullptr_t, const shared_ptr<Ty>& ptr) noexcept {
   return !ptr;
 }
 
 template <class Ty>
-bool operator!=(nullptr_t, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator!=(nullptr_t, const shared_ptr<Ty>& ptr) noexcept {
   return ptr;
 }
 
 template <class Ty>
-bool operator<(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
+constexpr bool operator<(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
   return less<const Ty*>{}(ptr.get(), null);
 }
 
 template <class Ty>
-bool operator>(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
+constexpr bool operator>(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
   return greater<const Ty*>{}(ptr.get(), null);
 }
 
 template <class Ty>
-bool operator<(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator<(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
   return less<add_const<Ty> >(null, ptr.get());
 }
 
 template <class Ty>
-bool operator>(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator>(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
   return greater<add_const_t<Ty> >(null, ptr.get());
 }
 
 template <class Ty>
-bool operator<=(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
+constexpr bool operator<=(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
   return !(ptr > null);
 }
 
 template <class Ty>
-bool operator<=(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator<=(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
   return !(null > ptr);
 }
 
 template <class Ty>
-bool operator>=(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
+constexpr bool operator>=(const shared_ptr<Ty>& ptr, nullptr_t null) noexcept {
   return !(ptr < null);
 }
 
 template <class Ty>
-bool operator>=(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
+constexpr bool operator>=(nullptr_t null, const shared_ptr<Ty>& ptr) noexcept {
   return !(null < ptr);
 }
 
 template <class Ty>
-Ty* get_pointer(const shared_ptr<Ty>& ptr) noexcept {
+constexpr Ty* get_pointer(const shared_ptr<Ty>& ptr) noexcept {
   return ptr.get();
 }
 
