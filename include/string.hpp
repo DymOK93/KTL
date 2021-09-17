@@ -1,4 +1,7 @@
-﻿#pragma once
+#pragma once
+#include <array.hpp>
+#include <container_helpers.hpp>
+#include <new_delete.hpp>
 #include <algorithm.hpp>
 #include <assert.hpp>
 #include <compressed_pair.hpp>
@@ -57,6 +60,8 @@ class basic_winnt_string {
 
   template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
   friend class basic_winnt_string;
+
+  using internal_buffer_type = array<value_type, SsoBufferChCount>;
 
  public:
   static constexpr size_type SSO_BUFFER_CH_COUNT{SsoBufferChCount};
@@ -186,7 +191,7 @@ class basic_winnt_string {
       is_nothrow_move_constructible_v<allocator_type>)
       : m_str{move(other.m_str)} {  // Перемещение аллокатора
     if (other.is_small()) {
-      native_string_traits_type::set_buffer(get_native_str(), m_buffer);
+      native_string_traits_type::set_buffer(get_native_str(), get_sso_buffer());
       traits_type::copy(data(), other.data(), other.size());
     }
     other.become_small();
@@ -431,7 +436,7 @@ class basic_winnt_string {
         value_type *old_buffer{data()}, *new_buffer{nullptr};
         auto& alloc{get_alloc()};
         if (current_size <= SSO_BUFFER_CH_COUNT) {
-          new_buffer = m_buffer;
+          new_buffer = get_sso_buffer();
         } else {
           new_buffer = allocate_buffer(alloc, current_size);
         }
@@ -928,7 +933,7 @@ class basic_winnt_string {
 
  private:
   constexpr void become_small(size_type size = 0) noexcept {
-    native_string_traits_type::set_buffer(get_native_str(), m_buffer);
+    native_string_traits_type::set_buffer(get_native_str(), get_sso_buffer());
     native_string_traits_type::set_size(get_native_str(), size);
     native_string_traits_type::set_capacity(get_native_str(),
                                             SSO_BUFFER_CH_COUNT);
@@ -951,6 +956,8 @@ class basic_winnt_string {
   constexpr const native_string_type& get_native_str() const noexcept {
     return m_str.get_second();
   }
+
+  constexpr pointer get_sso_buffer() noexcept { return ktl::data(m_buffer); }
 
   template <bool CalcOptimalGrowth,
             size_t BufferSize,
@@ -1184,7 +1191,7 @@ class basic_winnt_string {
     value_type* old_buffer{data()};
     const size_type old_size{size()};
     value_type* new_buffer{new_capacity <= SSO_BUFFER_CH_COUNT
-                               ? m_buffer
+                               ? get_sso_buffer()
                                : allocate_buffer(alc, new_capacity)};
     const size_type new_size{
         transfer_handler(new_buffer, old_size, old_buffer)};
@@ -1310,7 +1317,7 @@ class basic_winnt_string {
 
  private:
   compressed_pair<allocator_type, native_string_type> m_str{};
-  value_type m_buffer[SsoBufferChCount];
+  internal_buffer_type m_buffer;
 };
 
 template <class CharT>

@@ -30,6 +30,46 @@ const throw_info* catch_info::get_throw_info() const noexcept {
   return nullptr;
 }
 
+static void copy_to_catch_block(const byte* image_base,
+                                const catchable_type* catchable,
+                                void* catch_var,
+                                void* exception_object) noexcept {
+  if (catchable->properties.has_any_of(CatchableProperty::IsSimpleType)) {
+    memcpy(catch_var, exception_object, catchable->size);
+
+  } else if (!catchable->copy_fn) {
+    const auto address{
+        catchable->offset.apply(reinterpret_cast<uintptr_t>(exception_object))};
+    memcpy(catch_var, reinterpret_cast<void*>(address), catchable->size);
+
+  } else if (catchable->properties.has_any_of(CatchableProperty::HasVirtualBase)) {
+    auto* raw_copy_ctor{const_cast<byte*>(image_base + catchable->copy_fn)};
+    auto* copy_ctor{reinterpret_cast<copy_ctor_virtual_base_t*>(raw_copy_ctor)};
+    copy_ctor(catch_var, exception_object, 1 /* is most derived */);
+
+  } else {
+    auto* raw_copy_ctor{const_cast<byte*>(image_base + catchable->copy_fn)};
+    auto* copy_ctor{reinterpret_cast<copy_ctor_t*>(raw_copy_ctor)};
+    copy_ctor(catch_var, exception_object);
+  }
+}
+
+static void transfer_to_catch_block(const byte* image_base,
+                                    flag_set<CatchFlag> adjectives,
+                                    const catchable_type* catchable,
+                                    void* catch_var,
+                                    void* exception_object) noexcept {
+  if (!catchable->properties.has_any_of(CatchableProperty::ByReferenceOnly) ||
+      adjectives.has_any_of(CatchFlag::IsReference)) {
+    if (!adjectives.has_any_of(CatchFlag::IsReference)) {
+      copy_to_catch_block(image_base, catchable, catch_var, exception_object);
+    } else {
+      auto* catch_var_holder{static_cast<void**>(catch_var)};
+      *catch_var_holder = exception_object;
+    }
+  }
+}
+
 static bool process_catch_block_unchecked(
     const byte* image_base,
     flag_set<CatchFlag> adjectives,
@@ -43,36 +83,9 @@ static bool process_catch_block_unchecked(
     const catchable_type* catchable = image_base + catchables[idx];
     if (const type_info* type_descriptor = image_base + catchable->desc;
         type_descriptor == match_type) {
-      if (!catchable->properties.has_any_of(
-              CatchableProperty::ByReferenceOnly) ||
-          adjectives.has_any_of(CatchFlag::IsReference)) {
-        if (adjectives.has_any_of(CatchFlag::IsReference)) {
-          auto* catch_var_holder{static_cast<void**>(catch_var)};
-          *catch_var_holder = exception_object;
-        } else {
-          if (catchable->properties.has_any_of(
-                  CatchableProperty::IsSimpleType)) {
-            memcpy(catch_var, exception_object, catchable->size);
-          } else if (!catchable->copy_fn) {
-            const auto addr{catchable->offset.apply(
-                reinterpret_cast<uintptr_t>(exception_object))};
-            memcpy(catch_var, reinterpret_cast<void*>(addr), catchable->size);
-          } else if (catchable->properties.has_any_of(
-                         CatchableProperty::HasVirtualBase)) {
-            auto* raw_copy_ctor{
-                const_cast<byte*>(image_base + catchable->copy_fn)};
-            auto* copy_ctor{
-                reinterpret_cast<copy_ctor_virtual_base_t*>(raw_copy_ctor)};
-            copy_ctor(catch_var, exception_object, 1);
-          } else {
-            auto* raw_copy_ctor{
-                const_cast<byte*>(image_base + catchable->copy_fn)};
-            auto* copy_ctor{reinterpret_cast<copy_ctor_t*>(raw_copy_ctor)};
-            copy_ctor(catch_var, exception_object);
-          }
-        }
-        return true;
-      }
+      transfer_to_catch_block(image_base, adjectives, catchable, catch_var,
+                              exception_object);
+      return true;
     }
   }
   return false;
@@ -147,20 +160,25 @@ EXTERN_C win::ExceptionDisposition __cxx_call_catch_frame_handler(
       terminate();
     }
 
-    if (frame->catch_info.throw_info_if_owner)
+    if (frame->catch_info.throw_info_if_owner) {
       ci.exception_object_or_link = &frame->catch_info;
-    else
+    } else {
       ci.exception_object_or_link = frame->catch_info.exception_object_or_link;
+    }
+
   } else if (ctx->cookie == &unwind_cookie) {
     if (!ci.exception_object_or_link ||
         ci.exception_object_or_link == &frame->catch_info) {
       ci.exception_object_or_link = frame->catch_info.exception_object_or_link;
       ci.throw_info_if_owner = frame->catch_info.throw_info_if_owner;
+
     } else {
       __cxx_destroy_exception(frame->catch_info);
     }
+
     ci.primary_frame_ptr = frame->catch_info.primary_frame_ptr;
     ci.unwind_context = frame->catch_info.unwind_context;
+
   } else {
     return win::ExceptionDisposition::ContinueSearch;
   }
@@ -230,9 +248,9 @@ const unwind_info* execute_handler(dispatcher_context& ctx,
   ctx.fn = pdata.find_function_entry(mach.rip);
   const unwind_info* unwind_info{image_base + ctx.fn->unwind_info};
 
-  constexpr auto handler_mask{flag_set{HandlerInfo::Exception} |
-                              flag_set{HandlerInfo::Unwind}};
-  if (const auto flags = flag_set<HandlerInfo>{unwind_info->flags};
+  constexpr flag_set<HandlerInfo> handler_mask{HandlerInfo::Exception,
+                                               HandlerInfo::Unwind};
+  if (const flag_set<HandlerInfo> flags{unwind_info->flags};
       flags & handler_mask) {
 
     // The number of active slots is always odd

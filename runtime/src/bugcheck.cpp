@@ -4,36 +4,36 @@
 
 namespace ktl {
 namespace crt::details {
-static termination_dispatcher trmnt_disp;
+static termination_dispatcher terminate_dispatcher;
 }  // namespace crt::details
 
 terminate_handler_t get_terminate() noexcept {
-  return crt::details::trmnt_disp.get_handler();
+  return crt::details::terminate_dispatcher.get_handler();
 }
 
 terminate_handler_t set_terminate(terminate_handler_t terminate) noexcept {
-  return crt::details::trmnt_disp.set_handler(terminate);
+  return crt::details::terminate_dispatcher.set_handler(terminate);
 }
 
 [[noreturn]] void terminate() noexcept {
-  crt::details::trmnt_disp.terminate();
+  crt::details::terminate_dispatcher.terminate();
 }
 
 [[noreturn]] void abort() noexcept {
-  crt::details::trmnt_disp.abort();
+  crt::details::terminate_dispatcher.abort();
 }
 
 namespace crt {
 termination_context set_termination_context(
     const termination_context& bsod) noexcept {
-  return details::trmnt_disp.set_context(bsod);
+  return details::terminate_dispatcher.set_context(bsod);
 }
 
 void verify_seh(NTSTATUS code, const void* addr, uint32_t flags) noexcept {
   DbgPrintEx(
       DPFLTR_DEFAULT_ID, DPFLTR_ERROR_LEVEL,
-      "SEH exception caught with flag EXCEPTION_UNWIND! Code: %x, address %p\n",
-      code, addr);
+      "SEH exception caught with flag EXCEPTION_UNWIND! Code: 0x%08X, address: %p, flags: %u\n",
+      code, addr, flags);
   if (const bool unwinding =
           flag_set<exc_engine::win::ExceptionFlag>{flags}.has_any_of(
               exc_engine::win::ExceptionFlag::Unwinding);
@@ -49,11 +49,11 @@ void verify_seh_in_cxx_handler(NTSTATUS code,
                                uint32_t flags,
                                uint32_t unwind_info,
                                const void* image_base) noexcept {
-  DbgPrintEx(
-      DPFLTR_DEFAULT_ID, DPFLTR_ERROR_LEVEL,
-      "SEH exception caught in CXX handler! Code: %x, address %p, function "
-      "unwind info offset: %u, base of image located at %p)\n",
-      code, addr, unwind_info, image_base);
+  DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_ERROR_LEVEL,
+             "SEH exception caught in CXX handler! Code: 0x%08X, address: %p, "
+             "flags: %u, function "
+             "unwind info offset: %u, image_base: %p)\n",
+             code, addr, flags, unwind_info, image_base);
   if (const bool unwinding =
           flag_set<exc_engine::win::ExceptionFlag>{flags}.has_any_of(
               exc_engine::win::ExceptionFlag::Unwinding);

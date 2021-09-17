@@ -558,5 +558,15 @@ template <class ForwardIt>
 ForwardIt rotate(ForwardIt first, ForwardIt new_first, ForwardIt last) {
   return algo::details::rotate_left(first, new_first, last);
 }
+
+template <class LhsForwardIt, class RhsForwardIt>
+constexpr RhsForwardIt swap_ranges(LhsForwardIt lhs_first,
+                                   LhsForwardIt lhs_last,
+                                   RhsForwardIt rhs_first) {
+  for (; lhs_first != lhs_last;
+       lhs_first = next(lhs_first), rhs_first = next(rhs_first)) {
+    iter_swap(lhs_first, rhs_first);
+  }
+}
 }  // namespace ktl
 #endif

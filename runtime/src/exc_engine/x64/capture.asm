@@ -183,10 +183,8 @@ _CxxThrowException proc public frame: __cxx_seh_frame_handler
 	push r10
 	.allocstack 8
 
-	push 0			; dummy_rip
-	.allocstack 8
-	push 0			; padding2
-	.allocstack 8
+	sub rsp, 16     ; Skipping dummy_rip and padding2
+	.allocstack 16
 
 	push r15
 	.allocstack 8
@@ -213,7 +211,6 @@ _CxxThrowException proc public frame: __cxx_seh_frame_handler
 	; This makes the offset fit in a signed byte, making the opcodes shorter.
 	base = throw_fr.$xmm11
 	lea rax, [rsp + base]
-	mov [rax - base + throw_fr.$dummy_rsp], r11		; dummy_rsp
 	movdqa [rax - base + throw_fr.$xmm6], xmm6
 	movdqa [rax - base + throw_fr.$xmm7], xmm7
 	movdqa [rax - base + throw_fr.$xmm8], xmm8
