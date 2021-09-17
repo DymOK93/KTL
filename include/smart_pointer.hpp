@@ -989,7 +989,7 @@ class shared_ptr
   }
 
   size_t use_count() const noexcept { return MyBase::use_count(); }
-  constexpr operator bool() const noexcept { return get() != nullptr; }
+  constexpr explicit operator bool() const noexcept { return get() != nullptr; }
 
  protected:
   template <class ValTy, class... Types>
@@ -1356,7 +1356,7 @@ class intrusive_ptr {
                 "intrusive_ptr_release()");
 
  public:
-  intrusive_ptr() noexcept = default;
+  constexpr intrusive_ptr() noexcept = default;
 
   intrusive_ptr(Ty* ptr, bool add_ref = true) : m_ptr{ptr} {
     if (ptr && add_ref) {
@@ -1370,7 +1370,8 @@ class intrusive_ptr {
     }
   }
 
-  intrusive_ptr(intrusive_ptr&& other) noexcept : m_ptr{other.detach()} {}
+  constexpr intrusive_ptr(intrusive_ptr&& other) noexcept
+      : m_ptr{other.detach()} {}
 
   template <class U, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
   intrusive_ptr(const intrusive_ptr<U>& other)
@@ -1381,7 +1382,7 @@ class intrusive_ptr {
   }
 
   template <class U, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
-  intrusive_ptr(intrusive_ptr<U>&& other) noexcept
+  constexpr intrusive_ptr(intrusive_ptr<U>&& other) noexcept
       : m_ptr{static_cast<Ty*>(other.detach())} {}
 
   ~intrusive_ptr() noexcept {
@@ -1426,23 +1427,25 @@ class intrusive_ptr {
   void reset(Ty* ptr = nullptr) { intrusive_ptr{ptr}.swap(*this); }
   void reset(Ty* ptr, bool add_ref) { intrusive_ptr{ptr, add_ref}.swap(*this); }
 
-  Ty& operator*() const& noexcept { return *m_ptr; }
-  Ty&& operator*() const&& noexcept { return move(*m_ptr); }
-  Ty* operator->() const noexcept { return m_ptr; }
-  Ty* get() const noexcept { return m_ptr; }
+  constexpr Ty& operator*() const& noexcept { return *m_ptr; }
+  constexpr Ty&& operator*() const&& noexcept { return move(*m_ptr); }
+  constexpr Ty* operator->() const noexcept { return m_ptr; }
+  constexpr Ty* get() const noexcept { return m_ptr; }
 
-  Ty* detach() noexcept { return exchange(m_ptr, nullptr); }
+  constexpr Ty* detach() noexcept { return exchange(m_ptr, nullptr); }
 
-  explicit operator bool() const noexcept { return m_ptr != nullptr; }
+  constexpr explicit operator bool() const noexcept { return m_ptr != nullptr; }
 
-  void swap(intrusive_ptr& other) noexcept { ktl::swap(m_ptr, other.m_ptr); }
+  constexpr void swap(intrusive_ptr& other) noexcept {
+    ktl::swap(m_ptr, other.m_ptr);
+  }
 
  private:
   Ty* m_ptr{nullptr};
 };
 
 template <class Ty, class U>
-bool operator==(const intrusive_ptr<Ty>& lhs,
+constexpr bool operator==(const intrusive_ptr<Ty>& lhs,
                 const intrusive_ptr<U>& rhs) noexcept {
   using common_ptr_t = common_type_t<const Ty*, const U*>;
   return equal_to<common_ptr_t>{}(static_cast<common_ptr_t>(lhs.get()),
@@ -1450,33 +1453,33 @@ bool operator==(const intrusive_ptr<Ty>& lhs,
 }
 
 template <class Ty, class U>
-bool operator!=(const intrusive_ptr<Ty>& lhs,
+constexpr bool operator!=(const intrusive_ptr<Ty>& lhs,
                 const intrusive_ptr<U>& rhs) noexcept {
   return !(lhs == rhs);
 }
 
 template <class Ty>
-bool operator==(const intrusive_ptr<Ty>& lhs, Ty* rhs) noexcept {
+constexpr bool operator==(const intrusive_ptr<Ty>& lhs, Ty* rhs) noexcept {
   return equal_to<const Ty*>{}(lhs.get(), rhs);
 }
 
 template <class Ty>
-bool operator!=(const intrusive_ptr<Ty>& lhs, Ty* rhs) noexcept {
+constexpr bool operator!=(const intrusive_ptr<Ty>& lhs, Ty* rhs) noexcept {
   return !(lhs == rhs);
 }
 
 template <class Ty>
-bool operator==(Ty* lhs, const intrusive_ptr<Ty>& rhs) noexcept {
+constexpr bool operator==(Ty* lhs, const intrusive_ptr<Ty>& rhs) noexcept {
   return rhs == lhs;
 }
 
 template <class Ty>
-bool operator!=(Ty* lhs, intrusive_ptr<Ty> const& rhs) noexcept {
+constexpr bool operator!=(Ty* lhs, intrusive_ptr<Ty> const& rhs) noexcept {
   return rhs != lhs;
 }
 
 template <class Ty, class U>
-bool operator<(const intrusive_ptr<Ty>& lhs,
+constexpr bool operator<(const intrusive_ptr<Ty>& lhs,
                const intrusive_ptr<U>& rhs) noexcept {
   using common_ptr_t = common_type_t<const Ty*, const U*>;
   return less<common_ptr_t>{}(static_cast<common_ptr_t>(lhs.get()),
@@ -1484,12 +1487,12 @@ bool operator<(const intrusive_ptr<Ty>& lhs,
 }
 
 template <class Ty>
-void swap(intrusive_ptr<Ty>& lhs, intrusive_ptr<Ty>& rhs) noexcept {
+constexpr void swap(intrusive_ptr<Ty>& lhs, intrusive_ptr<Ty>& rhs) noexcept {
   lhs.swap(rhs);
 }
 
 template <class Ty>
-Ty* get_pointer(const intrusive_ptr<Ty>& ptr) noexcept {
+constexpr Ty* get_pointer(const intrusive_ptr<Ty>& ptr) noexcept {
   return ptr.get();
 }
 
