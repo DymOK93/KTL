@@ -23,9 +23,9 @@
  * The objects the compiler produces have the following
  * layout.
  *
- *    void * vtable = &`??_7type_info@@6B@`;
- *    void * undecorated_name = nullptr;
- *    char decorated_name[] = ...;
+ *    void* vtable = &`??_7type_info@@6B@`;
+ *    void* m_undecorated_name = nullptr;
+ *    char m_decorated_name[] = ...;
  *
  * Sadly, the reference to type_info's vtable means that we must
  * make the struct polymorphic, even though we don't actually
