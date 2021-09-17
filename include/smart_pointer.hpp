@@ -161,7 +161,7 @@ class unique_ptr {
   unique_ptr(const unique_ptr&) = delete;
   unique_ptr& operator=(const unique_ptr&) = delete;
 
-  constexpr ~unique_ptr() { reset(); }
+  ~unique_ptr() { reset(); }
 
   constexpr pointer release() noexcept {
     return exchange(get_ref_to_ptr(), nullptr);
@@ -222,7 +222,7 @@ constexpr bool operator==(const unique_ptr<Ty1, Dx1>& lhs,
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
 constexpr bool operator!=(const unique_ptr<Ty1, Dx1>& lhs,
-                          const unique_ptr<Ty1, Dx2>& rhs) noexcept {
+                          const unique_ptr<Ty2, Dx2>& rhs) noexcept {
   return !(lhs == rhs);
 }
 
@@ -1388,7 +1388,7 @@ class intrusive_ptr {
   constexpr intrusive_ptr(intrusive_ptr<U>&& other) noexcept
       : m_ptr{static_cast<Ty*>(other.detach())} {}
 
-  constexpr ~intrusive_ptr() noexcept {
+  ~intrusive_ptr() noexcept {
     if (auto* ptr = get(); ptr) {
       intrusive_ptr_release(ptr);
     }
