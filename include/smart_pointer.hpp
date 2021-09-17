@@ -214,7 +214,10 @@ class unique_ptr {
 template <class Ty1, class Dx1, class Ty2, class Dx2>
 constexpr bool operator==(const unique_ptr<Ty1, Dx1>& lhs,
                           const unique_ptr<Ty2, Dx2>& rhs) noexcept {
-  return lhs.get() == rhs.get();
+  using common_t = common_type_t<typename unique_ptr<Ty1, Dx1>::pointer,
+                                 typename unique_ptr<Ty2, Dx2>::pointer>;
+  return equal_to<common_t>{}(static_cast<common_t>(lhs.get()),
+                              static_cast<common_t>(rhs.get()));
 }
 
 template <class Ty1, class Dx1, class Ty2, class Dx2>
