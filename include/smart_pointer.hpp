@@ -1492,6 +1492,24 @@ constexpr bool operator<(const intrusive_ptr<Ty>& lhs,
                               static_cast<common_ptr_t>(rhs.get()));
 }
 
+template <class Ty, class U>
+constexpr bool operator>(const intrusive_ptr<Ty>& lhs,
+                         const intrusive_ptr<U>& rhs) noexcept {
+  return rhs < lhs;
+}
+
+template <class Ty, class U>
+constexpr bool operator<=(const intrusive_ptr<Ty>& lhs,
+                          const intrusive_ptr<U>& rhs) noexcept {
+  return !(lhs > rhs);
+}
+
+template <class Ty, class U>
+constexpr bool operator>=(const intrusive_ptr<Ty>& lhs,
+                          const intrusive_ptr<U>& rhs) noexcept {
+  return !(lhs < rhs);
+}
+
 template <class Ty>
 constexpr void swap(intrusive_ptr<Ty>& lhs, intrusive_ptr<Ty>& rhs) noexcept {
   lhs.swap(rhs);
