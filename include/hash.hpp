@@ -111,8 +111,15 @@ struct hash<shared_ptr<Ty>> {
   }
 };
 
+template <class Ty>
+struct hash<intrusive_ptr<Ty>> {
+  size_t operator()(const intrusive_ptr<Ty>& ptr) const noexcept {
+    return hash_int(reinterpret_cast<size_t>(ptr.get()));
+  }
+};
+
 template <typename Enum>
-struct hash<Enum, typename enable_if_t<is_enum_v<Enum>>> {
+struct hash<Enum, enable_if_t<is_enum_v<Enum>>> {
   size_t operator()(Enum e) const noexcept {
     using underlying_t = underlying_type_t<Enum>;
     return hash<underlying_t>{}(static_cast<underlying_t>(e));
