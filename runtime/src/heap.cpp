@@ -33,7 +33,7 @@ static void* allocate_impl(alloc_request request) noexcept {
 
   crt_assert_with_msg(pool_tag != 0, "pool tag must not be equal to zero");
   crt_assert_with_msg(
-      irql_less_or_equal(DISPATCH_LEVEL),
+      get_current_irql() <= DISPATCH_LEVEL,
       "memory allocations are disabled at IRQL > DISPATCH_LEVEL due to usage  "
       "of global executive spinlock to protect NT Virtual Memory Manager's PFN "
       "database");
@@ -56,11 +56,12 @@ static void deallocate_impl(void* memory_block, pool_tag_t pool_tag) noexcept {
   ExFreePoolWithTag(memory_block, pool_tag);
 }
 }  // namespace crt
-void* allocate(alloc_request request) noexcept {
+
+void* allocate_memory(alloc_request request) noexcept {
   return crt::allocate_impl(request);
 }
 
-void deallocate(free_request request) noexcept {
+void deallocate_memory(free_request request) noexcept {
   if (auto* ptr = request.memory_block; ptr) {
     crt::deallocate_impl(ptr, request.pool_tag);
   }

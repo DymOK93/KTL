@@ -9,153 +9,159 @@ using std::allocator_traits;
 }  // namespace ktl
 #else
 #include <heap.hpp>
-#include <new_delete.hpp>
 #include <memory_impl.hpp>
 #include <memory_type_traits.hpp>
-#include <type_traits.hpp>
+#include <new_delete.hpp>
 
 namespace ktl {
-template <class Ty, align_val_t Alignment>
-struct aligned_allocator_base {
- public:
+template <class Ty, class NewTag, ::std::align_val_t Alignment>
+struct aligned_allocator {
   using value_type = Ty;
   using size_type = size_t;
-  using differense_type = ptrdiff_t;
+  using difference_type = ptrdiff_t;
   using propagate_on_container_copy_assignment = true_type;
   using propagate_on_container_move_assignment = true_type;
   using propagate_on_container_swap = true_type;
   using is_always_equal = true_type;
   using enable_delete_null = true_type;
 
- public:
-  static constexpr auto ALLOCATION_ALIGNMENT{Alignment};
-
- public:
   Ty* allocate(size_t object_count) {
-    static_assert(always_false_v<Ty>,
-                  "allocate() is non-virtual");  // static_assert(false, ...)
-                                                 // сработает в независимости от
-                                                 // наличия вызова allocate()
+    return allocate_bytes(object_count * sizeof(value_type));
   }
 
   Ty* allocate_bytes(size_t bytes_count) {
-    static_assert(
-        always_false_v<Ty>,
-        "allocate_bytes() is non-virtual");  // static_assert(false, ...)
-                                             // сработает в независимости от
-                                             // наличия вызова allocate()
+    return static_cast<Ty*>(operator new (bytes_count, Alignment, NewTag{}));
   }
 
   void deallocate(Ty* ptr, size_t object_count) noexcept {
-    operator delete(ptr, object_count * sizeof(Ty), ALLOCATION_ALIGNMENT);
+    deallocate_bytes(ptr, object_count * sizeof(value_type));
   }
 
   void deallocate_bytes(Ty* ptr, size_t bytes_count) noexcept {
-    operator delete(ptr, bytes_count, ALLOCATION_ALIGNMENT);
-  }
-
- protected:
-  template <typename NewTag>
-  Ty* allocate_objects_impl(size_t object_count, NewTag new_tag) {
-    return allocate_bytes_impl(object_count * sizeof(Ty), new_tag);
-  }
-
-  template <typename NewTag>
-  Ty* allocate_bytes_impl(size_t bytes_count, NewTag new_tag) {
-    return static_cast<Ty*>(operator new(bytes_count, ALLOCATION_ALIGNMENT,
-                                         new_tag));
+    operator delete(ptr, bytes_count, Alignment);
   }
 };
 
-template <class Ty, align_val_t Alignment>
+template <class Ty, class NewTag, align_val_t Alignment>
 constexpr bool operator==(
-    const aligned_allocator_base<Ty, Alignment>&,
-    const aligned_allocator_base<Ty, Alignment>&) noexcept {
+    const aligned_allocator<Ty, NewTag, Alignment>&,
+    const aligned_allocator<Ty, NewTag, Alignment>&) noexcept {
   return true;
 }
 
-template <class Ty, align_val_t Alignment>
+template <class Ty, class NewTag, align_val_t Alignment>
 constexpr bool operator!=(
-    const aligned_allocator_base<Ty, Alignment>&,
-    const aligned_allocator_base<Ty, Alignment>&) noexcept {
+    const aligned_allocator<Ty, NewTag, Alignment>&,
+    const aligned_allocator<Ty, NewTag, Alignment>&) noexcept {
   return false;
 }
 
-template <class Ty, align_val_t Alignment>
-struct aligned_paged_allocator : aligned_allocator_base<Ty, Alignment> {
- public:
-  using MyBase = aligned_allocator_base<Ty, Alignment>;
-  using value_type = typename MyBase::value_type;
-  using size_type = typename MyBase::size_type;
-  using differense_type = typename MyBase::differense_type;
-  using propagate_on_container_copy_assignment =
-      typename MyBase::propagate_on_container_copy_assignment;
-  using propagate_on_container_move_assignment =
-      typename MyBase::propagate_on_container_move_assignment;
-  using propagate_on_container_swap =
-      typename MyBase::propagate_on_container_swap;
-  using is_always_equal = typename MyBase::is_always_equal;
-  using enable_delete_null = typename MyBase::enable_delete_null;
-
- public:
-  template <class OtherTy>
-  struct rebind {
-    using other = aligned_paged_allocator<OtherTy, Alignment>;
-  };
-
- public:
-  Ty* allocate(size_t object_count) {
-    return MyBase::allocate_objects_impl(object_count, paged_new);
-  }
-
-  Ty* allocate_bytes(size_t bytes_count) {
-    return MyBase::allocate_bytes_impl(bytes_count, paged_new);
-  }
-};
-
-template <class Ty, align_val_t Alignment>
-struct aligned_non_paged_allocator : aligned_allocator_base<Ty, Alignment> {
- public:
-  using MyBase = aligned_allocator_base<Ty, Alignment>;
-  using value_type = typename MyBase::value_type;
-  using size_type = typename MyBase::size_type;
-  using differense_type = typename MyBase::differense_type;
-  using propagate_on_container_copy_assignment =
-      typename MyBase::propagate_on_container_copy_assignment;
-  using propagate_on_container_move_assignment =
-      typename MyBase::propagate_on_container_move_assignment;
-  using propagate_on_container_swap =
-      typename MyBase::propagate_on_container_swap;
-  using is_always_equal = typename MyBase::is_always_equal;
-  using enable_delete_null = typename MyBase::enable_delete_null;
-
- public:
-  template <class OtherTy>
-  struct rebind {
-    using other = aligned_non_paged_allocator<OtherTy, Alignment>;
-  };
-
- public:
-  Ty* allocate(size_t object_count) {
-    return MyBase::allocate_objects_impl(object_count, non_paged_new);
-  }
-
-  Ty* allocate_bytes(size_t bytes_count) {
-    return MyBase::allocate_bytes_impl(bytes_count, non_paged_new);
-  }
-};
-
 template <class Ty>
 using basic_paged_allocator =
-    aligned_paged_allocator<Ty, crt::DEFAULT_ALLOCATION_ALIGNMENT>;
+    aligned_allocator<Ty,
+                      paged_new_tag_t,
+                      static_cast< ::std::align_val_t>(alignof(Ty))>;
 
 template <class Ty>
 using basic_non_paged_allocator =
-    aligned_non_paged_allocator<Ty, crt::DEFAULT_ALLOCATION_ALIGNMENT>;
+    aligned_allocator<Ty,
+                      non_paged_new_tag_t,
+                      static_cast<::std::align_val_t>(alignof(Ty))>;
+
+template <class Ty, crt::pool_type_t PoolType, ::std::align_val_t Alignment>
+class tagged_allocator {
+  using pool_tag_t = crt::pool_tag_t;
+
+ public:
+  using value_type = Ty;
+  using size_type = size_t;
+  using difference_type = ptrdiff_t;
+  using propagate_on_container_copy_assignment = true_type;
+  using propagate_on_container_move_assignment = true_type;
+  using propagate_on_container_swap = true_type;
+  using is_always_equal = false_type;
+  using enable_delete_null = true_type;
+
+  constexpr explicit tagged_allocator(pool_tag_t pool_tag) noexcept
+      : m_pool_tag{pool_tag} {}
+
+  Ty* allocate(size_t object_count) {
+    return allocate_bytes(object_count * sizeof(value_type));
+  }
+
+  Ty* allocate_bytes(size_t bytes_count) {
+    return static_cast<Ty*>(allocate_bytes_impl(bytes_count));
+  }
+
+  void deallocate(Ty* ptr, size_t object_count) noexcept {
+    deallocate_bytes(ptr, object_count * sizeof(value_type));
+  }
+
+  void deallocate_bytes(Ty* ptr, size_t bytes_count) noexcept {
+    deallocate_memory(free_request_builder{ptr, bytes_count}
+                          .set_alignment(Alignment)
+                          .set_pool_tag(m_pool_tag)
+                          .build());
+  }
+
+  void swap(tagged_allocator& other) noexcept {
+    ktl::swap(m_pool_tag, other.m_pool_tag);
+  }
+
+  [[nodiscard]] constexpr pool_tag_t get_pool_tag() const noexcept {
+    return m_pool_tag;
+  }
+
+private:
+  void* allocate_bytes_impl(size_t bytes_count) {
+    void* const buffer{allocate_memory(alloc_request_builder{bytes_count, PoolType}
+                            .set_alignment(Alignment)
+                            .set_pool_tag(m_pool_tag)
+                            .build())};
+    if (!buffer) {
+      throw bad_alloc{};
+    }
+    return buffer;
+  }
+
+ private:
+  pool_tag_t m_pool_tag;
+};
+
+template <class Ty, crt::pool_type_t PoolType, ::std::align_val_t Alignment>
+constexpr bool operator==(
+    const tagged_allocator<Ty, PoolType, Alignment>& lhs,
+    const tagged_allocator<Ty, PoolType, Alignment>& rhs) noexcept {
+  return lhs.get_pool_tag() == rhs.get_pool_tag();
+}
+
+template <class Ty, crt::pool_type_t PoolType, ::std::align_val_t Alignment>
+constexpr bool operator!=(
+    const tagged_allocator<Ty, PoolType, Alignment>& lhs,
+    const tagged_allocator<Ty, PoolType, Alignment>& rhs) noexcept {
+  return !(lhs == rhs);
+}
+
+template <class Ty, crt::pool_type_t PoolType, ::std::align_val_t Alignment>
+void swap(tagged_allocator<Ty, PoolType, Alignment>& lhs,
+          tagged_allocator<Ty, PoolType, Alignment>& rhs) noexcept {
+  lhs.swap(rhs);
+}
+
+template <class Ty>
+using tagged_paged_allocator =
+    tagged_allocator<Ty,
+                     PagedPool,
+                     static_cast< ::std::align_val_t>(alignof(Ty))>;
+
+template <class Ty>
+using tagged_non_paged_allocator =
+    tagged_allocator<Ty,
+                     NonPagedPool,
+                     static_cast< ::std::align_val_t>(alignof(Ty))>;
 
 template <class Alloc>
 struct allocator_traits {
- public:
   using allocator_type = Alloc;
   using value_type = typename Alloc::value_type;
   using pointer = mm::details::get_pointer_type_t<Alloc, value_type>;
@@ -183,8 +189,8 @@ struct allocator_traits {
   };
   template <class OtherTy>
   struct get_rebind_traits_type {
-    using other = typename allocator_traits<
-        typename get_rebind_alloc_type<OtherTy>::type>;
+    using other =
+        allocator_traits<typename get_rebind_alloc_type<OtherTy>::type>;
   };
 
  public:
@@ -194,7 +200,6 @@ struct allocator_traits {
   template <class OtherTy>
   using rebind_traits = typename get_rebind_traits_type<OtherTy>::type;
 
- public:
   static constexpr allocator_type select_on_container_copy_construction(
       const allocator_type& alloc) {
     if constexpr (mm::details::has_select_on_container_copy_construction_v<
@@ -265,14 +270,15 @@ struct allocator_traits {
   }
 
   template <class... Types>
-  static constexpr pointer
-  construct(allocator_type& alloc, pointer ptr, Types&&... args) noexcept(
-      is_nothrow_constructible_v<value_type, Types...>) {
+  static constexpr pointer construct(
+      [[maybe_unused]] allocator_type& alloc,
+      pointer ptr,
+      Types&&... args) noexcept(is_nothrow_constructible_v<value_type,
+                                                           Types...>) {
     if constexpr (mm::details::has_construct_v<allocator_type, pointer,
                                                Types...>) {
       return alloc_construct(alloc, ptr, forward<Types>(args)...);
     } else {
-      (void)alloc;
       return in_place_construct(ptr, forward<Types>(args)...);
     }
   }

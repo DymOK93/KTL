@@ -739,7 +739,7 @@ class vector {
             TransferPolicy transfer_handler,
             Types&&... args) {
     throw_exception_if_not<length_error>(new_capacity <= max_size(),
-                                         L"vector is too large");
+                                         "vector is too large");
     grow_unchecked<AdjustSize>(new_capacity, construction_handler,
                                transfer_handler, forward<Types>(args)...);
   }
