@@ -5,9 +5,9 @@
 #include <ntddk.h>
 
 #ifdef TARGET_WINVER
-  #if TARGET_WINVER >= _WIN32_WINNT_WIN8
-    #define POOL_NX_OPTIN 1
-  #endif
+#if TARGET_WINVER >= _WIN32_WINNT_WIN8
+#define POOL_NX_OPTIN 1
+#endif
 #endif
 
 namespace ktl {
@@ -92,6 +92,7 @@ struct free_request_builder
       : MyBase({memory_block, bytes_count}) {}
 };
 
+// pass-by-value using XMM registers
 void* allocate_memory(alloc_request request) noexcept;
 void deallocate_memory(free_request request) noexcept;
 }  // namespace ktl

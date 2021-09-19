@@ -28,7 +28,7 @@ static constexpr std::align_val_t get_max_alignment_for_pool(
   return max_alignment;
 }
 
-static void* allocate_impl(alloc_request request) noexcept {
+static void* allocate_impl(const alloc_request& request) noexcept {
   const auto [bytes_count, pool_type, alignment, pool_tag]{request};
 
   crt_assert_with_msg(pool_tag != 0, "pool tag must not be equal to zero");
