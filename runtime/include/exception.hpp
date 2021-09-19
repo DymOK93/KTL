@@ -9,13 +9,17 @@ namespace ktl {
 namespace crt {
 class exception_allocator : preload_initializer {
   static constexpr size_t SLOT_SIZE{512},  //!< Size of single buffer in bytes
-      SLOT_ALIGNMENT{CACHE_LINE_SIZE},     //!< Default alignment of buffer
       RESERVED_PAGES_COUNT{1},             //!< Reserved memory pages count
       RESERVED_BYTES_COUNT{ PAGE_SIZE * RESERVED_PAGES_COUNT},  //!< Reserved memory amount in bytes
       SLOT_COUNT{RESERVED_BYTES_COUNT / SLOT_SIZE};  //!< Buffers count
 
+      
+  static constexpr auto SLOT_ALIGNMENT{static_cast<std::align_val_t>(
+      CACHE_LINE_SIZE)};  //!< Default alignment of buffer
+
+  static constexpr pool_tag_t ALLOCATION_TAG{'AcxE'};  // ExcA
+
   static_assert(RESERVED_BYTES_COUNT > SLOT_SIZE);
-  static_assert(SLOT_ALIGNMENT >= CACHE_LINE_SIZE);
 
  public:
   ~exception_allocator() noexcept override;

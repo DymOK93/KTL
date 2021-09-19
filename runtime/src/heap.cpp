@@ -1,47 +1,68 @@
+#include <algorithm_impl.hpp>
 #include <heap.hpp>
+#include <irql.hpp>
 
 namespace ktl {
 namespace crt {
-void deallocate_impl(void* memory_block,
-                     [[maybe_unused]] std::align_val_t alignment) noexcept {
-  ExFreePoolWithTag(memory_block, KTL_HEAP_TAG);
+void initialize_heap() noexcept {
+  ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
+}
+
+static constexpr std::align_val_t get_max_alignment_for_pool(
+    pool_type_t pool_type) {
+  std::align_val_t max_alignment{};
+  switch (pool_type) {
+    case NonPagedPoolCacheAligned:
+    case PagedPoolCacheAligned:
+    case NonPagedPoolCacheAlignedMustS:
+    case NonPagedPoolCacheAlignedSession:
+    case PagedPoolCacheAlignedSession:
+    case NonPagedPoolCacheAlignedMustSSession:
+    case NonPagedPoolNxCacheAligned:
+      max_alignment = static_cast<std::align_val_t>(CACHE_LINE_SIZE);
+      break;
+    default:
+      max_alignment = DEFAULT_ALLOCATION_ALIGNMENT;
+      break;
+  }
+  return max_alignment;
+}
+
+static void* allocate_impl(alloc_request request) noexcept {
+  const auto [bytes_count, pool_type, alignment, pool_tag]{request};
+
+  crt_assert_with_msg(pool_tag != 0, "pool tag must not be equal to zero");
+  crt_assert_with_msg(
+      irql_less_or_equal(DISPATCH_LEVEL),
+      "memory allocations are disabled at IRQL > DISPATCH_LEVEL due to usage  "
+      "of global executive spinlock to protect NT Virtual Memory Manager's PFN "
+      "database");
+
+  if (request.alignment <= get_max_alignment_for_pool(pool_type)) {
+    return ExAllocatePoolUninitialized(pool_type, bytes_count, pool_tag);
+  }
+
+  crt_assert_with_msg(
+      alignment < static_cast<std::align_val_t>(MEMORY_PAGE_SIZE),
+      "allocation alignment is too great");
+
+  const size_t page_aligned_size{(max)(bytes_count, MEMORY_PAGE_SIZE)};
+  return ExAllocatePoolUninitialized(pool_type, page_aligned_size, pool_tag);
+}
+
+static void deallocate_impl(void* memory_block, pool_tag_t pool_tag) noexcept {
+  crt_assert_with_msg(memory_block, "invalid memory block");
+  crt_assert_with_msg(pool_tag != 0, "pool tag must not be equal to zero");
+  ExFreePoolWithTag(memory_block, pool_tag);
 }
 }  // namespace crt
+void* allocate(alloc_request request) noexcept {
+  return crt::allocate_impl(request);
+}
 
-void* alloc_paged(size_t bytes_count, std::align_val_t alignment) noexcept {
-  if (alignment <= crt::DEFAULT_ALLOCATION_ALIGNMENT) {
-    return crt::allocate_impl<PagedPool, crt::DEFAULT_ALLOCATION_ALIGNMENT>(
-        bytes_count, alignment);
-  } else {
-    return crt::allocate_impl<PagedPoolCacheAligned,
-                              crt::EXTENDED_ALLOCATION_ALIGNMENT>(bytes_count,
-                                                                  alignment);
+void deallocate(free_request request) noexcept {
+  if (auto* ptr = request.memory_block; ptr) {
+    crt::deallocate_impl(ptr, request.pool_tag);
   }
-}
-
-void* alloc_non_paged(size_t bytes_count, std::align_val_t alignment) noexcept {
-  if (alignment <= crt::DEFAULT_ALLOCATION_ALIGNMENT) {
-    return crt::allocate_impl<NonPagedPoolNx,
-                              crt::DEFAULT_ALLOCATION_ALIGNMENT>(bytes_count,
-                                                                 alignment);
-  } else {
-    return crt::allocate_impl<NonPagedPoolCacheAligned,
-                              crt::EXTENDED_ALLOCATION_ALIGNMENT>(bytes_count,
-                                                                  alignment);
-  }
-}
-
-void deallocate(void* memory_block, std::align_val_t alignment) noexcept {
-  if (memory_block) {
-    crt::deallocate_impl(memory_block, alignment);
-  }
-}
-
-void free(void* ptr, std::align_val_t alignment) noexcept {
-  deallocate(ptr, alignment);
-}
-
-void free(void* ptr, size_t, std::align_val_t alignment) noexcept {
-  free(ptr, alignment);
 }
 }  // namespace ktl

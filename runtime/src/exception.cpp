@@ -1,9 +1,9 @@
 #include <ntifs.h>
 
 #include <crt_assert.hpp>
+#include <exception.hpp>
 #include <irql.hpp>
 #include <placement_new.hpp>
-#include <exception.hpp>
 #include <utility_impl.hpp>
 
 namespace ktl {
@@ -64,9 +64,12 @@ byte* exception_allocator::try_get_slot() noexcept {
 
 byte* exception_allocator::allocate_from_heap(size_t bytes_count) {
   if (get_current_irql() <= DISPATCH_LEVEL) {
-    if (void* const buffer = alloc_non_paged(
-            bytes_count, static_cast<std::align_val_t>(SLOT_ALIGNMENT));
-        buffer) {
+    void* const buffer{
+        allocate_memory(alloc_request_builder{bytes_count, NonPagedPool}
+                            .set_alignment(SLOT_ALIGNMENT)
+                            .set_pool_tag(ALLOCATION_TAG)
+                            .build())};
+    if (buffer) {
       return static_cast<byte*>(buffer);
     }
   }
@@ -77,7 +80,10 @@ void exception_allocator::free_to_heap(byte* ptr) noexcept {
   crt_assert_with_msg(
       get_current_irql() <= DISPATCH_LEVEL,
       "Deallocating to heap is disabled at IRQL > DISPATCH_LEVEL");
-  free(ptr);
+  deallocate_memory(free_request_builder{ptr, SLOT_SIZE}
+                        .set_alignment(SLOT_ALIGNMENT)
+                        .set_pool_tag(ALLOCATION_TAG)
+                        .build());
 }
 
 namespace details {
@@ -116,8 +122,7 @@ exception_base& exception_base::operator=(
   return *this;
 }
 
-exception_base& exception_base::operator=(
-    exception_base&& other) noexcept {
+exception_base& exception_base::operator=(exception_base&& other) noexcept {
   if (this != &other) {
     exception_base tmp{move(other)};
     swap(tmp);
@@ -183,7 +188,9 @@ auto exception_base::make_shared_data(const wchar_t* msg, size_t msg_length)
   return construct_header(buffer, msg_buf, src_length_in_bytes);
 }
 
-auto exception_base::construct_header(byte* buffer, char* saved_msg, size_t msg_length) noexcept
+auto exception_base::construct_header(byte* buffer,
+                                      char* saved_msg,
+                                      size_t msg_length) noexcept
     -> masked_ptr_t {
   saved_msg[msg_length] = static_cast<char>(0);
   auto* data{new (reinterpret_cast<shared_data*>(buffer))
