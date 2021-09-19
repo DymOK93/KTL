@@ -43,7 +43,7 @@ static void* allocate_impl(alloc_request request) noexcept {
   }
 
   crt_assert_with_msg(
-      alignment < static_cast<std::align_val_t>(MEMORY_PAGE_SIZE),
+      alignment <= static_cast<std::align_val_t>(MEMORY_PAGE_SIZE),
       "allocation alignment is too great");
 
   const size_t page_aligned_size{(max)(bytes_count, MEMORY_PAGE_SIZE)};
