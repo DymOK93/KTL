@@ -43,11 +43,11 @@ static void* allocate_impl(const alloc_request& request) noexcept {
     return ExAllocatePoolUninitialized(pool_type, bytes_count, pool_tag);
   }
 
-  crt_assert_with_msg(
-      alignment <= static_cast<std::align_val_t>(MEMORY_PAGE_SIZE),
-      "allocation alignment is too great");
+  crt_assert_with_msg(alignment <= MAX_ALLOCATION_ALIGNMENT,
+                      "allocation alignment is too large");
 
-  const size_t page_aligned_size{(max)(bytes_count, MEMORY_PAGE_SIZE)};
+  const size_t page_aligned_size{
+      (max)(bytes_count, static_cast<size_t>(MAX_ALLOCATION_ALIGNMENT))};
   return ExAllocatePoolUninitialized(pool_type, page_aligned_size, pool_tag);
 }
 
@@ -59,7 +59,8 @@ static void deallocate_impl(void* memory_block, pool_tag_t pool_tag) noexcept {
 }  // namespace crt
 
 template <>
-void* allocate_memory<OnAllocationFailure::DoNothing>(alloc_request request) noexcept {
+void* allocate_memory<OnAllocationFailure::DoNothing>(
+    alloc_request request) noexcept {
   return crt::allocate_impl(request);
 }
 
