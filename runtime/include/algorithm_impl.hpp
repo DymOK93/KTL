@@ -20,8 +20,7 @@ constexpr bool binary_search(ForwardIt first,
 
   while (0 < count) {
     const auto count_half{count / 2};
-    auto middle{next(first, count_half)};
-    if (pred(*middle, value)) {
+    if (auto middle = next(first, count_half); pred(*middle, value)) {
       first = next(middle);
       count -= count_half + 1;
     } else {
