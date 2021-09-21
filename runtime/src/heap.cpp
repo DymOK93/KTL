@@ -1,4 +1,5 @@
 #include <algorithm_impl.hpp>
+#include <exception.hpp>
 #include <heap.hpp>
 #include <irql.hpp>
 
@@ -19,7 +20,7 @@ static constexpr std::align_val_t get_max_alignment_for_pool(
     case PagedPoolCacheAlignedSession:
     case NonPagedPoolCacheAlignedMustSSession:
     case NonPagedPoolNxCacheAligned:
-      max_alignment = static_cast<std::align_val_t>(CACHE_LINE_SIZE);
+      max_alignment = CACHE_LINE_ALLOCATION_ALIGNMENT;
       break;
     default:
       max_alignment = DEFAULT_ALLOCATION_ALIGNMENT;
@@ -57,8 +58,19 @@ static void deallocate_impl(void* memory_block, pool_tag_t pool_tag) noexcept {
 }
 }  // namespace crt
 
-void* allocate_memory(alloc_request request) noexcept {
+template <>
+void* allocate_memory<OnAllocationFailure::DoNothing>(alloc_request request) noexcept {
   return crt::allocate_impl(request);
+}
+
+template <>
+void* allocate_memory<OnAllocationFailure::ThrowException>(
+    alloc_request request) {
+  void* const memory{crt::allocate_impl(request)};
+  if (!memory) {
+    throw bad_alloc{};
+  }
+  return memory;
 }
 
 void deallocate_memory(free_request request) noexcept {

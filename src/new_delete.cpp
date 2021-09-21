@@ -7,23 +7,28 @@ namespace ktl {
 namespace mm::details {
 static new_handler_t new_handler;
 
-template <bool ThrowOnFailure>
+template <OnAllocationFailure OnFailure>
 static void* operator_new_impl(
     size_t bytes_count,
     std::align_val_t alignment,
-    crt::pool_type_t pool_type) noexcept(!ThrowOnFailure) {
+    crt::pool_type_t pool_type) noexcept(OnFailure !=
+                                         OnAllocationFailure::ThrowException) {
+  constexpr auto exc_on_failure_masked{
+      OnFailure != OnAllocationFailure::ThrowException
+          ? OnFailure
+          : OnAllocationFailure ::DoNothing};
   for (;;) {
-    void* const memory{
-        allocate_memory(alloc_request_builder{bytes_count, pool_type}
-                            .set_alignment(alignment)
-                            .set_pool_tag(pool_type)
-                            .build())};
+    void* const memory{allocate_memory<exc_on_failure_masked>(
+        alloc_request_builder{bytes_count, pool_type}
+            .set_alignment(alignment)
+            .set_pool_tag(pool_type)
+            .build())};
     if (memory) {
       return memory;
     }
     if (const auto handler = get_new_handler(); handler) {
       handler();
-    } else if constexpr (ThrowOnFailure) {
+    } else if constexpr (OnFailure == OnAllocationFailure::ThrowException) {
       throw bad_alloc{};
     }
   }
@@ -84,15 +89,17 @@ void* CRTCALL operator new(size_t bytes_count, std::align_val_t alignment) {
 void* CRTCALL operator new(size_t bytes_count,
                            std::align_val_t alignment,
                            ktl::paged_new_tag_t) {
-  return ktl::mm::details::operator_new_impl<true>(bytes_count, alignment,
-                                                   PagedPool);
+  return ktl::mm::details::operator_new_impl<
+      ktl::OnAllocationFailure::ThrowException>(bytes_count, alignment,
+                                                PagedPool);
 }
 
 void* CRTCALL operator new(size_t bytes_count,
                            std::align_val_t alignment,
                            ktl::non_paged_new_tag_t) {
-  return ktl::mm::details::operator_new_impl<true>(bytes_count, alignment,
-                                                   NonPagedPool);
+  return ktl::mm::details::operator_new_impl<
+      ktl::OnAllocationFailure::ThrowException>(bytes_count, alignment,
+                                                NonPagedPool);
 }
 
 void* CRTCALL operator new(size_t bytes_count,
@@ -131,16 +138,17 @@ void* CRTCALL operator new(size_t bytes_count,
                            std::align_val_t alignment,
                            const nothrow_t&,
                            ktl::paged_new_tag_t) noexcept {
-  return ktl::mm::details::operator_new_impl<false>(bytes_count, alignment,
-                                                    PagedPool);
+  return ktl::mm::details::operator_new_impl<
+      ktl::OnAllocationFailure::DoNothing>(bytes_count, alignment, PagedPool);
 }
 
 void* CRTCALL operator new(size_t bytes_count,
                            std::align_val_t alignment,
                            const nothrow_t&,
                            ktl::non_paged_new_tag_t) noexcept {
-  return ktl::mm::details::operator_new_impl<false>(bytes_count, alignment,
-                                                    NonPagedPool);
+  return ktl::mm::details::operator_new_impl<
+      ktl::OnAllocationFailure::DoNothing>(bytes_count, alignment,
+                                           NonPagedPool);
 }
 
 void CRTCALL operator delete(void* ptr) noexcept {
