@@ -35,7 +35,7 @@ static void* allocate_impl(const alloc_request& request) noexcept {
   crt_assert_with_msg(pool_tag != 0, "pool tag must not be equal to zero");
   crt_assert_with_msg(
       get_current_irql() <= DISPATCH_LEVEL,
-      "memory allocations are disabled at IRQL > DISPATCH_LEVEL due to usage  "
+      "memory allocations are disabled at IRQL > DISPATCH_LEVEL due to usage "
       "of global executive spinlock to protect NT Virtual Memory Manager's PFN "
       "database");
 
