@@ -14,7 +14,7 @@ using std::allocator_traits;
 #include <new_delete.hpp>
 
 namespace ktl {
-template <class Ty, class NewTag, ::std::align_val_t Alignment>
+template <class Ty, class NewTag, align_val_t Alignment>
 struct aligned_allocator {
   using value_type = Ty;
   using size_type = size_t;
@@ -60,15 +60,15 @@ template <class Ty>
 using basic_paged_allocator =
     aligned_allocator<Ty,
                       paged_new_tag_t,
-                      static_cast< ::std::align_val_t>(alignof(Ty))>;
+                      static_cast<align_val_t>(alignof(Ty))>;
 
 template <class Ty>
 using basic_non_paged_allocator =
     aligned_allocator<Ty,
                       non_paged_new_tag_t,
-                      static_cast<::std::align_val_t>(alignof(Ty))>;
+                      static_cast<align_val_t>(alignof(Ty))>;
 
-template <class Ty, crt::pool_type_t PoolType, ::std::align_val_t Alignment>
+template <class Ty, crt::pool_type_t PoolType, align_val_t Alignment>
 class tagged_allocator {
   using pool_tag_t = crt::pool_tag_t;
 
@@ -128,21 +128,21 @@ private:
   pool_tag_t m_pool_tag;
 };
 
-template <class Ty, crt::pool_type_t PoolType, ::std::align_val_t Alignment>
+template <class Ty, crt::pool_type_t PoolType, align_val_t Alignment>
 constexpr bool operator==(
     const tagged_allocator<Ty, PoolType, Alignment>& lhs,
     const tagged_allocator<Ty, PoolType, Alignment>& rhs) noexcept {
   return lhs.get_pool_tag() == rhs.get_pool_tag();
 }
 
-template <class Ty, crt::pool_type_t PoolType, ::std::align_val_t Alignment>
+template <class Ty, crt::pool_type_t PoolType, align_val_t Alignment>
 constexpr bool operator!=(
     const tagged_allocator<Ty, PoolType, Alignment>& lhs,
     const tagged_allocator<Ty, PoolType, Alignment>& rhs) noexcept {
   return !(lhs == rhs);
 }
 
-template <class Ty, crt::pool_type_t PoolType, ::std::align_val_t Alignment>
+template <class Ty, crt::pool_type_t PoolType, align_val_t Alignment>
 void swap(tagged_allocator<Ty, PoolType, Alignment>& lhs,
           tagged_allocator<Ty, PoolType, Alignment>& rhs) noexcept {
   lhs.swap(rhs);
@@ -152,13 +152,13 @@ template <class Ty>
 using tagged_paged_allocator =
     tagged_allocator<Ty,
                      PagedPool,
-                     static_cast< ::std::align_val_t>(alignof(Ty))>;
+                     static_cast<align_val_t>(alignof(Ty))>;
 
 template <class Ty>
 using tagged_non_paged_allocator =
     tagged_allocator<Ty,
                      NonPagedPool,
-                     static_cast< ::std::align_val_t>(alignof(Ty))>;
+                     static_cast<align_val_t>(alignof(Ty))>;
 
 template <class Alloc>
 struct allocator_traits {
