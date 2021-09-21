@@ -90,7 +90,12 @@ class tagged_allocator {
   }
 
   Ty* allocate_bytes(size_t bytes_count) {
-    return static_cast<Ty*>(allocate_bytes_impl(bytes_count));
+    void* const buffer{allocate_memory<OnAllocationFailure::ThrowException>(
+        alloc_request_builder{bytes_count, PoolType}
+            .set_alignment(Alignment)
+            .set_pool_tag(m_pool_tag)
+            .build())};
+    return static_cast<Ty*>(buffer);
   }
 
   void deallocate(Ty* ptr, size_t object_count) noexcept {
@@ -110,18 +115,6 @@ class tagged_allocator {
 
   [[nodiscard]] constexpr pool_tag_t get_pool_tag() const noexcept {
     return m_pool_tag;
-  }
-
-private:
-  void* allocate_bytes_impl(size_t bytes_count) {
-    void* const buffer{allocate_memory(alloc_request_builder{bytes_count, PoolType}
-                            .set_alignment(Alignment)
-                            .set_pool_tag(m_pool_tag)
-                            .build())};
-    if (!buffer) {
-      throw bad_alloc{};
-    }
-    return buffer;
   }
 
  private:
@@ -150,15 +143,11 @@ void swap(tagged_allocator<Ty, PoolType, Alignment>& lhs,
 
 template <class Ty>
 using tagged_paged_allocator =
-    tagged_allocator<Ty,
-                     PagedPool,
-                     static_cast<align_val_t>(alignof(Ty))>;
+    tagged_allocator<Ty, PagedPool, static_cast<align_val_t>(alignof(Ty))>;
 
 template <class Ty>
 using tagged_non_paged_allocator =
-    tagged_allocator<Ty,
-                     NonPagedPool,
-                     static_cast<align_val_t>(alignof(Ty))>;
+    tagged_allocator<Ty, NonPagedPool, static_cast<align_val_t>(alignof(Ty))>;
 
 template <class Alloc>
 struct allocator_traits {

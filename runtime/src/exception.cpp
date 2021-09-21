@@ -63,17 +63,15 @@ byte* exception_allocator::try_get_slot() noexcept {
 }
 
 byte* exception_allocator::allocate_from_heap(size_t bytes_count) {
-  if (get_current_irql() <= DISPATCH_LEVEL) {
-    void* const buffer{
-        allocate_memory(alloc_request_builder{bytes_count, NonPagedPool}
-                            .set_alignment(SLOT_ALIGNMENT)
-                            .set_pool_tag(ALLOCATION_TAG)
-                            .build())};
-    if (buffer) {
-      return static_cast<byte*>(buffer);
-    }
+  if (get_current_irql() > DISPATCH_LEVEL) {
+    throw bad_alloc{};
   }
-  throw bad_alloc{};
+  void* const buffer{allocate_memory<OnAllocationFailure::ThrowException>(
+      alloc_request_builder{bytes_count, NonPagedPool}
+          .set_alignment(SLOT_ALIGNMENT)
+          .set_pool_tag(ALLOCATION_TAG)
+          .build())};
+  return static_cast<byte*>(buffer);
 }
 
 void exception_allocator::free_to_heap(byte* ptr) noexcept {
