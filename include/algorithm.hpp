@@ -183,7 +183,8 @@ OutBidirectionalIt copy_backward(InBidirectionalIt first,
 namespace algo::details {
 template <class Ty>
 Ty* copy_n_impl(const Ty* first, size_t count, Ty* d_first, true_type) {
-  return static_cast<Ty*>(memmove(d_first, first, count * sizeof(Ty)));
+  memmove(d_first, first, count * sizeof(Ty));
+  return d_first + count;
 }
 
 template <class Ty>
@@ -567,6 +568,7 @@ constexpr RhsForwardIt swap_ranges(LhsForwardIt lhs_first,
        lhs_first = next(lhs_first), rhs_first = next(rhs_first)) {
     iter_swap(lhs_first, rhs_first);
   }
+  return rhs_first;
 }
 }  // namespace ktl
 #endif
