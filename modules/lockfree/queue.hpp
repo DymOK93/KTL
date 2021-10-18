@@ -2,11 +2,11 @@
 // С " " вместо <> нет необходимости добавлять в зависимости lockfree/ целиком
 #include "node_allocator.hpp"
 
-#include <basic_types.hpp>
-#include <crt_attributes.hpp>
 #include <allocator.hpp>
 #include <assert.hpp>
 #include <atomic.hpp>
+#include <basic_types.hpp>
+#include <crt_attributes.hpp>
 #include <limits.hpp>
 #include <type_traits.hpp>
 
@@ -14,8 +14,7 @@
 
 namespace ktl::lockfree {
 template <class Ty, template <typename, align_val_t> class BasicNodeAllocator>
-class mpmc_queue
-    : public ktl::non_relocatable {  // multi-producer, multi-consumer
+class mpmc_queue : public non_relocatable {  // multi-producer, multi-consumer
  public:
   using value_type = Ty;
   using reference = Ty&;
@@ -215,11 +214,11 @@ class mpmc_queue
         tail->next.store<memory_order_relaxed>(
             node_pointer{new_node, next.get_next_tag()}.get_value());
         m_tail.get_ptr().store<memory_order_relaxed>(
-            node_pointer{new_node, next.get_next_tag()}.get_value());
+            node_pointer{new_node, tail.get_next_tag()}.get_value());
         return true;
-      } else
-        m_tail.get_ptr().store<memory_order_relaxed>(
-            node_pointer{next.get_pointer(), tail.get_next_tag()}.get_value());
+      }
+      m_tail.get_ptr().store<memory_order_relaxed>(
+          node_pointer{next.get_pointer(), tail.get_next_tag()}.get_value());
     }
   }
 
