@@ -191,7 +191,6 @@ class mpmc_queue : public non_relocatable {  // multi-producer, multi-consumer
 
   node* create_data_node(const Ty& value) {
     auto* node{allocator_traits_type::allocate_single_object(m_alc)};
-    ++m_allocated;
     return allocator_traits_type::construct(m_alc, node, value);
   }
 
@@ -199,7 +198,6 @@ class mpmc_queue : public non_relocatable {  // multi-producer, multi-consumer
     // node is guaranteed to be trivially destructible
     allocator_traits_type::deallocate_single_object(m_alc,
                                                     target.get_pointer());
-    ++m_freed;
   }
 
   template <typename OtherTy>
@@ -282,8 +280,6 @@ class mpmc_queue : public non_relocatable {  // multi-producer, multi-consumer
   aligned_node_pointer_holder m_head{};
   aligned_node_pointer_holder m_tail{};
   internal_allocator_type m_alc{};
-  atomic_size_t m_allocated{0}, m_freed{0};
-
 };  // namespace ktl::lockfree
 
 template <class Ty>
