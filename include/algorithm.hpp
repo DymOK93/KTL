@@ -568,5 +568,34 @@ constexpr RhsForwardIt swap_ranges(LhsForwardIt lhs_first,
     iter_swap(lhs_first, rhs_first);
   }
 }
+
+template <class InputIt, class OutputIt, class UnaryOperation>
+OutputIt transform(InputIt in_first,
+                   InputIt in_last,
+                   OutputIt out_first,
+                   UnaryOperation unary_op) {
+  for (; in_first != in_last;
+       in_first = next(in_first), out_first = next(out_first)) {
+    *out_first = unary_op(*in_first);
+  }
+  return out_first;
+}
+
+template <class LhsInputIt,
+          class RhsInputIt,
+          class OutputIt,
+          class BinaryOperation>
+OutputIt transform(LhsInputIt lhs_first,
+                   LhsInputIt lhs_last,
+                   RhsInputIt rhs_first,
+                   OutputIt out_first,
+                   BinaryOperation binary_op) {
+  for (; lhs_first != lhs_last; lhs_first = next(lhs_first),
+                                rhs_first = next(rhs_first),
+                                out_first = next(out_first)) {
+    *out_first = binary_op(*lhs_first, *rhs_first);
+  }
+  return out_first;
+}
 }  // namespace ktl
 #endif
