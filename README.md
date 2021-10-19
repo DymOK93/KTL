@@ -35,11 +35,11 @@ Kernel Template Library is open-source library providing CRT environment, STL-st
     * Mutexes, events and condition variables based on kernel synchronization primitives with RAII wrappers
     * Smart pointers (`unique_ptr`, `shared_ptr` and `weak_ptr`, `intrusive_ptr`)
     * `<type_traits>`
-    * `thread` for managing driver-dedicated threads
-    * `tuple`
-    * `optional` with constexpr support
+    * `<thread>` for managing driver-dedicated threads
+    * `<tuple>`
+    * `<optional>` with constexpr support
     * `unordered_node_map`, `unordered_node_set`, `unordered_flat_map` and `unordered_flat_set` using [robin-hood-hashing](https://github.com/martinus/robin-hood-hashing)
-    * `vector`
+    * `<vector>`
     * Lock-free queue, `node_allocator` and some auxiliary algorithms 
     * [fmt](https://github.com/fmtlib/fmt/) as a string formatting library 
     * Designed in C++17, feel free to build with C++20
