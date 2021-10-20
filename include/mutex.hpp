@@ -3,7 +3,6 @@
 #include <chrono.hpp>
 #include <compressed_pair.hpp>
 #include <irql.hpp>
-#include <limits.hpp>
 #include <thread.hpp>
 #include <tuple.hpp>
 #include <type_traits.hpp>
@@ -40,22 +39,29 @@ class awaitable_sync_primitive
                                                    //ïîääåðæèâàþùèå îæèäàíèå ñ
                                                    //òàéìåðîì
  public:
-  using MyBase = th::details::sync_primitive_base<KMUTEX>;
+  using MyBase = sync_primitive_base<KMUTEX>;
   using sync_primitive_t = MyBase::sync_primitive_t;
   using native_handle_type = MyBase::native_handle_type;
-  using duration_t = chrono::duration_t;
+  using duration_t = uint32_t;
 
  protected:
-  bool try_timed_lock(duration_t timeout_duration) {
-    LARGE_INTEGER
-    period{chrono::to_native_100ns_tics(timeout_duration)};
-    auto status{KeWaitForSingleObject(MyBase::native_handle(),
-                                      Executive,   // Wait reason
-                                      KernelMode,  // Processor mode
-                                      false, addressof(period))};
-    return NT_SUCCESS(status);
+  // template <class Rep, class Period>
+  bool try_timed_lock(
+      /*const chrono::duration<Rep, Period>&*/
+      duration_t /* timeout_duration*/) {
+    // const auto tics_to_wait =
+    //    chrono::duration_cast<chrono::tics>(timeout_duration).count();
+    // LARGE_INTEGER interval;
+    // interval.QuadPart =
+    //    -1 * tics_to_wait;  // A negative value indicates relative time
+
+    // const auto status{KeWaitForSingleObject(MyBase::native_handle(),
+    //                                        Executive,   // Wait reason
+    //                                        KernelMode,  // Processor mode
+    //                                        false, addressof(interval))};
+    return false;
   }
-  void lock_indefinite() {
+  void lock_indefinite() noexcept {
     KeWaitForSingleObject(MyBase::native_handle(),
                           Executive,      // Wait reason
                           KernelMode,     // Processor mode
@@ -65,17 +71,15 @@ class awaitable_sync_primitive
 };
 }  // namespace th::details
 
-class recursive_mutex
-    : public th::details::awaitable_sync_primitive<KMUTEX> {  // Recursive
-                                                              // KMUTEX
- public:
-  using MyBase = th::details::awaitable_sync_primitive<KMUTEX>;
+struct recursive_mutex
+    : th::details::awaitable_sync_primitive<KMUTEX> {  // Recursive
+                                                       // KMUTEX
+  using MyBase = awaitable_sync_primitive<KMUTEX>;
 
- public:
-  recursive_mutex() { KeInitializeMutex(native_handle(), 0); }
+  recursive_mutex() noexcept;
 
-  void lock() { MyBase::lock_indefinite(); }
-  void unlock() { KeReleaseMutex(MyBase::native_handle(), false); }
+  void lock() noexcept;
+  void unlock() noexcept;
 };
 
 struct timed_recursive_mutex : recursive_mutex {  // Locking with timeout
@@ -95,11 +99,11 @@ struct fast_mutex
                                                       // FAST_MUTEX
   using MyBase = sync_primitive_base<FAST_MUTEX>;
 
-  fast_mutex() { ExInitializeFastMutex(MyBase::native_handle()); }
+  fast_mutex() noexcept;
 
-  void lock() { ExAcquireFastMutex(MyBase::native_handle()); }
-  bool try_lock() { return ExTryToAcquireFastMutex(MyBase::native_handle()); }
-  void unlock() { ExReleaseFastMutex(MyBase::native_handle()); }
+  void lock() noexcept;
+  bool try_lock() noexcept;
+  void unlock() noexcept;
 };
 
 struct shared_mutex
@@ -115,7 +119,6 @@ struct shared_mutex
   void unlock() noexcept;
   void unlock_shared() noexcept;
 };
-
 
 struct push_lock : ktl::th::details::sync_primitive_base<EX_PUSH_LOCK> {
   using MyBase = ktl::th::details::sync_primitive_base<EX_PUSH_LOCK>;

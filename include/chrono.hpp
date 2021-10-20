@@ -830,14 +830,5 @@ inline namespace chrono_literals {
 
 namespace chrono {
 using namespace literals::chrono_literals;
-
-using duration_t =
-    uint32_t;  // Very old crutch for the sync primitives; will be removed soon
-
-inline LARGE_INTEGER to_native_100ns_tics(duration_t period) noexcept {
-  LARGE_INTEGER native_period;
-  native_period.QuadPart = period;
-  return native_period;
-}
 }  // namespace chrono
 }  // namespace ktl

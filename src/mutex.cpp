@@ -5,17 +5,43 @@
 #include <ntddk.h>
 #endif
 
-#include <mutex.hpp>
 #include <ktlexcept.hpp>
+#include <mutex.hpp>
 #include <utility.hpp>
 
-
-
 namespace ktl {
+recursive_mutex::recursive_mutex() noexcept : MyBase() {
+  KeInitializeMutex(native_handle(), 0);
+}
+
+void recursive_mutex::lock() noexcept {
+  lock_indefinite();
+}
+
+void recursive_mutex::unlock() noexcept {
+  KeReleaseMutex(native_handle(), false);
+}
+
+fast_mutex::fast_mutex() noexcept : MyBase() {
+  ExInitializeFastMutex(native_handle());
+}
+
+void fast_mutex::lock() noexcept {
+  ExAcquireFastMutex(native_handle());
+}
+
+bool fast_mutex::try_lock() noexcept {
+  return ExTryToAcquireFastMutex(native_handle());
+}
+
+void fast_mutex::unlock() noexcept {
+  ExReleaseFastMutex(native_handle());
+}
+
 shared_mutex::shared_mutex() : MyBase() {
   const NTSTATUS status{ExInitializeResourceLite(native_handle())};
   throw_exception_if_not<kernel_error>(NT_SUCCESS(status), status,
-                                       "ERESOURCE initialization failed");
+                                       "initialization of ERESOURCE failed");
 }
 
 shared_mutex::~shared_mutex() noexcept {
