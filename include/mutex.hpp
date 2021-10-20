@@ -105,7 +105,6 @@ struct fast_mutex
 struct shared_mutex
     : th::details::sync_primitive_base<ERESOURCE> {  // Wrapper for
                                                      // ERESOURCE
-
   using MyBase = sync_primitive_base<ERESOURCE>;
 
   shared_mutex();
@@ -115,6 +114,19 @@ struct shared_mutex
   void lock_shared() noexcept;
   void unlock() noexcept;
   void unlock_shared() noexcept;
+};
+
+
+struct push_lock : ktl::th::details::sync_primitive_base<EX_PUSH_LOCK> {
+  using MyBase = ktl::th::details::sync_primitive_base<EX_PUSH_LOCK>;
+
+  push_lock() noexcept;
+  ~push_lock() noexcept;
+
+  void lock();
+  void lock_shared();
+  void unlock();
+  void unlock_shared();
 };
 
 namespace th::details {

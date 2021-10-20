@@ -13,6 +13,7 @@ set(
 		"literals.cpp"
 		"mutex.cpp"
 		"new_delete.cpp"
+		"push_lock.cpp"
 		"thread.cpp"
 )
 
