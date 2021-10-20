@@ -1,13 +1,13 @@
 #pragma once
 #include <basic_types.hpp>
-#include <irql.hpp>
 #include <chrono.hpp>
 #include <compressed_pair.hpp>
+#include <irql.hpp>
 #include <limits.hpp>
+#include <thread.hpp>
+#include <tuple.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
-#include <tuple.hpp>
-#include <thread.hpp>
 
 #include <ntddk.h>
 
@@ -108,22 +108,13 @@ struct shared_mutex
 
   using MyBase = sync_primitive_base<ERESOURCE>;
 
-  shared_mutex() { ExInitializeResourceLite(native_handle()); }
-  ~shared_mutex() { ExDeleteResourceLite(native_handle()); }
+  shared_mutex();
+  ~shared_mutex() noexcept;
 
-  void lock() {
-    ExEnterCriticalRegionAndAcquireResourceExclusive(native_handle());
-  }
-
-  void lock_shared() {
-    ExEnterCriticalRegionAndAcquireResourceShared(native_handle());
-  }
-
-  void unlock() { ExReleaseResourceAndLeaveCriticalRegion(native_handle()); }
-
-  void unlock_shared() {
-    ExReleaseResourceAndLeaveCriticalRegion(native_handle());
-  }
+  void lock() noexcept;
+  void lock_shared() noexcept;
+  void unlock() noexcept;
+  void unlock_shared() noexcept;
 };
 
 namespace th::details {
@@ -179,8 +170,8 @@ struct queued_spin_lock_policy {
   void unlock(KLOCK_QUEUE_HANDLE& queue_handle) const noexcept;
 };
 
-inline constexpr uint32_t
-    INTERRUPT_SPIN_LOCK{0x0}, // Acquired and released at DIRQL
+inline constexpr uint32_t INTERRUPT_SPIN_LOCK{
+    0x0},                     // Acquired and released at DIRQL
     NORMAL_SPIN_LOCK{0x1},    // Acquired and released at IRQL <= DISPATCH_EVEL
     DPC_ONLY_SPIN_LOCK{0x2},  // Acquired and released at DISPATCH_EVEL
     LOW_IRQL_SPIN_LOCK{0x3};  // Acquired and released at IRQL < DISPATCH_EVEL
@@ -189,13 +180,12 @@ template <uint8_t>
 struct spin_lock_selector_impl;
 
 template <>
-struct spin_lock_selector_impl<INTERRUPT_SPIN_LOCK>; // Unsupported now
+struct spin_lock_selector_impl<INTERRUPT_SPIN_LOCK>;  // Unsupported now
 
 template <>
 struct spin_lock_selector_impl<NORMAL_SPIN_LOCK> {
   static constexpr SpinlockType value = SpinlockType::Mixed;
 };
-
 
 template <>
 struct spin_lock_selector_impl<DPC_ONLY_SPIN_LOCK> {
@@ -209,8 +199,10 @@ struct spin_lock_selector_impl<LOW_IRQL_SPIN_LOCK> {
 
 template <irql_t MinIrql, irql_t MaxIrql>
 struct spin_lock_type_selector {
-  static_assert(MinIrql <= MaxIrql, "Invalid spinlock type: MinIrql must be less or equal MaxIrql");
-  static_assert(MaxIrql <= DISPATCH_LEVEL, "Interrupt spinlocks are unsupported now");
+  static_assert(MinIrql <= MaxIrql,
+                "Invalid spinlock type: MinIrql must be less or equal MaxIrql");
+  static_assert(MaxIrql <= DISPATCH_LEVEL,
+                "Interrupt spinlocks are unsupported now");
 
   static constexpr SpinlockType value =
       spin_lock_selector_impl<static_cast<uint8_t>(MinIrql <= APC_LEVEL) |
@@ -241,7 +233,9 @@ struct spin_lock
   using MyBase::MyBase;
 
   void lock() noexcept { MyBase::get_policy().lock(*native_handle()); }
-  bool try_lock() noexcept { return MyBase::get_policy().try_lock(*native_handle()); }
+  bool try_lock() noexcept {
+    return MyBase::get_policy().try_lock(*native_handle());
+  }
   void unlock() noexcept { MyBase::get_policy().unlock(*native_handle()); }
 
   using MyBase::native_handle;
@@ -687,140 +681,146 @@ class irql_guard {
  private:
   irql_t m_old_irql;
 };
- 
-namespace th::details {
- 
- template<class... Mtxs, size_t... Idxs>
- void lock_target_from_locks(const int target, index_sequence<Idxs...>, Mtxs&... mtxs) {
-   [[maybe_unused]] int ignored[] = {
-     ((target == static_cast<int>(Idxs)) ? (((void)mtxs.lock()), 0) : 0)...
-   };
- }
- 
- template<class... Mtxs, size_t... Idxs>
- bool try_lock_target_from_locks(const int target, index_sequence<Idxs...>, Mtxs&... mtxs) {
-   bool result = false;
-   
-   [[maybe_unused]] int ignored[] = {
-     ((target == static_cast<int>(Idxs)) ? ((result = mtxs.try_lock()), 0) : 0)...
-   };
-   
-   return result;
- }
- 
- template<class... Mtxs, size_t... Idxs>
- void unlock_locks(const int first, const int last, index_sequence<Idxs...>, Mtxs&... mtxs) {
-   [[maybe_unused]] int ignored[] = {
-     ((first <= static_cast<int>(Idxs) && static_cast<int>(Idxs) < last) ? (((void)mtxs.unlock()), 0) : 0)...
-   };
- }
- 
- template<class... Mtxs>
- int try_lock_range(const int first, const int last, Mtxs&... mtxs) {
-   using indices_t = index_sequence_for<Mtxs...>;
-   
-   int current = first;
-   
-   try {
-     for (; current < last; ++current) {
-       if (!try_lock_target_from_locks(current, indices_t{}, mtxs...)) {
-         unlock_locks(first, current, indices_t{}, mtxs...);
-         return current;
-       }
-     }
-   }
-   catch(...) {
-     unlock_locks(first, current, indices_t{}, mtxs...);
-     throw;
-   }
-   
-   return -1;
- }
- 
- template<class... Mtxs>
- int lock_attempt(const int prev, Mtxs&... mtxs) {
-   using indices_t = index_sequence_for<Mtxs...>;
-   lock_target_from_locks(prev, indices_t{}, mtxs...);
-   
-   int failed = -1;
-   int rollback_start = prev;
-   
-   try {
-     failed = try_lock_range(0, prev, mtxs...);
-     if (failed == -1) {
-       rollback_start = 0;
-       failed = try_lock_range(prev + 1, sizeof...(Mtxs), mtxs...);
-       if (failed == -1) {
-         return -1;
-       }
-     }
-   }
-   catch(...) {
-     unlock_locks(rollback_start, prev + 1, indices_t{}, mtxs...);
-     throw;
-   }
-   
-   unlock_locks(rollback_start, prev + 1, indices_t{}, mtxs...);
-   return failed;
- }
- 
- template<class Mtx1, class Mtx2, class Mtx3, class... MtxNs>
- void lock_impl(Mtx1& mtx1, Mtx2& mtx2, Mtx3& mtx3, MtxNs&... mtxns) {
-   int not_locked = 0;
-   while (not_locked != -1) {
-     not_locked = lock_attempt(not_locked, mtx1, mtx2, mtx3, mtxns...);
-   }
- }
- 
- template<class Mtx1, class Mtx2>
- bool lock_attempt_small(Mtx1& mtx1, Mtx2& mtx2) {
-   mtx1.lock();
-   
-   try {
-     if (mtx2.try_lock()) {
-       return false;
-     }
-   }
-   catch(...) {
-     mtx1.unlock();
-     throw;
-   }
-   
-   mtx1.unlock();
-   this_thread::yield();
-   
-   return true;
- }
- 
- template<class Mtx1, class Mtx2>
- void lock_impl(Mtx1& mtx1, Mtx2& mtx2) {
-   while(lock_attempt_small(mtx1, mtx2) && lock_attempt_small(mtx2, mtx1))
-     /* Don't give up... Try harder! */ ;
- }
- 
-} // namespace th::details
 
-template<class Mtx1, class Mtx2, class... MtxNs>
+namespace th::details {
+
+template <class... Mtxs, size_t... Idxs>
+void lock_target_from_locks(const int target,
+                            index_sequence<Idxs...>,
+                            Mtxs&... mtxs) {
+  [[maybe_unused]] int ignored[] = {
+      ((target == static_cast<int>(Idxs)) ? (((void)mtxs.lock()), 0) : 0)...};
+}
+
+template <class... Mtxs, size_t... Idxs>
+bool try_lock_target_from_locks(const int target,
+                                index_sequence<Idxs...>,
+                                Mtxs&... mtxs) {
+  bool result = false;
+
+  [[maybe_unused]] int ignored[] = {((target == static_cast<int>(Idxs))
+                                         ? ((result = mtxs.try_lock()), 0)
+                                         : 0)...};
+
+  return result;
+}
+
+template <class... Mtxs, size_t... Idxs>
+void unlock_locks(const int first,
+                  const int last,
+                  index_sequence<Idxs...>,
+                  Mtxs&... mtxs) {
+  [[maybe_unused]] int ignored[] = {
+      ((first <= static_cast<int>(Idxs) && static_cast<int>(Idxs) < last)
+           ? (((void)mtxs.unlock()), 0)
+           : 0)...};
+}
+
+template <class... Mtxs>
+int try_lock_range(const int first, const int last, Mtxs&... mtxs) {
+  using indices_t = index_sequence_for<Mtxs...>;
+
+  int current = first;
+
+  try {
+    for (; current < last; ++current) {
+      if (!try_lock_target_from_locks(current, indices_t{}, mtxs...)) {
+        unlock_locks(first, current, indices_t{}, mtxs...);
+        return current;
+      }
+    }
+  } catch (...) {
+    unlock_locks(first, current, indices_t{}, mtxs...);
+    throw;
+  }
+
+  return -1;
+}
+
+template <class... Mtxs>
+int lock_attempt(const int prev, Mtxs&... mtxs) {
+  using indices_t = index_sequence_for<Mtxs...>;
+  lock_target_from_locks(prev, indices_t{}, mtxs...);
+
+  int failed = -1;
+  int rollback_start = prev;
+
+  try {
+    failed = try_lock_range(0, prev, mtxs...);
+    if (failed == -1) {
+      rollback_start = 0;
+      failed = try_lock_range(prev + 1, sizeof...(Mtxs), mtxs...);
+      if (failed == -1) {
+        return -1;
+      }
+    }
+  } catch (...) {
+    unlock_locks(rollback_start, prev + 1, indices_t{}, mtxs...);
+    throw;
+  }
+
+  unlock_locks(rollback_start, prev + 1, indices_t{}, mtxs...);
+  return failed;
+}
+
+template <class Mtx1, class Mtx2, class Mtx3, class... MtxNs>
+void lock_impl(Mtx1& mtx1, Mtx2& mtx2, Mtx3& mtx3, MtxNs&... mtxns) {
+  int not_locked = 0;
+  while (not_locked != -1) {
+    not_locked = lock_attempt(not_locked, mtx1, mtx2, mtx3, mtxns...);
+  }
+}
+
+template <class Mtx1, class Mtx2>
+bool lock_attempt_small(Mtx1& mtx1, Mtx2& mtx2) {
+  mtx1.lock();
+
+  try {
+    if (mtx2.try_lock()) {
+      return false;
+    }
+  } catch (...) {
+    mtx1.unlock();
+    throw;
+  }
+
+  mtx1.unlock();
+  this_thread::yield();
+
+  return true;
+}
+
+template <class Mtx1, class Mtx2>
+void lock_impl(Mtx1& mtx1, Mtx2& mtx2) {
+  while (lock_attempt_small(mtx1, mtx2) && lock_attempt_small(mtx2, mtx1))
+    /* Don't give up... Try harder! */;
+}
+
+}  // namespace th::details
+
+template <class Mtx1, class Mtx2, class... MtxNs>
 void lock(Mtx1& mtx1, Mtx2& mtx2, MtxNs&... mtxns) {
   th::details::lock_impl(mtx1, mtx2, mtxns...);
 }
- 
-template<class... Mtxs>
-class scoped_lock : non_copyable {
-public:
-  explicit scoped_lock(Mtxs&... mtxs) : m_mtxs(mtxs...) { 
-    ktl::lock(mtxs...);
-  }
-  
-  explicit scoped_lock(adopt_lock_tag, Mtxs&... mtxs) : m_mtxs(mtxs...) { /* Don't lock */ }
-  
-  ~scoped_lock() { apply([](Mtxs&... mtxs) { (..., (void) mtxs.unlock()); }, m_mtxs); }
 
-private:
+template <class... Mtxs>
+class scoped_lock : non_copyable {
+ public:
+  explicit scoped_lock(Mtxs&... mtxs) : m_mtxs(mtxs...) { ktl::lock(mtxs...); }
+
+  explicit scoped_lock(adopt_lock_tag, Mtxs&... mtxs)
+      : m_mtxs(mtxs...) { /* Don't lock */
+  }
+
+  ~scoped_lock() {
+    apply([](Mtxs&... mtxs) { (..., (void)mtxs.unlock()); }, m_mtxs);
+  }
+
+ private:
   tuple<Mtxs&...> m_mtxs;
 };
- 
-template<class Mtx>
+
+template <class Mtx>
 class scoped_lock<Mtx> : non_copyable {
  public:
   using mutex_type = Mtx;
@@ -835,17 +835,17 @@ class scoped_lock<Mtx> : non_copyable {
  private:
   Mtx& m_mtx;
 };
- 
-template<>
+
+template <>
 class scoped_lock<> : non_copyable {
-public:
+ public:
   explicit scoped_lock() = default;
-  explicit scoped_lock(adopt_lock_tag) { }
+  explicit scoped_lock(adopt_lock_tag) {}
 };
 
-template<class... Mtxs>
+template <class... Mtxs>
 scoped_lock(Mtxs&...) -> scoped_lock<Mtxs...>;
 
-template<class... Mtxs>
+template <class... Mtxs>
 scoped_lock(adopt_lock_tag, Mtxs&...) -> scoped_lock<Mtxs...>;
 }  // namespace ktl

@@ -1,9 +1,37 @@
+#include <ktlexcept.hpp>
 #include <mutex.hpp>
 #include <utility.hpp>
 
 #include <ntddk.h>
 
-namespace ktl::th::details {
+namespace ktl {
+shared_mutex::shared_mutex() : MyBase() {
+  const NTSTATUS status{ExInitializeResourceLite(native_handle())};
+  throw_exception_if_not<kernel_error>(NT_SUCCESS(status), status,
+                                       "ERESOURCE initialization failed");
+}
+
+shared_mutex::~shared_mutex() noexcept {
+  ExDeleteResourceLite(native_handle());
+}
+
+void shared_mutex::lock() noexcept {
+  ExEnterCriticalRegionAndAcquireResourceExclusive(native_handle());
+}
+
+void shared_mutex::lock_shared() noexcept {
+  ExEnterCriticalRegionAndAcquireResourceShared(native_handle());
+}
+
+void shared_mutex::unlock() noexcept {
+  ExReleaseResourceAndLeaveCriticalRegion(native_handle());
+}
+
+void shared_mutex::unlock_shared() noexcept {
+  ExReleaseResourceAndLeaveCriticalRegion(native_handle());
+}
+
+namespace th::details {
 void spin_lock_policy<SpinlockType::DpcOnly>::lock(
     KSPIN_LOCK& target) const noexcept {
   KeAcquireSpinLockAtDpcLevel(addressof(target));
@@ -62,4 +90,5 @@ void queued_spin_lock_policy<SpinlockType::Mixed>::unlock(
     KLOCK_QUEUE_HANDLE& queue_handle) const noexcept {
   KeReleaseInStackQueuedSpinLock(addressof(queue_handle));
 }
-}  // namespace ktl::th::details
+}  // namespace th::details
+}  // namespace ktl
