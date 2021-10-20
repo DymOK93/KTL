@@ -299,15 +299,15 @@ class event : public sync_primitive_base<KEVENT> {
   using MyBase = sync_primitive_base<KEVENT>;
   using duration_t = chrono::duration_t;
 
- public:
   enum class State { Active, Inactive };
 
  public:
   event(State state = State::Inactive) noexcept {
-    bool activated{state == State::Active};
+    const bool activated{state == State::Active};
     KeInitializeEvent(native_handle(), type, activated);
     update_state(state);
   }
+
   event& operator=(State state) noexcept {
     update_state(state);
     return *this;
