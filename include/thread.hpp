@@ -1,9 +1,9 @@
 #pragma once
-#include <basic_types.hpp>
-#include <irql.hpp>
 #include <assert.hpp>
+#include <basic_types.hpp>
 #include <chrono.hpp>
 #include <functional.hpp>
+#include <irql.hpp>
 #include <smart_pointer.hpp>
 #include <tuple.hpp>
 #include <type_traits.hpp>
@@ -227,7 +227,7 @@ class system_thread : public th::details::worker_thread<system_thread> {
     auto packed_args{
         pack_fn_with_args(max_irql, forward<Fn>(fn), forward<Types>(args)...)};
     auto thread_obj{create_thread_impl(
-        get_thread_routine<decltype(packed_args)::element_type>(),
+        get_thread_routine<typename decltype(packed_args)::element_type>(),
         packed_args.get())};
     packed_args.release();
     return thread_obj;
@@ -334,7 +334,7 @@ class io_thread : public th::details::worker_thread<io_thread> {
         pack_fn_with_args(max_irql, forward<Fn>(fn), forward<Types>(args)...)};
     auto thread_obj{create_thread_impl(
         io_obj.object,
-        get_thread_routine<decltype(packed_args)::element_type>(),
+        get_thread_routine<typename decltype(packed_args)::element_type>(),
         packed_args.get())};
     packed_args.release();
     return thread_obj;

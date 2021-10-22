@@ -299,79 +299,161 @@ struct semaphore : th::details::sync_primitive_base<KSEMAPHORE> {
 };
 
 enum class cv_status : uint8_t { no_timeout, timeout };
+using event_type = EVENT_TYPE;
 
 namespace th::details {
-using event_type = _EVENT_TYPE;
-template <event_type type>
-class event : public sync_primitive_base<KEVENT> {
+template <class ConcreteToken>
+class await_token_base {
  public:
+  using priority_type = KPRIORITY;
+  using timeout_type = LARGE_INTEGER;
+
+ public:
+  constexpr explicit await_token_base(priority_type priority_boost) noexcept
+      : m_priority_boost{priority_boost} {}
+
+  [[nodiscard]] constexpr priority_type get_priority_boost() const noexcept {
+    return m_priority_boost;
+  }
+
+  [[nodiscard]] constexpr const timeout_type* get_timeout() const noexcept {
+    return static_cast<const ConcreteToken*>(this)->get_timeout();
+  }
+
+  [[nodiscard]] static constexpr bool is_awaitable() noexcept {
+    return ConcreteToken::is_awaitable();
+  }
+
+ protected:
+  priority_type m_priority_boost;
+};
+
+template <class ConcreteToken>
+class await_token_with_timeout : public await_token_base<ConcreteToken> {
+ public:
+  using MyBase = await_token_base<ConcreteToken>;
+  using priority_type = typename MyBase::priority_type;
+  using timeout_type = typename MyBase::timeout_type;
+
+ public:
+  constexpr await_token_with_timeout(priority_type priority_boost,
+                                     timeout_type timeout) noexcept
+      : MyBase(priority_boost), m_timeout{timeout} {}
+
+  [[nodiscard]] constexpr const timeout_type* get_timeout() const noexcept {
+    return addressof(m_timeout);
+  }
+
+ protected:
+  timeout_type m_timeout;
+};
+}  // namespace th::details
+
+class no_wait_token : th::details::await_token_base<no_wait_token> {
+ public:
+  using MyBase = await_token_base<no_wait_token>;
+
+ public:
+  using MyBase::MyBase;
+
+  [[nodiscard]] constexpr const LARGE_INTEGER* get_timeout() const noexcept {
+    return nullptr;
+  }
+
+  [[nodiscard]] static constexpr bool is_awaitable() noexcept { return false; }
+};
+
+class wait_token : th::details::await_token_base<wait_token> {
+ public:
+  using MyBase = await_token_base<wait_token>;
+
+ public:
+  wait_token(priority_type priority_boost) noexcept : MyBase(priority_boost) {}
+
+ protected:
+  friend class MyBase;
+
+  [[nodiscard]] constexpr const LARGE_INTEGER* get_timeout() const noexcept {
+    return nullptr;
+  }
+};
+
+template <class Rep, class Period>
+class wait_for_token {};
+
+class wait_until_token {};
+
+namespace th::details {
+struct event_base : sync_primitive_base<KEVENT> {
   using MyBase = sync_primitive_base<KEVENT>;
-  using duration_t = chrono::duration_t;
 
-  enum class State { Active, Inactive };
+  event_base(event_type type, bool signaled = false) noexcept;
+  event_base& operator=(bool signaled) noexcept;
 
- public:
-  event(State state = State::Inactive) noexcept {
-    const bool activated{state == State::Active};
-    KeInitializeEvent(native_handle(), type, activated);
-    update_state(state);
+  void wait() noexcept;
+  void clear() noexcept;
+
+  template <class AwaitToken = no_wait_token,
+            enable_if_t<is_base_of_v<await_token_base<AwaitToken>, AwaitToken>,
+                        int> = 0>
+  void set(AwaitToken token = no_wait_token{0}) noexcept {
+    bump_impl(native_handle(), token,
+              [](native_handle_type event, auto priority, bool wait) {
+                KeSetEvent(event, priority, wait);
+              });
   }
 
-  event& operator=(State state) noexcept {
-    update_state(state);
-    return *this;
+  template <class AwaitToken = no_wait_token,
+            enable_if_t<is_base_of_v<await_token_base<AwaitToken>, AwaitToken>,
+                        int> = 0>
+  void pulse(AwaitToken token = no_wait_token{0}) noexcept {
+    bump_impl(native_handle(), token,
+              [](native_handle_type event, auto priority, bool wait) {
+                KePulseEvent(event, priority, wait);
+              });
   }
 
-  void wait() noexcept {
-    KeWaitForSingleObject(native_handle(),
-                          Executive,   // Wait reason
-                          KernelMode,  // Processor mode
-                          false,
-                          nullptr  // Indefinite waiting
-    );
-  }
+  // cv_status wait_for(duration_t us) noexcept {
+  //  LARGE_INTEGER wait_time;
+  //  wait_time.QuadPart = us;
+  //  wait_time.QuadPart *= -10;  // relative time in 100ns tics
+  //  NTSTATUS result{KeWaitForSingleObject(
+  //      native_handle(),
+  //      Executive,   // Wait reason
+  //      KernelMode,  // Processor mode
+  //      false,
+  //      addressof(wait_time)  // Indefinite waiting
+  //      )};
+  //  return result == STATUS_TIMEOUT ? cv_status::timeout
+  //                                  : cv_status::no_timeout;
+  //}
 
-  cv_status wait_for(duration_t us) noexcept {
-    LARGE_INTEGER wait_time;
-    wait_time.QuadPart = us;
-    wait_time.QuadPart *= -10;  // relative time in 100ns tics
-    NTSTATUS result{KeWaitForSingleObject(
-        native_handle(),
-        Executive,   // Wait reason
-        KernelMode,  // Processor mode
-        false,
-        addressof(wait_time)  // Indefinite waiting
-        )};
-    return result == STATUS_TIMEOUT ? cv_status::timeout
-                                    : cv_status::no_timeout;
-  }
-
-  void set() noexcept { update_state(State::Active); }
-  void clear() noexcept { update_state(State::Inactive); }
-  State state() const noexcept { return get_current_state(); }
-  bool is_signaled() const noexcept {
-    return get_current_state() == State::Active;
-  }
+  // State state() const noexcept { return get_current_state(); }
+  // bool is_signaled() const noexcept {
+  //  return get_current_state() == State::Active;
+  //}
 
  private:
-  void update_state(State new_state) noexcept {
-    switch (new_state) {
-      case State::Active:
-        KeSetEvent(native_handle(), 0, false);
-        break;
-      case State::Inactive:
-        KeClearEvent(native_handle());
-        break;
-      default:
-        break;
-    };
+  template <class AwaitToken, class Handler>
+  static void bump_impl(native_handle_type event,
+                        AwaitToken token,
+                        Handler handler) noexcept {
+    if constexpr (!token.is_awaitable()) {
+      handler(event, token.get_priority_boost(), false);
+    } else {
+      handler(event, token.get_priority_boost(), true);
+      wait_impl(event, token.get_timeout());
+    }
   }
 
-  State get_current_state() const noexcept {
+  static void wait_impl(native_handle_type event,
+                        const LARGE_INTEGER* timeout) noexcept;
+
+  /*State get_current_state() const noexcept {
     return KeReadStateEvent(MyBase::get_non_const_native_handle())
                ? State::Active
                : State::Inactive;
-  }
+  }*/
 };
 }  // namespace th::details
 

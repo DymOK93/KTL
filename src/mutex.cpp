@@ -171,5 +171,37 @@ void queued_spin_lock_policy<SpinlockType::Mixed>::unlock(
     KLOCK_QUEUE_HANDLE& queue_handle) const noexcept {
   KeReleaseInStackQueuedSpinLock(addressof(queue_handle));
 }
+
+event_base::event_base(event_type type, bool signaled) noexcept {
+  KeInitializeEvent(native_handle(), type, signaled);
+}
+
+event_base& event_base::operator=(bool signaled) noexcept {
+  if (!signaled) {
+    KeResetEvent(native_handle());
+  } else {
+    KeSetEvent(native_handle(), 0, false);
+  }
+  return *this;
+}
+
+void event_base::wait() noexcept {
+  wait_impl(native_handle(), nullptr);
+}
+
+void event_base::clear() noexcept {
+  KeResetEvent(native_handle());
+}
+
+void event_base::wait_impl(native_handle_type event,
+                           const LARGE_INTEGER* timeout) noexcept {
+  KeWaitForSingleObject(
+      event,
+      Executive,   // Wait reason
+      KernelMode,  // Processor mode
+      false,
+      const_cast<LARGE_INTEGER*>(timeout)  // Indefinite waiting
+  );
+}
 }  // namespace th::details
 }  // namespace ktl
