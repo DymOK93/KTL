@@ -1,6 +1,7 @@
 # KTL
 Kernel Template Library is open-source library providing CRT environment, STL-style containers and RAII tools for Windows Kernel programming.
 
+* [Status](#status)
 * [Features](#features)
   * [C Runtime environment](#build-requirements)
   * [C++ Standard Library implementation](#C++-standard-library-implementation)
@@ -10,8 +11,12 @@ Kernel Template Library is open-source library providing CRT environment, STL-st
   * [Build requirements](#build-requirements)
 * [Examples](#samples)
 * [Roadmap for the near future](#roadmap-for-the-near-future)
-* [License](#license)
 
+# Status
+
+| **License**                                                                                                                             | **Lines of Code**                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| [![License](https://img.shields.io/badge/License-MIT-lightblue.svg)](https://github.com/DymOK93/KTL/blob/master/LICENSE.md) | ![](https://sloc.xyz/github/DymOK93/KTL/)
 
 # Features
 
@@ -107,6 +112,3 @@ It includes **3 static libraries**:
 * Intrusive containers
 * Coroutine-compatible async primitives
 * **Exception handling on the x86 platforms**
-
-# License
-KTL distributed under MIT [license](https://github.com/DymOK93/KTL/blob/master/LICENSE.md).
