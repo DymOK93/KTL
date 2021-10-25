@@ -250,7 +250,7 @@ struct spin_lock
   using MyBase::native_handle;
 };
 
-template <irql_t MinIrql = PASSIVE_LEVEL, irql_t MaxIrql = HIGH_LEVEL>
+template <irql_t MinIrql = PASSIVE_LEVEL, irql_t MaxIrql = DISPATCH_LEVEL>
 struct queued_spin_lock
     : th::details::spin_lock_base<
           th::details::queued_spin_lock_policy_selector_t<MinIrql, MaxIrql>> {
