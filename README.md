@@ -12,13 +12,13 @@ Kernel Template Library is open-source library providing CRT environment, STL-st
 * [Examples](#samples)
 * [Roadmap for the near future](#roadmap-for-the-near-future)
 
-# Status
+## Status
 
 | **License**                                                                                                                             | **Lines of Code**                                            |
 | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | [![License](https://img.shields.io/badge/License-MIT-lightblue.svg)](https://github.com/DymOK93/KTL/blob/master/LICENSE.md) | ![](https://sloc.xyz/github/DymOK93/KTL/)
 
-# Features
+## Features
 
 * C Runtime environment
     * **Exception handling mechanism** (now for x64 only)
@@ -57,7 +57,7 @@ Kernel Template Library is open-source library providing CRT environment, STL-st
 
 _Complete documentation in progress_.
 
-# Installation & Usage
+## Installation & Usage
 You can use KTL directly as driver CMake project subdirectory or link with pre-built KTL binaries applying `find_package()`.
 
 It includes **3 static libraries**: 
@@ -104,10 +104,10 @@ It includes **3 static libraries**:
 * CMake 3.0 and higher
 * [FindWDK](https://github.com/DymOK93/FindWDK/tree/develop) (used as a Git submodule)
 
-# Examples
+## Examples
 * [CoroDriverSample](https://github.com/DymOK93/CoroDriverSample) - a simple driver demonstrating the use of C++20 coroutines in kernel mode 
 
-# Roadmap for the near future 
+## Roadmap for the near future 
 * Linked lists and Red-Black-Tree containers
 * Intrusive containers
 * Coroutine-compatible async primitives
