@@ -197,6 +197,14 @@ bool event_base::reset() noexcept {
   return KeResetEvent(native_handle()) != 0;
 }
 
+bool event_base::set(KPRIORITY priority_boost) noexcept {
+  return KeSetEvent(native_handle(), priority_boost, false) != 0;
+}
+
+bool event_base::pulse(KPRIORITY priority_boost) noexcept {
+  return KePulseEvent(native_handle(), priority_boost, false) != 0;
+}
+
 bool event_base::is_signaled() const noexcept {
   return KeReadStateEvent(get_non_const_native_handle()) != 0;
 }

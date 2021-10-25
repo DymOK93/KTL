@@ -302,91 +302,6 @@ enum class cv_status : uint8_t { no_timeout, timeout };
 using event_type = EVENT_TYPE;
 
 namespace th::details {
-template <class ConcreteToken>
-class await_token_base {
- public:
-  using priority_type = KPRIORITY;
-  using timeout_type = LARGE_INTEGER;
-
- public:
-  constexpr explicit await_token_base(priority_type priority_boost = 0) noexcept
-      : m_priority_boost{priority_boost} {}
-
-  [[nodiscard]] constexpr bool is_awaitable() const noexcept {
-    return static_cast<const ConcreteToken*>(this)->is_awaitable();
-  }
-
-  [[nodiscard]] constexpr priority_type get_priority_boost() const noexcept {
-    return m_priority_boost;
-  }
-
-  [[nodiscard]] constexpr const timeout_type* get_timeout() const noexcept {
-    return static_cast<const ConcreteToken*>(this)->get_timeout();
-  }
-
- protected:
-  priority_type m_priority_boost;
-};
-}  // namespace th::details
-
-struct no_wait_token : th::details::await_token_base<no_wait_token> {
-  using MyBase = await_token_base<no_wait_token>;
-
-  using MyBase::MyBase;
-
-  [[nodiscard]] constexpr bool is_awaitable() noexcept { return false; }
-
-  [[nodiscard]] constexpr const LARGE_INTEGER* get_timeout() const noexcept {
-    return nullptr;
-  }
-};
-
-struct wait_token : th::details::await_token_base<wait_token> {
-  using MyBase = await_token_base<wait_token>;
-
-  using MyBase::MyBase;
-
-  [[nodiscard]] constexpr bool is_awaitable() const noexcept { return true; }
-
-  [[nodiscard]] constexpr const LARGE_INTEGER* get_timeout() const noexcept {
-    return nullptr;
-  }
-};
-
-namespace th::details {
-
-template <class ConcreteToken>
-class await_token_with_timeout : public await_token_base<ConcreteToken> {
- public:
-  using MyBase = await_token_base<ConcreteToken>;
-  using priority_type = typename MyBase::priority_type;
-  using timeout_type = typename MyBase::timeout_type;
-
- public:
-  constexpr await_token_with_timeout(priority_type priority_boost,
-                                     timeout_type timeout) noexcept
-      : MyBase(priority_boost), m_timeout{timeout} {}
-
-  [[nodiscard]] constexpr bool is_awaitable() noexcept { return true; }
-
-  [[nodiscard]] constexpr const timeout_type* get_timeout() const noexcept {
-    return addressof(m_timeout);
-  }
-
- protected:
-  timeout_type m_timeout;
-};
-}  // namespace th::details
-
-template <class Rep, class Period>
-class wait_for_token {
- private:
-  chrono::duration<Rep, Period> m_duration;
-};
-
-class wait_until_token {};
-
-namespace th::details {
 struct event_base : sync_primitive_base<KEVENT> {
   using MyBase = sync_primitive_base<KEVENT>;
 
@@ -396,24 +311,24 @@ struct event_base : sync_primitive_base<KEVENT> {
   void clear() noexcept;
   bool reset() noexcept;
 
-  template <class AwaitToken = no_wait_token,
-            enable_if_t<is_base_of_v<await_token_base<AwaitToken>, AwaitToken>,
-                        int> = 0>
-  void set(AwaitToken token = AwaitToken{}) noexcept {
-    bump_impl(native_handle(), token,
-              [](native_handle_type event, auto priority, bool wait) {
-                KeSetEvent(event, priority, wait);
-              });
+  bool set(KPRIORITY priority_boost = 0) noexcept;
+
+  template <class Awaitable, class AwaitHandler>
+  void set(Awaitable& awaitable,
+           AwaitHandler await_handler,
+           KPRIORITY priority_boost = 0) noexcept {
+    const auto state{KeSetEvent(native_handle(), priority_boost, true)};
+    await_handler(awaitable, state != 0);
   }
 
-  template <class AwaitToken = no_wait_token,
-            enable_if_t<is_base_of_v<await_token_base<AwaitToken>, AwaitToken>,
-                        int> = 0>
-  void pulse(AwaitToken token = AwaitToken{}) noexcept {
-    bump_impl(native_handle(), token,
-              [](native_handle_type event, auto priority, bool wait) {
-                KePulseEvent(event, priority, wait);
-              });
+  bool pulse(KPRIORITY priority_boost = 0) noexcept;
+
+  template <class Awaitable, class AwaitHandler>
+  void pulse(Awaitable& awaitable,
+             AwaitHandler handler,
+             KPRIORITY priority_boost = 0) noexcept {
+    const auto state{KePulseEvent(native_handle(), priority_boost, true)};
+    await_handler(awaitable, state != 0);
   }
 
   void wait() noexcept;
@@ -518,8 +433,6 @@ struct has_try_lock_for<
 template <class Lockable, class Duration>
 inline constexpr bool has_try_lock_for_v =
     has_try_lock_for<Lockable, Duration>::value;
-// has_try_lock_for<Locable, Duration>::value;
-
 }  // namespace th::details
 
 struct defer_lock_tag {};    // Deferred lock
