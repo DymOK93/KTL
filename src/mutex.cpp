@@ -15,15 +15,20 @@ recursive_mutex::recursive_mutex() noexcept : MyBase() {
 }
 
 void recursive_mutex::lock() noexcept {
-  KeWaitForSingleObject(native_handle(),
-                        Executive,   // Wait reason
-                        KernelMode,  // Processor mode
-                        false,
-                        nullptr);  // Indefinite waiting
+  wait_impl(native_handle(), nullptr);
 }
 
 void recursive_mutex::unlock() noexcept {
   KeReleaseMutex(native_handle(), false);
+}
+
+void recursive_mutex::wait_impl(KMUTEX* mtx, const LARGE_INTEGER* timeout) {
+  KeWaitForSingleObject(
+      mtx,
+      Executive,   // Wait reason
+      KernelMode,  // Processor mode
+      false,
+      const_cast<LARGE_INTEGER*>(timeout));  // Indefinite waiting
 }
 
 fast_mutex::fast_mutex() noexcept : MyBase() {
@@ -218,7 +223,9 @@ event_base::operator bool() const noexcept {
 }
 
 cv_status event_base::from_native_status(NTSTATUS status) noexcept {
-  return status == STATUS_TIMEOUT ? cv_status::timeout : cv_status::no_timeout;
+  return status == STATUS_TIMEOUT || status == STATUS_CANCELLED
+             ? cv_status::timeout
+             : cv_status::no_timeout;
 }
 
 NTSTATUS event_base::wait_impl(native_handle_type event,

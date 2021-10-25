@@ -34,15 +34,15 @@ class sync_primitive_base : non_relocatable {
 };
 }  // namespace th::details
 
-struct recursive_mutex
-    : th::details::sync_primitive_base<KMUTEX> {  // Recursive
-                                                  // KMUTEX
+class recursive_mutex
+    : public th::details::sync_primitive_base<KMUTEX> {  // Recursive KMUTEX
+ public:
   using MyBase = sync_primitive_base<KMUTEX>;
 
+ public:
   recursive_mutex() noexcept;
 
   void lock() noexcept;
-
   void unlock() noexcept;
 
   template <class Awaitable, class AwaitHandler>
@@ -50,21 +50,38 @@ struct recursive_mutex
     const auto state{KeReleaseMutex(native_handle(), true)};
     await_handler(awaitable, state != 0);
   }
+
+ protected:
+  static void wait_impl(KMUTEX* mtx, const LARGE_INTEGER* timeout);
 };
 
 using mutex = recursive_mutex;
 
 struct timed_recursive_mutex : recursive_mutex {  // Locking with timeout
   using MyBase = recursive_mutex;
-
   using MyBase::MyBase;
 
   template <class Rep, class Period>
-  bool try_lock_for(const chrono::duration<Rep, Period>& timeout_duration);
+  void lock_for(const chrono::duration<Rep, Period>& wait_duration) {
+    const auto await_status{th::details::wait_for_impl(
+        wait_duration, [mtx = native_handle()](LARGE_INTEGER* interval) {
+          wait_impl(mtx, interval);
+        })};
+    if (await_status == STATUS_CANCELLED) {
+      lock();
+    }
+  }
 
   template <class Clock, class Duration>
-  bool try_lock_until(
-      const chrono::time_point<Clock, Duration>& timeout_time);
+  void lock_until(const chrono::time_point<Clock, Duration>& awake_time) {
+    const auto await_status{th::details::wait_until_impl(
+        awake_time, [mtx = native_handle()](LARGE_INTEGER* interval) {
+          wait_impl(mtx, interval);
+        })};
+    if (await_status == STATUS_CANCELLED) {
+      lock();
+    }
+  }
 };
 
 using timed_mutex = timed_recursive_mutex;

@@ -16,12 +16,12 @@ template <class Rep, class Period, class AwaitHandler>
 constexpr NTSTATUS wait_for_impl(
     const chrono::duration<Rep, Period>& wait_duration,
     AwaitHandler await_handler) noexcept {
-  const auto tics_to_wait =
-      chrono::duration_cast<chrono::tics>(wait_duration).count();
-
-  if (tics_to_wait < 0) {
+  if (wait_duration <= chrono::duration<Rep, Period>::zero()) {
     return STATUS_CANCELLED;
   }
+
+  const auto tics_to_wait =
+      chrono::duration_cast<chrono::tics>(wait_duration).count();
 
   LARGE_INTEGER interval;
   interval.QuadPart =
