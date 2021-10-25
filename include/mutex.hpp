@@ -272,24 +272,14 @@ struct queued_spin_lock
 
 struct semaphore : th::details::sync_primitive_base<KSEMAPHORE> {
   using MyBase = sync_primitive_base<KSEMAPHORE>;
+  using counter_type = long;
 
-  semaphore(uint32_t start_count,
-            uint32_t upper_limit = (numeric_limits<uint32_t>::max)()) {
-    KeInitializeSemaphore(native_handle(), static_cast<LONG>(start_count),
-                          static_cast<LONG>(upper_limit));
-  }
+  semaphore(counter_type start_count,
+            counter_type upper_limit =
+                (numeric_limits<counter_type>::max)()) noexcept;
 
-  void acquire() {
-    KeWaitForSingleObject(native_handle(),
-                          Executive,   // Wait reason
-                          KernelMode,  // Processor mode
-                          false,
-                          nullptr  // Indefinite waiting
-    );
-  }
-  void release() {
-    KeReleaseSemaphore(native_handle(), HIGH_PRIORITY, 1, false);
-  }
+  void acquire() noexcept;
+  void release() noexcept;
 };
 
 enum class cv_status : uint8_t { no_timeout, timeout };
@@ -414,19 +404,35 @@ struct notify_event : th::details::event_with_fixed_type<NotificationEvent> {
 };
 
 namespace th::details {
-template <class Lockable, class Duration, class = void>
-struct has_try_lock_for : false_type {};
+template <class Lockable, class Rep, class Period, class = void>
+struct has_lock_for : false_type {};
 
-template <class Lockable, class Duration>
-struct has_try_lock_for<
-    Lockable,
-    Duration,
-    void_t<decltype(declval<Lockable>().try_lock_for(declval<Duration>()))>>
+template <class Lockable, class Rep, class Period>
+struct has_lock_for<Lockable,
+                    Rep,
+                    Period,
+                    void_t<decltype(declval<Lockable>().lock_for(
+                        declval<chrono::duration<Rep, Period>>()))>>
     : true_type {};
 
-template <class Lockable, class Duration>
-inline constexpr bool has_try_lock_for_v =
-    has_try_lock_for<Lockable, Duration>::value;
+template <class Lockable, class Rep, class Period>
+inline constexpr bool has_lock_for_v =
+    has_lock_for<Lockable, Rep, Period>::value;
+
+template <class Lockable, class Clock, class Duration, class = void>
+struct has_lock_until : false_type {};
+
+template <class Lockable, class Clock, class Duration>
+struct has_lock_until<Lockable,
+                      Clock,
+                      Duration,
+                      void_t<decltype(declval<Lockable>().lock_until(
+                          declval<chrono::time_point<Clock, Duration>>()))>>
+    : true_type {};
+
+template <class Lockable, class Clock, class Duration>
+inline constexpr bool has_lock_until_v =
+    has_lock_until<Lockable, Clock, Duration>::value;
 }  // namespace th::details
 
 struct defer_lock_tag {};    // Deferred lock
@@ -434,19 +440,6 @@ struct try_lock_for_tag {};  // Lock with timeout
 struct adopt_lock_tag {};    // Mutex is already held
 
 namespace th::details {
-template <class Mutex, class = void>
-struct get_duration_type {
-  using type = uint32_t;  // TODO: remove
-};
-
-template <class Mutex>
-struct get_duration_type<Mutex, void_t<typename Mutex::duration_t>> {
-  using type = typename Mutex::duration_t;
-};
-
-template <class Mutex>
-using get_duration_type_t = typename get_duration_type<Mutex>::type;
-
 template <class Mutex>
 class mutex_guard_storage {
  public:
@@ -467,15 +460,14 @@ template <class Mutex>
 class mutex_guard_base : non_copyable {
  public:
   using mutex_type = Mutex;
-  using duration_t = get_duration_type_t<mutex_type>;
 
  public:
-  void swap(mutex_guard_base& other) {
+  void swap(mutex_guard_base& other) noexcept {
     swap(m_mtx, other.m_mtx);
     swap(m_owned, other.m_owned);
   }
 
-  bool owns_lock() const noexcept { return m_owned; }
+  [[nodiscard]] bool owns_lock() const noexcept { return m_owned; }
   Mutex* mutex() noexcept { return m_mtx; }
 
  protected:
@@ -499,11 +491,20 @@ class mutex_guard_base : non_copyable {
     m_owned = true;
   }
 
-  bool try_lock_for(duration_t timeout_duration) {
-    static_assert(has_try_lock_for_v<mutex_type, duration_t>,
+  template <class Rep, class Period>
+  void lock_for(const chrono::duration<Rep, Period>& wait_duration) {
+    static_assert(has_lock_for_v<mutex_type, Rep, Period>,
                   "Mutex doesn't support locking with timeout");
-    m_owned = m_mtx->try_lock_for(timeout_duration);
-    return m_owned;
+    m_mtx->lock_for(wait_duration);
+    m_owned = true;
+  }
+
+  template <class Clock, class Duration>
+  void lock_until(const chrono::time_point<Clock, Duration>& awake_time) {
+    static_assert(has_lock_until_v<mutex_type, Clock, Duration>,
+                  "Mutex doesn't support locking with timeout");
+    m_mtx->lock_until(awake_time);
+    m_owned = true;
   }
 
   void unlock() {
@@ -577,7 +578,6 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
  public:
   using MyBase = th::details::mutex_guard_base<Mutex>;
   using mutex_type = typename MyBase::mutex_type;
-  using duration_t = typename MyBase::duration_t;
 
  public:
   constexpr unique_lock() = default;
@@ -585,12 +585,15 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
   unique_lock(mutex_type& mtx, adopt_lock_tag) : MyBase(mtx, true) {}
   unique_lock(mutex_type& mtx, defer_lock_tag) : MyBase(mtx) {}
 
-  template <
-      class Mtx = mutex_type,
-      enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
-  unique_lock(mutex_type& mtx, duration_t timeout_duration, try_lock_for_tag)
+  template <class Mtx = mutex_type,
+            class Rep,
+            class Period,
+            enable_if_t<th::details::has_lock_for_v<Mtx, Rep, Period>, int> = 0>
+  unique_lock(mutex_type& mtx,
+              const chrono::duration<Rep, Period>& wait_duration,
+              try_lock_for_tag)
       : MyBase(mtx) {
-    MyBase::try_lock_for(timeout_duration);
+    MyBase::lock_for(wait_duration);
   }
 
   unique_lock(const unique_lock& other) = delete;
@@ -644,7 +647,6 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
  public:
   using MyBase = th::details::mutex_guard_base<Mutex>;
   using mutex_type = typename MyBase::mutex_type;
-  using duration_t = typename MyBase::duration_t;
 
  public:
   constexpr shared_lock() = default;
@@ -652,12 +654,15 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
   shared_lock(mutex_type& mtx, adopt_lock_tag) : MyBase(mtx, true) {}
   shared_lock(mutex_type& mtx, defer_lock_tag) : MyBase(mtx) {}
 
-  template <
-      class Mtx = mutex_type,
-      enable_if_t<th::details::has_try_lock_for_v<Mtx, duration_t>, int> = 0>
-  shared_lock(mutex_type& mtx, duration_t timeout_duration, try_lock_for_tag)
+  template <class Mtx = mutex_type,
+            class Rep,
+            class Period,
+            enable_if_t<th::details::has_lock_for_v<Mtx, Rep, Period>, int> = 0>
+  shared_lock(mutex_type& mtx,
+              const chrono::duration<Rep, Period>& wait_duration,
+              try_lock_for_tag)
       : MyBase(mtx) {
-    MyBase::try_lock_for(timeout_duration);
+    MyBase::lock_for(wait_duration);
   }
 
   shared_lock(const shared_lock& other) = delete;

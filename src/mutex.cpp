@@ -180,8 +180,29 @@ void queued_spin_lock_policy<SpinlockType::Mixed>::unlock(
     KLOCK_QUEUE_HANDLE& queue_handle) const noexcept {
   KeReleaseInStackQueuedSpinLock(addressof(queue_handle));
 }
+}  // namespace th::details
 
-event_base::event_base(event_type type, bool signaled) noexcept {
+semaphore::semaphore(counter_type start_count,
+                     counter_type upper_limit) noexcept
+    : MyBase() {
+  KeInitializeSemaphore(native_handle(), start_count, upper_limit);
+}
+
+void semaphore::acquire() noexcept {
+  KeWaitForSingleObject(native_handle(),
+                        Executive,   // Wait reason
+                        KernelMode,  // Processor mode
+                        false,
+                        nullptr  // Indefinite waiting
+  );
+}
+
+void semaphore::release() noexcept {
+  KeReleaseSemaphore(native_handle(), HIGH_PRIORITY, 1, false);
+}
+
+namespace th::details {
+event_base::event_base(event_type type, bool signaled) noexcept : MyBase() {
   KeInitializeEvent(native_handle(), type, signaled);
 }
 
