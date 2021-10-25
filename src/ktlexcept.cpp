@@ -17,4 +17,8 @@ NTSTATUS overflow_error::code() const noexcept {
 NTSTATUS kernel_error::code() const noexcept {
   return m_code;
 }
+
+NTSTATUS format_error::code() const noexcept {
+  return STATUS_BAD_DESCRIPTOR_FORMAT;
+}
 }  // namespace ktl
