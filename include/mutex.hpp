@@ -32,65 +32,42 @@ class sync_primitive_base : non_relocatable {
  protected:
   SyncPrimitive m_native_sp;
 };
-
-template <class SyncPrimitive>
-class awaitable_sync_primitive
-    : public sync_primitive_base<SyncPrimitive> {  //Ïðèìèòèâû ñèíõðîíèçàöèè,
-                                                   //ïîääåðæèâàþùèå îæèäàíèå ñ
-                                                   //òàéìåðîì
- public:
-  using MyBase = sync_primitive_base<KMUTEX>;
-  using sync_primitive_t = MyBase::sync_primitive_t;
-  using native_handle_type = MyBase::native_handle_type;
-  using duration_t = uint32_t;
-
- protected:
-  // template <class Rep, class Period>
-  bool try_timed_lock(
-      /*const chrono::duration<Rep, Period>&*/
-      duration_t /* timeout_duration*/) {
-    // const auto tics_to_wait =
-    //    chrono::duration_cast<chrono::tics>(timeout_duration).count();
-    // LARGE_INTEGER interval;
-    // interval.QuadPart =
-    //    -1 * tics_to_wait;  // A negative value indicates relative time
-
-    // const auto status{KeWaitForSingleObject(MyBase::native_handle(),
-    //                                        Executive,   // Wait reason
-    //                                        KernelMode,  // Processor mode
-    //                                        false, addressof(interval))};
-    return false;
-  }
-  void lock_indefinite() noexcept {
-    KeWaitForSingleObject(MyBase::native_handle(),
-                          Executive,      // Wait reason
-                          KernelMode,     // Processor mode
-                          false, nullptr  // Indefinite waiting
-    );
-  }
-};
 }  // namespace th::details
 
 struct recursive_mutex
-    : th::details::awaitable_sync_primitive<KMUTEX> {  // Recursive
-                                                       // KMUTEX
-  using MyBase = awaitable_sync_primitive<KMUTEX>;
+    : th::details::sync_primitive_base<KMUTEX> {  // Recursive
+                                                  // KMUTEX
+  using MyBase = sync_primitive_base<KMUTEX>;
 
   recursive_mutex() noexcept;
 
   void lock() noexcept;
+
   void unlock() noexcept;
+
+  template <class Awaitable, class AwaitHandler>
+  void unlock(Awaitable& awaitable, AwaitHandler await_handler) {
+    const auto state{KeReleaseMutex(native_handle(), true)};
+    await_handler(awaitable, state != 0);
+  }
 };
+
+using mutex = recursive_mutex;
 
 struct timed_recursive_mutex : recursive_mutex {  // Locking with timeout
   using MyBase = recursive_mutex;
 
   using MyBase::MyBase;
 
-  bool try_lock_for(duration_t timeout_duration) {
-    return try_timed_lock(timeout_duration);
-  }
+  template <class Rep, class Period>
+  bool try_lock_for(const chrono::duration<Rep, Period>& timeout_duration);
+
+  template <class Clock, class Duration>
+  bool try_lock_until(
+      const chrono::time_point<Clock, Duration>& timeout_time);
 };
+
+using timed_mutex = timed_recursive_mutex;
 
 struct fast_mutex
     : th::details::sync_primitive_base<FAST_MUTEX> {  // Implemented

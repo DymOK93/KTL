@@ -15,7 +15,11 @@ recursive_mutex::recursive_mutex() noexcept : MyBase() {
 }
 
 void recursive_mutex::lock() noexcept {
-  lock_indefinite();
+  KeWaitForSingleObject(native_handle(),
+                        Executive,   // Wait reason
+                        KernelMode,  // Processor mode
+                        false,
+                        nullptr);  // Indefinite waiting
 }
 
 void recursive_mutex::unlock() noexcept {
