@@ -11,6 +11,33 @@
 namespace ktl {
 using thread_id_t = uint32_t;
 
+namespace th::details {
+template <class Rep, class Period, class AwaitHandler>
+constexpr NTSTATUS wait_for_impl(
+    const chrono::duration<Rep, Period>& wait_duration,
+    AwaitHandler await_handler) noexcept {
+  const auto tics_to_wait =
+      chrono::duration_cast<chrono::tics>(wait_duration).count();
+
+  if (tics_to_wait < 0) {
+    return STATUS_CANCELLED;
+  }
+
+  LARGE_INTEGER interval;
+  interval.QuadPart =
+      -1 * tics_to_wait;  // A negative value indicates relative time
+
+  return await_handler(addressof(interval));
+}
+
+template <class Clock, class Duration, class AwaitHandler>
+constexpr NTSTATUS wait_until_impl(
+    const chrono::time_point<Clock, Duration>& awake_time,
+    AwaitHandler await_handler) noexcept {
+  return wait_for_impl(awake_time - Clock::now(), await_handler);
+}
+}  // namespace th::details
+
 namespace this_thread {
 thread_id_t get_id();
 
@@ -18,18 +45,9 @@ void yield() noexcept;
 
 template <class Rep, class Period>
 void sleep_for(const chrono::duration<Rep, Period>& sleep_duration) {
-  const auto tics_to_wait =
-      chrono::duration_cast<chrono::tics>(sleep_duration).count();
-
-  if (tics_to_wait < 0) {
-    return;
-  }
-
-  LARGE_INTEGER interval;
-  interval.QuadPart =
-      -1 * tics_to_wait;  // A negative value indicates relative time
-
-  KeDelayExecutionThread(KernelMode, false, addressof(interval));
+  th::details::wait_for_impl(sleep_duration, [](LARGE_INTEGER* interval) {
+    return KeDelayExecutionThread(KernelMode, false, interval);
+  });
 }
 
 template <class Clock, class Duration>

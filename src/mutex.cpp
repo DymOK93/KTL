@@ -178,7 +178,7 @@ event_base::event_base(event_type type, bool signaled) noexcept {
 
 event_base& event_base::operator=(bool signaled) noexcept {
   if (!signaled) {
-    KeResetEvent(native_handle());
+    KeClearEvent(native_handle());
   } else {
     KeSetEvent(native_handle(), 0, false);
   }
@@ -190,12 +190,28 @@ void event_base::wait() noexcept {
 }
 
 void event_base::clear() noexcept {
-  KeResetEvent(native_handle());
+  KeClearEvent(native_handle());
 }
 
-void event_base::wait_impl(native_handle_type event,
-                           const LARGE_INTEGER* timeout) noexcept {
-  KeWaitForSingleObject(
+bool event_base::reset() noexcept {
+  return KeResetEvent(native_handle()) != 0;
+}
+
+bool event_base::is_signaled() const noexcept {
+  return KeReadStateEvent(get_non_const_native_handle()) != 0;
+}
+
+event_base::operator bool() const noexcept {
+  return is_signaled();
+}
+
+cv_status event_base::from_native_status(NTSTATUS status) noexcept {
+  return status == STATUS_TIMEOUT ? cv_status::timeout : cv_status::no_timeout;
+}
+
+NTSTATUS event_base::wait_impl(native_handle_type event,
+                               const LARGE_INTEGER* timeout) noexcept {
+  return KeWaitForSingleObject(
       event,
       Executive,   // Wait reason
       KernelMode,  // Processor mode

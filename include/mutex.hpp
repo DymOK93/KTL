@@ -309,8 +309,12 @@ class await_token_base {
   using timeout_type = LARGE_INTEGER;
 
  public:
-  constexpr explicit await_token_base(priority_type priority_boost) noexcept
+  constexpr explicit await_token_base(priority_type priority_boost = 0) noexcept
       : m_priority_boost{priority_boost} {}
+
+  [[nodiscard]] constexpr bool is_awaitable() const noexcept {
+    return static_cast<const ConcreteToken*>(this)->is_awaitable();
+  }
 
   [[nodiscard]] constexpr priority_type get_priority_boost() const noexcept {
     return m_priority_boost;
@@ -320,13 +324,36 @@ class await_token_base {
     return static_cast<const ConcreteToken*>(this)->get_timeout();
   }
 
-  [[nodiscard]] static constexpr bool is_awaitable() noexcept {
-    return ConcreteToken::is_awaitable();
-  }
-
  protected:
   priority_type m_priority_boost;
 };
+}  // namespace th::details
+
+struct no_wait_token : th::details::await_token_base<no_wait_token> {
+  using MyBase = await_token_base<no_wait_token>;
+
+  using MyBase::MyBase;
+
+  [[nodiscard]] constexpr bool is_awaitable() noexcept { return false; }
+
+  [[nodiscard]] constexpr const LARGE_INTEGER* get_timeout() const noexcept {
+    return nullptr;
+  }
+};
+
+struct wait_token : th::details::await_token_base<wait_token> {
+  using MyBase = await_token_base<wait_token>;
+
+  using MyBase::MyBase;
+
+  [[nodiscard]] constexpr bool is_awaitable() const noexcept { return true; }
+
+  [[nodiscard]] constexpr const LARGE_INTEGER* get_timeout() const noexcept {
+    return nullptr;
+  }
+};
+
+namespace th::details {
 
 template <class ConcreteToken>
 class await_token_with_timeout : public await_token_base<ConcreteToken> {
@@ -340,6 +367,8 @@ class await_token_with_timeout : public await_token_base<ConcreteToken> {
                                      timeout_type timeout) noexcept
       : MyBase(priority_boost), m_timeout{timeout} {}
 
+  [[nodiscard]] constexpr bool is_awaitable() noexcept { return true; }
+
   [[nodiscard]] constexpr const timeout_type* get_timeout() const noexcept {
     return addressof(m_timeout);
   }
@@ -349,37 +378,11 @@ class await_token_with_timeout : public await_token_base<ConcreteToken> {
 };
 }  // namespace th::details
 
-class no_wait_token : th::details::await_token_base<no_wait_token> {
- public:
-  using MyBase = await_token_base<no_wait_token>;
-
- public:
-  using MyBase::MyBase;
-
-  [[nodiscard]] constexpr const LARGE_INTEGER* get_timeout() const noexcept {
-    return nullptr;
-  }
-
-  [[nodiscard]] static constexpr bool is_awaitable() noexcept { return false; }
-};
-
-class wait_token : th::details::await_token_base<wait_token> {
- public:
-  using MyBase = await_token_base<wait_token>;
-
- public:
-  wait_token(priority_type priority_boost) noexcept : MyBase(priority_boost) {}
-
- protected:
-  friend class MyBase;
-
-  [[nodiscard]] constexpr const LARGE_INTEGER* get_timeout() const noexcept {
-    return nullptr;
-  }
-};
-
 template <class Rep, class Period>
-class wait_for_token {};
+class wait_for_token {
+ private:
+  chrono::duration<Rep, Period> m_duration;
+};
 
 class wait_until_token {};
 
@@ -390,13 +393,13 @@ struct event_base : sync_primitive_base<KEVENT> {
   event_base(event_type type, bool signaled = false) noexcept;
   event_base& operator=(bool signaled) noexcept;
 
-  void wait() noexcept;
   void clear() noexcept;
+  bool reset() noexcept;
 
   template <class AwaitToken = no_wait_token,
             enable_if_t<is_base_of_v<await_token_base<AwaitToken>, AwaitToken>,
                         int> = 0>
-  void set(AwaitToken token = no_wait_token{0}) noexcept {
+  void set(AwaitToken token = AwaitToken{}) noexcept {
     bump_impl(native_handle(), token,
               [](native_handle_type event, auto priority, bool wait) {
                 KeSetEvent(event, priority, wait);
@@ -406,39 +409,69 @@ struct event_base : sync_primitive_base<KEVENT> {
   template <class AwaitToken = no_wait_token,
             enable_if_t<is_base_of_v<await_token_base<AwaitToken>, AwaitToken>,
                         int> = 0>
-  void pulse(AwaitToken token = no_wait_token{0}) noexcept {
+  void pulse(AwaitToken token = AwaitToken{}) noexcept {
     bump_impl(native_handle(), token,
               [](native_handle_type event, auto priority, bool wait) {
                 KePulseEvent(event, priority, wait);
               });
   }
 
-  // cv_status wait_for(duration_t us) noexcept {
-  //  LARGE_INTEGER wait_time;
-  //  wait_time.QuadPart = us;
-  //  wait_time.QuadPart *= -10;  // relative time in 100ns tics
-  //  NTSTATUS result{KeWaitForSingleObject(
-  //      native_handle(),
-  //      Executive,   // Wait reason
-  //      KernelMode,  // Processor mode
-  //      false,
-  //      addressof(wait_time)  // Indefinite waiting
-  //      )};
-  //  return result == STATUS_TIMEOUT ? cv_status::timeout
-  //                                  : cv_status::no_timeout;
-  //}
+  void wait() noexcept;
 
-  // State state() const noexcept { return get_current_state(); }
-  // bool is_signaled() const noexcept {
-  //  return get_current_state() == State::Active;
-  //}
+  template <class Predicate>
+  void wait(Predicate predicate) {
+    while (!predicate()) {
+      wait();
+    }
+  }
+
+  template <class Rep, class Period>
+  cv_status wait_for(
+      const chrono::duration<Rep, Period>& wait_duration) noexcept {
+    const auto await_status{wait_for_impl(
+        wait_duration, [event = native_handle()](LARGE_INTEGER* interval) {
+          return wait_impl(event, interval);
+        })};
+    return from_native_status(await_status);
+  }
+
+  template <class Rep, class Period, class Predicate>
+  bool wait_for(const chrono::duration<Rep, Period>& wait_duration,
+                Predicate predicate) noexcept {
+    return wait_until(chrono::steady_clock::now() + wait_duration,
+                      move(predicate));
+  }
+
+  template <class Clock, class Duration, class Predicate>
+  bool wait_until(const chrono::time_point<Clock, Duration>& awake_time,
+                  Predicate predicate) noexcept {
+    while (!predicate()) {
+      if (wait_until(awake_time) == cv_status::timeout) {
+        return predicate();
+      }
+    }
+    return true;
+  }
+
+  template <class Clock, class Duration>
+  cv_status wait_until(
+      const chrono::time_point<Clock, Duration>& awake_time) noexcept {
+    const auto await_status{wait_for_impl(
+        awake_time, [event = native_handle()](LARGE_INTEGER* interval) {
+          return wait_impl(event, interval);
+        })};
+    return from_native_status(await_status);
+  }
+
+  [[nodiscard]] bool is_signaled() const noexcept;
+  [[nodiscard]] explicit operator bool() const noexcept;
 
  private:
   template <class AwaitToken, class Handler>
   static void bump_impl(native_handle_type event,
                         AwaitToken token,
                         Handler handler) noexcept {
-    if constexpr (!token.is_awaitable()) {
+    if (!token.is_awaitable()) {
       handler(event, token.get_priority_boost(), false);
     } else {
       handler(event, token.get_priority_boost(), true);
@@ -446,21 +479,30 @@ struct event_base : sync_primitive_base<KEVENT> {
     }
   }
 
-  static void wait_impl(native_handle_type event,
-                        const LARGE_INTEGER* timeout) noexcept;
+  static cv_status from_native_status(NTSTATUS status) noexcept;
 
-  /*State get_current_state() const noexcept {
-    return KeReadStateEvent(MyBase::get_non_const_native_handle())
-               ? State::Active
-               : State::Inactive;
-  }*/
+  static NTSTATUS wait_impl(native_handle_type event,
+                            const LARGE_INTEGER* timeout) noexcept;
+};
+
+template <event_type Type>
+struct event_with_fixed_type : event_base {
+  using MyBase = event_base;
+
+  event_with_fixed_type(bool signaled = false) noexcept
+      : MyBase(Type, signaled) {}
 };
 }  // namespace th::details
 
-using sync_event =
-    th::details::event<th::details::event_type::SynchronizationEvent>;
-using notify_event =
-    th::details::event<th::details::event_type::NotificationEvent>;
+struct sync_event : th::details::event_with_fixed_type<SynchronizationEvent> {
+  using MyBase = event_with_fixed_type<SynchronizationEvent>;
+  using MyBase::MyBase;
+};
+
+struct notify_event : th::details::event_with_fixed_type<NotificationEvent> {
+  using MyBase = event_with_fixed_type<NotificationEvent>;
+  using MyBase::MyBase;
+};
 
 namespace th::details {
 template <class Lockable, class Duration, class = void>
@@ -487,7 +529,7 @@ struct adopt_lock_tag {};    // Mutex is already held
 namespace th::details {
 template <class Mutex, class = void>
 struct get_duration_type {
-  using type = chrono::duration_t;
+  using type = uint32_t;  // TODO: remove
 };
 
 template <class Mutex>
