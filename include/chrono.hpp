@@ -560,10 +560,10 @@ template <class Clock, class Duration, class Rep, class Period>
     common_type_t<Duration, duration<Rep, Period>>>
 operator-(const time_point<Clock, Duration>& lhs,
           const duration<Rep, Period>&
-              rhs) noexcept(is_arithmetic_v<typename duration::rep>&&
+              rhs) noexcept(is_arithmetic_v<typename Duration::rep>&&
                                 is_arithmetic_v<Rep>) {
   using result_t =
-      time_point<Clock, common_type_t<duration, duration<Rep, Period>>>;
+      time_point<Clock, common_type_t<Duration, duration<Rep, Period>>>;
   return result_t{lhs.time_since_epoch() - rhs};
 }
 
@@ -636,7 +636,7 @@ template <class To,
           enable_if_t<is_duration_v<To>, int> = 0>
 [[nodiscard]] constexpr time_point<Clock, To>
 time_point_cast(const time_point<Clock, Duration>& time) noexcept(
-    is_arithmetic_v<typename duration::rep>&&
+    is_arithmetic_v<typename Duration::rep>&&
         is_arithmetic_v<typename To::rep>) {
   // change the duration type of a time_point; truncate
   return time_point<Clock, To>(
@@ -684,8 +684,8 @@ round(const time_point<Clock, duration>& time) noexcept(
 struct system_clock {  // KeQuerySystemTimePrecise (Win8+)/KeQuerySystemTime
   using rep = long long;
   using period = ratio<1, rat::details::pow10(8)>;  // 100 nanoseconds
-  using duration = chrono::duration<rep, period>;
-  using time_point = chrono::time_point<system_clock>;
+  using duration = duration<rep, period>;
+  using time_point = time_point<system_clock>;
   static constexpr bool is_steady = false;
 
   [[nodiscard]] static time_point now() noexcept {  // get current time
@@ -707,7 +707,7 @@ struct steady_clock {  // KeQueryPerformanceCounter
   using rep = long long;
   using period = nano;
   using duration = nanoseconds;
-  using time_point = chrono::time_point<steady_clock>;
+  using time_point = time_point<steady_clock>;
   static constexpr bool is_steady = true;
 
   [[nodiscard]] static time_point now() noexcept {  // get current time
@@ -830,14 +830,5 @@ inline namespace chrono_literals {
 
 namespace chrono {
 using namespace literals::chrono_literals;
-
-using duration_t =
-    uint32_t;  // Very old crutch for the sync primitives; will be removed soon
-
-inline LARGE_INTEGER to_native_100ns_tics(duration_t period) noexcept {
-  LARGE_INTEGER native_period;
-  native_period.QuadPart = period;
-  return native_period;
-}
 }  // namespace chrono
 }  // namespace ktl

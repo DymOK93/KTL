@@ -1,15 +1,42 @@
 #pragma once
-#include <basic_types.hpp>
-#include <irql.hpp>
 #include <assert.hpp>
+#include <basic_types.hpp>
 #include <chrono.hpp>
 #include <functional.hpp>
+#include <irql.hpp>
 #include <smart_pointer.hpp>
 #include <tuple.hpp>
 #include <type_traits.hpp>
 
 namespace ktl {
 using thread_id_t = uint32_t;
+
+namespace th::details {
+template <class Rep, class Period, class AwaitHandler>
+constexpr NTSTATUS wait_for_impl(
+    const chrono::duration<Rep, Period>& wait_duration,
+    AwaitHandler await_handler) noexcept {
+  if (wait_duration <= chrono::duration<Rep, Period>::zero()) {
+    return STATUS_CANCELLED;
+  }
+
+  const auto tics_to_wait =
+      chrono::duration_cast<chrono::tics>(wait_duration).count();
+
+  LARGE_INTEGER interval;
+  interval.QuadPart =
+      -1 * tics_to_wait;  // A negative value indicates relative time
+
+  return await_handler(addressof(interval));
+}
+
+template <class Clock, class Duration, class AwaitHandler>
+constexpr NTSTATUS wait_until_impl(
+    const chrono::time_point<Clock, Duration>& awake_time,
+    AwaitHandler await_handler) noexcept {
+  return wait_for_impl(awake_time - Clock::now(), await_handler);
+}
+}  // namespace th::details
 
 namespace this_thread {
 thread_id_t get_id();
@@ -18,18 +45,9 @@ void yield() noexcept;
 
 template <class Rep, class Period>
 void sleep_for(const chrono::duration<Rep, Period>& sleep_duration) {
-  const auto tics_to_wait =
-      chrono::duration_cast<chrono::tics>(sleep_duration).count();
-
-  if (tics_to_wait < 0) {
-    return;
-  }
-
-  LARGE_INTEGER interval;
-  interval.QuadPart =
-      -1 * tics_to_wait;  // A negative value indicates relative time
-
-  KeDelayExecutionThread(KernelMode, false, addressof(interval));
+  th::details::wait_for_impl(sleep_duration, [](LARGE_INTEGER* interval) {
+    return KeDelayExecutionThread(KernelMode, false, interval);
+  });
 }
 
 template <class Clock, class Duration>
@@ -227,7 +245,7 @@ class system_thread : public th::details::worker_thread<system_thread> {
     auto packed_args{
         pack_fn_with_args(max_irql, forward<Fn>(fn), forward<Types>(args)...)};
     auto thread_obj{create_thread_impl(
-        get_thread_routine<decltype(packed_args)::element_type>(),
+        get_thread_routine<typename decltype(packed_args)::element_type>(),
         packed_args.get())};
     packed_args.release();
     return thread_obj;
@@ -334,7 +352,7 @@ class io_thread : public th::details::worker_thread<io_thread> {
         pack_fn_with_args(max_irql, forward<Fn>(fn), forward<Types>(args)...)};
     auto thread_obj{create_thread_impl(
         io_obj.object,
-        get_thread_routine<decltype(packed_args)::element_type>(),
+        get_thread_routine<typename decltype(packed_args)::element_type>(),
         packed_args.get())};
     packed_args.release();
     return thread_obj;
