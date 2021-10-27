@@ -1173,7 +1173,7 @@ constexpr bool operator==(const shared_ptr<Ty>& ptr, nullptr_t) noexcept {
 
 template <class Ty>
 constexpr bool operator!=(const shared_ptr<Ty>& ptr, nullptr_t) noexcept {
-  return ptr;
+  return !!ptr;
 }
 
 template <class Ty>
@@ -1183,7 +1183,7 @@ constexpr bool operator==(nullptr_t, const shared_ptr<Ty>& ptr) noexcept {
 
 template <class Ty>
 constexpr bool operator!=(nullptr_t, const shared_ptr<Ty>& ptr) noexcept {
-  return ptr;
+  return !!ptr;
 }
 
 template <class Ty>
