@@ -62,11 +62,18 @@ using basic_paged_allocator =
                       paged_new_tag_t,
                       static_cast<align_val_t>(alignof(Ty))>;
 
+template <class Ty, align_val_t Align>
+using aligned_paged_allocator = aligned_allocator<Ty, paged_new_tag_t, Align>;
+
 template <class Ty>
 using basic_non_paged_allocator =
     aligned_allocator<Ty,
                       non_paged_new_tag_t,
                       static_cast<align_val_t>(alignof(Ty))>;
+
+template <class Ty, align_val_t Align>
+using aligned_non_paged_allocator =
+    aligned_allocator<Ty, non_paged_new_tag_t, Align>;
 
 template <class Ty, crt::pool_type_t PoolType, align_val_t Alignment>
 class tagged_allocator {
