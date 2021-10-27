@@ -306,7 +306,7 @@ struct runtime_named_field {
   template <typename OutputIt, typename... Args>
   constexpr OutputIt format(OutputIt out, const Args&... args) const {
     bool found = (try_format_argument(out, name, args) || ...);
-    ktl::throw_exception_if<format_error>(
+    ktl::throw_exception_if<ktl::format_error>(
         !found, "argument with specified name is not found");
     return out;
   }
@@ -422,7 +422,7 @@ struct arg_id_handler {
   }
 
   constexpr void on_error(const char* message) {
-    ktl::throw_exception<format_error>(message);
+    ktl::throw_exception<ktl::format_error>(message);
   }
 };
 
@@ -481,7 +481,7 @@ constexpr auto compile_format_string(S format_str) {
   constexpr auto str = basic_winnt_string_view<char_type>(format_str);
   if constexpr (str[POS] == '{') {
     if constexpr (POS + 1 == str.size())
-      ktl::throw_exception<format_error>("unmatched '{' in format string");
+      ktl::throw_exception<ktl::format_error>("unmatched '{' in format string");
     if constexpr (str[POS + 1] == '{') {
       return parse_tail<Args, POS + 2, ID>(make_text(str, POS, 1), format_str);
     } else if constexpr (str[POS + 1] == '}' || str[POS + 1] == ':') {
@@ -530,7 +530,7 @@ constexpr auto compile_format_string(S format_str) {
     }
   } else if constexpr (str[POS] == '}') {
     if constexpr (POS + 1 == str.size())
-      ktl::throw_exception<format_error>("unmatched '}' in format string");
+      ktl::throw_exception<ktl::format_error>("unmatched '}' in format string");
     return parse_tail<Args, POS + 2, ID>(make_text(str, POS, 1), format_str);
   } else {
     constexpr auto end = parse_text(str, POS + 1);
