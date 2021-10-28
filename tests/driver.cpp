@@ -5,6 +5,8 @@
 
 #include <include/chrono.hpp>
 #include <include/string.hpp>
+#include <include/unordered_map.hpp>
+#include <include/unordered_set.hpp>
 
 #include <modules/fmt/compile.hpp>
 #include <modules/fmt/xchar.hpp>
@@ -25,7 +27,7 @@ DriverEntry([[maybe_unused]] DRIVER_OBJECT* driver_object,
     DbgPrint("%wZ\n", str.raw_str());
 
   } catch (const exception& exc) {
-    DbgPrint("Unhandled exception caught: %wS with code %x\n", exc.what(),
+    DbgPrint("Unhandled exception caught: %s with code %x\n", exc.what(),
              exc.code());
     return exc.code();
   }

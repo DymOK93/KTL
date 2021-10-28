@@ -8,30 +8,41 @@
 #include <include/string.hpp>
 #include <include/string_view.hpp>
 #include <include/type_traits.hpp>
-#include <include/vector.hpp>
 
 #include <modules/fmt/compile.hpp>
 
 #include <ntddk.h>
 
-namespace fmt {
-template <class Ty, class Alloc>
-struct formatter<ktl::vector<Ty, Alloc>> {
+namespace test::details {
+template <class Container>
+struct basic_container_formatter {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx) -> decltype(ktl::begin(ctx)) {
-    const auto first{ktl::begin(ctx)}, last{ktl::end(ctx)};
-    const bool valid_format{first != last && first++ == '}' && first == last};
-    ktl::throw_exception_if_not<ktl::format_error>(valid_format,
-                                                   "invalid format");
+    auto first{ktl::begin(ctx)};
+    const auto last{ktl::end(ctx)};
+    const bool invalid_format{first != last && *first != '}'};
+    ktl::throw_exception_if<ktl::format_error>(invalid_format,
+                                               "invalid format");
     return first;
   }
+};
+}  // namespace test::details
+
+template <class Container, typename Char>
+struct fmt::formatter<Container,
+                      Char,
+                      ktl::enable_if_t<test::is_value_container_v<Container>>>
+    : test::details::basic_container_formatter<Container> {
+  using MyBase = test::details::basic_container_formatter<Container>;
+
+  using MyBase::parse;
 
   template <class FormatContext>
-  auto format(const ktl::vector<Ty, Alloc>& vec, FormatContext& ctx)
+  auto format(const Container& cont, FormatContext& ctx)
       -> decltype(ctx.out()) {
     auto out{ktl::format_to(ctx.out(), FMT_COMPILE("{{"))};
     bool first{true};
-    for (const auto& value : vec) {
+    for (const auto& value : cont) {
       if (!first) {
         out = ktl::format_to(out, FMT_COMPILE(", {}"), value);
       } else {
@@ -42,63 +53,48 @@ struct formatter<ktl::vector<Ty, Alloc>> {
     return ktl::format_to(out, FMT_COMPILE("}}"));
   }
 };
-}  // namespace fmt
+
+template <class Container, typename Char>
+struct fmt::formatter<Container,
+                      Char,
+                      ktl::enable_if_t<test::is_kv_container_v<Container>>>
+    : test::details::basic_container_formatter<Container> {
+  using MyBase = test::details::basic_container_formatter<Container>;
+
+  using MyBase::parse;
+
+  template <class FormatContext>
+  auto format(const Container& cont, FormatContext& ctx)
+      -> decltype(ctx.out()) {
+    auto out{ktl::format_to(ctx.out(), FMT_COMPILE("{{"))};
+    bool first{true};
+    for (const auto& [key, value] : cont) {
+      if (!first) {
+        out = ktl::format_to(out, FMT_COMPILE(", {}: {}"), key, value);
+      } else {
+        first = false;
+        out = ktl::format_to(out, FMT_COMPILE("{}: {}"), key, value);
+      }
+    }
+    return ktl::format_to(out, FMT_COMPILE("}}"));
+  }
+};
 
 namespace test {
 namespace details {
-// template <class OutputIt, class Ty>
-// OutputIt serialize_to(OutputIt out, const Ty& value) {
-//  return ktl::format_to(out, FMT_COMPILE("{}"), value);
-//}
-//
-// template <class OutputIt,
-//          class Ty,
-//          ktl::enable_if_t<is_linear_v<Ty> || is_set_v<Ty>, int> = 0>
-// OutputIt serialize_to(OutputIt out, const Ty& cont) {
-//  out = ktl::format_to(out, FMT_COMPILE("{{"));
-//  bool first = true;
-//  for (const auto& key : cont) {
-//    if (!first) {
-//      out = ktl::format_to(out, FMT_COMPILE(", "));
-//      out = serialize_to(out, key);
-//    } else {
-//      first = false;
-//      out = serialize_to(out, key);
-//    }
-//  }
-//  return ktl::format_to(out, FMT_COMPILE("}}"));
-//}
-//
-// template <class OutputIt, class Ty, ktl::enable_if_t<is_map_v<Ty>, int> =
-// 0> OutputIt serialize_to(OutputIt out, const Ty& map) {
-//  constexpr auto kv_serializer{[](OutputIt o, const auto& kv) -> OutputIt {
-//    const auto& [key, value]{kv};
-//    o = serialize_to(o, key);
-//    o = ktl::format_to(o, FMT_COMPILE(": "));
-//    return serialize_to(o, value);
-//  }};
-//
-//  out = ktl::format_to(out, FMT_COMPILE("{{"));
-//  bool first = true;
-//  for (const auto& kv : map) {
-//    if (!first) {
-//      out = ktl::format_to(out, FMT_COMPILE(", "));
-//      out = kv_serializer(out, kv);
-//    } else {
-//      first = false;
-//      out = kv_serializer(out, kv);
-//    }
-//  }
-//  return ktl::format_to(out, FMT_COMPILE("}}"));
-//}
-
 void print_impl(ktl::ansi_string_view msg) noexcept;
 
 template <class... Types>
-void print(ktl::ansi_string_view, const Types&... args);
+void print(ktl::ansi_string_view format, const Types&... args) {
+  const auto msg{ktl::format(format, args...)};
+  print_impl(msg);
+}
 
 template <size_t N, class... Types>
-void print(const char (&format)[N], const Types&... args);
+void print(const char (&format)[N], const Types&... args) {
+  const auto msg{ktl::format(FMT_COMPILE(format), args...)};
+  print_impl(msg);
+}
 }  // namespace details
 
 template <class Ty, class U>
@@ -147,18 +143,18 @@ class Runner : ktl::non_relocatable {
 };
 }  // namespace test
 
-#define CHECK_EQUAL(x, y)                                                \
-  {                                                                      \
-    const auto hint{ktl::format(FMT_COMPILE("{} != {}, {}: {}"), #x, #y, \
-                                __FILE__, __LINE__)};                    \
-    test::check_equal((x), (y), hint);                                   \
-  }
-
-#define CHECK(x)                                                        \
+#define ASSERT(x)                                                       \
   {                                                                     \
     const auto hint{ktl::format(FMT_COMPILE("{} is false, {}: {}"), #x, \
                                 __FILE__, __LINE__)};                   \
     test::check((x), hint);                                             \
+  }
+
+#define ASSERT_EQ(x, y)                                                  \
+  {                                                                      \
+    const auto hint{ktl::format(FMT_COMPILE("{} != {}, {}: {}"), #x, #y, \
+                                __FILE__, __LINE__)};                    \
+    test::check_equal((x), (y), hint);                                   \
   }
 
 #define RUN_TEST(tr, func) tr.execute(func, #func)

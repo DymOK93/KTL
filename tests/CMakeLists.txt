@@ -5,6 +5,7 @@ wdk_add_driver(
 		CUSTOM_ENTRY_POINT KtlDriverEntry
 		EXTENDED_CPP_FEATURES
 		WINVER ${TARGET_WINVER}
+			"container_traits.hpp"
 			"driver.hpp"
 			"driver.cpp"
 			"test_runner.hpp"
