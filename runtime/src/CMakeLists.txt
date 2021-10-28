@@ -13,6 +13,7 @@ set(
 		"basic_runtime.cpp"
 		"bugcheck.cpp"
 		"chrono_impl.cpp"
+		"cookie.cpp"
 		"exception.cpp"
 		"floating_point.cpp" 
 		"irql.cpp"

@@ -1,8 +1,5 @@
 #pragma once
-#include <basic_types.hpp>
 #include <crt_attributes.hpp>
-
-#include <ntddk.h>
 
 namespace ktl::crt {
 using global_handler_t = void(CRTCALL*)();
