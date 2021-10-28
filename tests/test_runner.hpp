@@ -143,7 +143,7 @@ class Runner : ktl::non_relocatable {
 };
 }  // namespace test
 
-#define ASSERT(x)                                                       \
+#define ASSERT_VALUE(x)                                                 \
   {                                                                     \
     const auto hint{ktl::format(FMT_COMPILE("{} is false, {}: {}"), #x, \
                                 __FILE__, __LINE__)};                   \
