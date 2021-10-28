@@ -15,6 +15,7 @@ set(
 		"bugcheck.hpp"
 		"char_traits_impl.hpp"
 		"chrono_impl.hpp"
+		"cookie.hpp"
 		"crt_assert.hpp"
 		"crt_attributes.hpp"
 		"crt_runtime.hpp"

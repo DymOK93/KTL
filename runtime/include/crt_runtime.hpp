@@ -3,9 +3,8 @@
 See http://www.zer0mem.sk/?p=517
 and http://www.hollistech.com/Resources/Cpp/kernel_c_runtime_library.htm
 ***************************************************************************/
+#include <crt_attributes.hpp>
 #include <object_management.hpp>
-
-#define CRTALLOC(x) __declspec(allocate(x))
 
 #if defined(_IA64_) || defined(_AMD64_)
 // C initializers
@@ -22,7 +21,6 @@ inline ktl::crt::global_handler_t __cxx_ctors_begin__[] = {nullptr};
 #pragma section(".CRT$XCZ", long, read)
 CRTALLOC(".CRT$XCZ")
 inline ktl::crt::global_handler_t __cxx_ctors_end__[] = {nullptr};
-#pragma data_seg()
 #else
 #pragma data_seg(".CRT$XIA")
 inline ktl::crt::global_handler_t __c_init_begin__[] = {nullptr};

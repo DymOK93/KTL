@@ -1,4 +1,6 @@
 #include <basic_runtime.hpp>
+
+#include <cookie.hpp>
 #include <heap.hpp>
 #include <object_management.hpp>
 #include <preload_initializer.hpp>
@@ -19,6 +21,8 @@ EXTERN_C NTSTATUS STDCALL
 KtlDriverEntry(DRIVER_OBJECT* driver_object,
                UNICODE_STRING* registry_path) noexcept {
   using namespace ktl::crt;
+
+  verify_security_cookie();
 
   initialize_heap();
   invoke_global_constructors();

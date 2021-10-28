@@ -8,8 +8,8 @@ set(KTL_EXC_ENGINE_INCLUDE_DIR "${KTL_RUNTIME_INCLUDE_DIR}/exc_engine")
 
 set(
 	KTL_EXC_ENGINE_HEADER_FILES
-		"frame_handler.h"
-		"member_ptr.h"
+		"frame_handler.hpp"
+		"member_ptr.hpp"
 		"rva.hpp"
 )
 
@@ -21,7 +21,7 @@ target_include_directories(
 		INTERFACE ${KTL_EXC_ENGINE_INCLUDE_DIR}
 )
 target_compile_definitions(
-	${TARGET_LIB} 
-		INTERFACE KTL_RUNTIME_DBG
-		INTERFACE KTL_NO_CXX_STANDARD_LIBRARY
+	${TARGET_LIB} INTERFACE 
+		$<$<CONFIG:Debug>:KTL_RUNTIME_DBG>
+		KTL_NO_CXX_STANDARD_LIBRARY
 )
