@@ -1,4 +1,5 @@
 #include "driver.hpp"
+#include "test_runner.hpp"
 
 #include <runtime/include/crt_attributes.hpp>
 
@@ -22,6 +23,7 @@ DriverEntry([[maybe_unused]] DRIVER_OBJECT* driver_object,
                time.Day, time.Month, time.Year, time.Hour, time.Minute,
                time.Second, time.Milliseconds, L"KTL Test Driver")};
     DbgPrint("%wZ\n", str.raw_str());
+
   } catch (const exception& exc) {
     DbgPrint("Unhandled exception caught: %wS with code %x\n", exc.what(),
              exc.code());

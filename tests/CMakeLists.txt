@@ -1,7 +1,5 @@
 set(KTL_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_subdirectory(basic_runtime)
-
 wdk_add_driver(
 	ktl_test
 		CUSTOM_ENTRY_POINT KtlDriverEntry
@@ -9,6 +7,8 @@ wdk_add_driver(
 		WINVER ${TARGET_WINVER}
 			"driver.hpp"
 			"driver.cpp"
+			"test_runner.hpp"
+			"test_runner.cpp"
 )
 
 target_compile_definitions(
