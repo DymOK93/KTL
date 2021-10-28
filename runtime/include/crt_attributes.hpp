@@ -22,7 +22,9 @@
 #endif
 
 #define EXTERN_C extern "C"
+
 #define ALIGN(align_val) __declspec(align(align_val))
+#define CRTALLOC(x) __declspec(allocate(x))
 #define NOINLINE __declspec(noinline)
 
 #define CONCAT_IMPL(x, y) x##y

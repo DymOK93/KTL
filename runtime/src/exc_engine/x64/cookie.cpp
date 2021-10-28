@@ -1,6 +1,7 @@
 #include <seh.hpp>
 #include <symbol.hpp>
 
-namespace ktl::crt::exc_engine {
-EXTERN_C const uintptr_t __security_cookie{0x00002B99'2DDFA232ull};
-}  // namespace ktl::crt::exc_engine
+#pragma data_seg(".KTL$SECURITY")
+CRTALLOC(".KTL$SECURITY")
+const uintptr_t __security_cookie{0x00002B99'2DDFA232ull};
+#pragma comment(linker, "/merge:.KTL$SECURITY=.data")
