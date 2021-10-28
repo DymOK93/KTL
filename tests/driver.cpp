@@ -7,6 +7,7 @@
 #include <include/string.hpp>
 #include <include/unordered_map.hpp>
 #include <include/unordered_set.hpp>
+#include <include/vector.hpp>
 
 #include <modules/fmt/compile.hpp>
 #include <modules/fmt/xchar.hpp>
@@ -25,7 +26,6 @@ DriverEntry([[maybe_unused]] DRIVER_OBJECT* driver_object,
                time.Day, time.Month, time.Year, time.Hour, time.Minute,
                time.Second, time.Milliseconds, L"KTL Test Driver")};
     DbgPrint("%wZ\n", str.raw_str());
-
   } catch (const exception& exc) {
     DbgPrint("Unhandled exception caught: %s with code %x\n", exc.what(),
              exc.code());

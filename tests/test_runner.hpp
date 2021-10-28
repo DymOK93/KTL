@@ -28,10 +28,11 @@ struct basic_container_formatter {
 };
 }  // namespace test::details
 
-template <class Container, typename Char>
-struct fmt::formatter<Container,
-                      Char,
-                      ktl::enable_if_t<test::is_value_container_v<Container>>>
+namespace fmt {
+template <class Container>
+struct formatter<Container,
+                 char,
+                 ktl::enable_if_t<test::is_value_container_v<Container>>>
     : test::details::basic_container_formatter<Container> {
   using MyBase = test::details::basic_container_formatter<Container>;
 
@@ -54,10 +55,36 @@ struct fmt::formatter<Container,
   }
 };
 
-template <class Container, typename Char>
-struct fmt::formatter<Container,
-                      Char,
-                      ktl::enable_if_t<test::is_kv_container_v<Container>>>
+template <class Container>
+struct formatter<Container,
+                 wchar_t,
+                 ktl::enable_if_t<test::is_value_container_v<Container>>>
+    : test::details::basic_container_formatter<Container> {
+  using MyBase = test::details::basic_container_formatter<Container>;
+
+  using MyBase::parse;
+
+  template <class FormatContext>
+  auto format(const Container& cont, FormatContext& ctx)
+      -> decltype(ctx.out()) {
+    auto out{ktl::format_to(ctx.out(), FMT_COMPILE(L"{{"))};
+    bool first{true};
+    for (const auto& value : cont) {
+      if (!first) {
+        out = ktl::format_to(out, FMT_COMPILE(L", {}"), value);
+      } else {
+        first = false;
+        out = ktl::format_to(out, FMT_COMPILE(L"{}"), value);
+      }
+    }
+    return ktl::format_to(out, FMT_COMPILE(L"}}"));
+  }
+};
+
+template <class Container>
+struct formatter<Container,
+                 char,
+                 ktl::enable_if_t<test::is_kv_container_v<Container>>>
     : test::details::basic_container_formatter<Container> {
   using MyBase = test::details::basic_container_formatter<Container>;
 
@@ -79,6 +106,33 @@ struct fmt::formatter<Container,
     return ktl::format_to(out, FMT_COMPILE("}}"));
   }
 };
+
+template <class Container>
+struct formatter<Container,
+                 wchar_t,
+                 ktl::enable_if_t<test::is_kv_container_v<Container>>>
+    : test::details::basic_container_formatter<Container> {
+  using MyBase = test::details::basic_container_formatter<Container>;
+
+  using MyBase::parse;
+
+  template <class FormatContext>
+  auto format(const Container& cont, FormatContext& ctx)
+      -> decltype(ctx.out()) {
+    auto out{ktl::format_to(ctx.out(), FMT_COMPILE(L"{{"))};
+    bool first{true};
+    for (const auto& [key, value] : cont) {
+      if (!first) {
+        out = ktl::format_to(out, FMT_COMPILE(L", {}: {}"), key, value);
+      } else {
+        first = false;
+        out = ktl::format_to(out, FMT_COMPILE(L"{}: {}"), key, value);
+      }
+    }
+    return ktl::format_to(out, FMT_COMPILE(L"}}"));
+  }
+};
+}  // namespace fmt
 
 namespace test {
 namespace details {
