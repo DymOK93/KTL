@@ -878,7 +878,7 @@ class iterator_buffer<ktl::back_insert_iterator<Container>,
 
  protected:
   void grow(size_t capacity) final FMT_OVERRIDE {
-    container_.resize(capacity);
+    container_.resize(static_cast<typename Container::size_type>(capacity));
     this->set(&container_[0], capacity);
   }
 
@@ -2037,9 +2037,7 @@ class dynamic_specs_handler
     specs_.precision_ref = make_arg_ref(arg_id);
   }
 
-  constexpr void on_error(const char* message) {
-    context_.on_error(message);
-  }
+  constexpr void on_error(const char* message) { context_.on_error(message); }
 
  private:
   dynamic_format_specs<char_type>& specs_;
@@ -2779,9 +2777,7 @@ class format_string_checker {
     return id >= 0 && id < num_args ? parse_funcs_[id](context_) : begin;
   }
 
-  constexpr void on_error(const char* message) {
-    context_.on_error(message);
-  }
+  constexpr void on_error(const char* message) { context_.on_error(message); }
 };
 
 template <typename... Args,
