@@ -15,56 +15,20 @@ EXTERN_C int _fltused;
 namespace test::floating_point {
 namespace details {
 template <class FloatingPoint,
-          class BinaryOp,
-          enable_if_t<is_floating_point_v<FloatingPoint>, int> = 0>
-NOINLINE auto arithmetic_helper_impl(FloatingPoint lhs,
-                                     FloatingPoint rhs,
-                                     BinaryOp op) -> decltype(op(lhs, rhs)) {
-  return op(lhs, rhs);
-}
-
-template <class FloatingPoint,
-          class BinaryOp,
-          enable_if_t<is_floating_point_v<FloatingPoint>, int> = 0>
-auto arithmetic_helper(FloatingPoint lhs, FloatingPoint rhs, BinaryOp op)
-    -> decltype(op(lhs, rhs)) {
-  XSTATE_SAVE state;
-  NTSTATUS status{
-      KeSaveExtendedProcessorState(XSTATE_MASK_LEGACY, addressof(state))};
-  throw_exception_if_not<kernel_error>(
-      NT_SUCCESS(status), status, "unable to save state of the FP-coprocessor");
-
-  decltype(op(lhs, rhs)) result{};
-  __try {
-    result = arithmetic_helper_impl(lhs, rhs, op);
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    status = GetExceptionCode();
-  }
-  KeRestoreExtendedProcessorState(addressof(state));
-  throw_exception_if_not<kernel_error>(
-      NT_SUCCESS(status), status,
-      "floating point operation failed with SEH exception thrown");
-
-  return result;
-}
-
-template <class FloatingPoint,
           class ExpectedTy,
           class BinaryOp,
           enable_if_t<is_floating_point_v<FloatingPoint>, int> = 0>
-void arithmetic_checker(FloatingPoint lhs,
-                        FloatingPoint rhs,
-                        ExpectedTy expected,
-                        BinaryOp op) {
-  const FloatingPoint result{arithmetic_helper(lhs, rhs, op)};
+NOINLINE void arithmetic_checker(FloatingPoint lhs,
+                                 FloatingPoint rhs,
+                                 ExpectedTy expected,
+                                 BinaryOp op) {
+  const FloatingPoint result{op(lhs, rhs)};
 
   const auto fp_expected{static_cast<FloatingPoint>(expected)};
-  const auto delta{arithmetic_helper(result, fp_expected, minus<>{})};
-  const FloatingPoint abs_delta{
-      delta >= 0 ? delta : arithmetic_helper(fp_expected, result, minus<>{})};
-  ASSERT_VALUE(arithmetic_helper(
-      abs_delta, numeric_limits<FloatingPoint>::epsilon(),
-      [](FloatingPoint fp, FloatingPoint eps) { return fp <= eps; }));
+  const auto delta{result - fp_expected};
+  const FloatingPoint abs_delta{delta >= 0 ? delta : fp_expected - result};
+
+  ASSERT_VALUE(abs_delta <= numeric_limits<FloatingPoint>::epsilon())
 }
 }  // namespace details
 
@@ -73,10 +37,25 @@ static void validate_fltused() {
 }
 
 static void perform_arithmetic_operations() {
-  details::arithmetic_checker(3.5, -1.5, 2, plus<>{});
-  details::arithmetic_checker(-33.0, 0.0, -33, plus<>{});
-  details::arithmetic_checker(3.5, -1.5, 5, minus<>{});
-  details::arithmetic_checker(-33.0, 0.0, -33, minus<>{});
+  XSTATE_SAVE state;
+  NTSTATUS status{
+      KeSaveExtendedProcessorState(XSTATE_MASK_LEGACY, addressof(state))};
+  throw_exception_if_not<kernel_error>(
+      NT_SUCCESS(status), status, "unable to save state of the FP-coprocessor");
+
+  __try {
+    details::arithmetic_checker(3.5, -1.5, 2, plus<>{});
+    details::arithmetic_checker(-33.0, 0.0, -33, plus<>{});
+    details::arithmetic_checker(3.5, -1.5, 5, minus<>{});
+    details::arithmetic_checker(-33.0, 0.0, -33, minus<>{});
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    status = GetExceptionCode();
+  }
+  KeRestoreExtendedProcessorState(addressof(state));
+
+  throw_exception_if_not<kernel_error>(
+      NT_SUCCESS(status), status,
+      "floating point operation failed with SEH exception thrown");
 }
 
 void run_all(runner& runner) {
