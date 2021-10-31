@@ -14,7 +14,6 @@
 #include <ntddk.h>
 
 namespace test::details {
-template <class Container>
 struct basic_container_formatter {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx) -> decltype(ktl::begin(ctx)) {
@@ -29,109 +28,62 @@ struct basic_container_formatter {
 }  // namespace test::details
 
 namespace fmt {
-template <class Container>
-struct formatter<Container,
-                 char,
-                 ktl::enable_if_t<test::is_value_container_v<Container>>>
-    : test::details::basic_container_formatter<Container> {
-  using MyBase = test::details::basic_container_formatter<Container>;
+#define EMPTY_PREFIX
+#define VALUE_CONTAINER_FORMATTER(char_type, prefix)                        \
+  template <class Container>                                                \
+  struct formatter<Container, char_type,                                    \
+                   ktl::enable_if_t<test::is_value_container_v<Container>>> \
+      : test::details::basic_container_formatter {                          \
+    template <class FormatContext>                                          \
+    auto format(const Container& cont, FormatContext& ctx)                  \
+        -> decltype(ctx.out()) {                                            \
+      auto out{ktl::format_to(ctx.out(), FMT_COMPILE(prefix##"{{"))};       \
+      bool first{true};                                                     \
+      for (const auto& value : cont) {                                      \
+        if (!first) {                                                       \
+          out = ktl::format_to(out, FMT_COMPILE(prefix##", {}"), value);    \
+        } else {                                                            \
+          first = false;                                                    \
+          out = ktl::format_to(out, FMT_COMPILE(prefix##"{}"), value);      \
+        }                                                                   \
+      }                                                                     \
+      return ktl::format_to(out, FMT_COMPILE(prefix##"}}"));                \
+    }                                                                       \
+  };
 
-  using MyBase::parse;
+#define KV_CONTAINER_FORMATTER(char_type, prefix)                             \
+  template <class Container>                                                  \
+  struct formatter<Container, char_type,                                      \
+                   ktl::enable_if_t<test::is_kv_container_v<Container>>>      \
+      : test::details::basic_container_formatter {                            \
+    template <class FormatContext>                                            \
+    auto format(const Container& cont, FormatContext& ctx)                    \
+        -> decltype(ctx.out()) {                                              \
+      auto out{ktl::format_to(ctx.out(), FMT_COMPILE(prefix##"{{"))};         \
+      bool first{true};                                                       \
+      for (const auto& [key, value] : cont) {                                 \
+        if (!first) {                                                         \
+          out = ktl::format_to(out, FMT_COMPILE(prefix##", {}: {}"), key,     \
+                               value);                                        \
+        } else {                                                              \
+          first = false;                                                      \
+          out =                                                               \
+              ktl::format_to(out, FMT_COMPILE(prefix##"{}: {}"), key, value); \
+        }                                                                     \
+      }                                                                       \
+      return ktl::format_to(out, FMT_COMPILE(prefix##"}}"));                  \
+    }                                                                         \
+  };
 
-  template <class FormatContext>
-  auto format(const Container& cont, FormatContext& ctx)
-      -> decltype(ctx.out()) {
-    auto out{ktl::format_to(ctx.out(), FMT_COMPILE("{{"))};
-    bool first{true};
-    for (const auto& value : cont) {
-      if (!first) {
-        out = ktl::format_to(out, FMT_COMPILE(", {}"), value);
-      } else {
-        first = false;
-        out = ktl::format_to(out, FMT_COMPILE("{}"), value);
-      }
-    }
-    return ktl::format_to(out, FMT_COMPILE("}}"));
-  }
-};
+VALUE_CONTAINER_FORMATTER(char, EMPTY_PREFIX)
+VALUE_CONTAINER_FORMATTER(wchar_t, L)
 
-template <class Container>
-struct formatter<Container,
-                 wchar_t,
-                 ktl::enable_if_t<test::is_value_container_v<Container>>>
-    : test::details::basic_container_formatter<Container> {
-  using MyBase = test::details::basic_container_formatter<Container>;
+KV_CONTAINER_FORMATTER(char, EMPTY_PREFIX)
+KV_CONTAINER_FORMATTER(wchar_t, L)
 
-  using MyBase::parse;
-
-  template <class FormatContext>
-  auto format(const Container& cont, FormatContext& ctx)
-      -> decltype(ctx.out()) {
-    auto out{ktl::format_to(ctx.out(), FMT_COMPILE(L"{{"))};
-    bool first{true};
-    for (const auto& value : cont) {
-      if (!first) {
-        out = ktl::format_to(out, FMT_COMPILE(L", {}"), value);
-      } else {
-        first = false;
-        out = ktl::format_to(out, FMT_COMPILE(L"{}"), value);
-      }
-    }
-    return ktl::format_to(out, FMT_COMPILE(L"}}"));
-  }
-};
-
-template <class Container>
-struct formatter<Container,
-                 char,
-                 ktl::enable_if_t<test::is_kv_container_v<Container>>>
-    : test::details::basic_container_formatter<Container> {
-  using MyBase = test::details::basic_container_formatter<Container>;
-
-  using MyBase::parse;
-
-  template <class FormatContext>
-  auto format(const Container& cont, FormatContext& ctx)
-      -> decltype(ctx.out()) {
-    auto out{ktl::format_to(ctx.out(), FMT_COMPILE("{{"))};
-    bool first{true};
-    for (const auto& [key, value] : cont) {
-      if (!first) {
-        out = ktl::format_to(out, FMT_COMPILE(", {}: {}"), key, value);
-      } else {
-        first = false;
-        out = ktl::format_to(out, FMT_COMPILE("{}: {}"), key, value);
-      }
-    }
-    return ktl::format_to(out, FMT_COMPILE("}}"));
-  }
-};
-
-template <class Container>
-struct formatter<Container,
-                 wchar_t,
-                 ktl::enable_if_t<test::is_kv_container_v<Container>>>
-    : test::details::basic_container_formatter<Container> {
-  using MyBase = test::details::basic_container_formatter<Container>;
-
-  using MyBase::parse;
-
-  template <class FormatContext>
-  auto format(const Container& cont, FormatContext& ctx)
-      -> decltype(ctx.out()) {
-    auto out{ktl::format_to(ctx.out(), FMT_COMPILE(L"{{"))};
-    bool first{true};
-    for (const auto& [key, value] : cont) {
-      if (!first) {
-        out = ktl::format_to(out, FMT_COMPILE(L", {}: {}"), key, value);
-      } else {
-        first = false;
-        out = ktl::format_to(out, FMT_COMPILE(L"{}: {}"), key, value);
-      }
-    }
-    return ktl::format_to(out, FMT_COMPILE(L"}}"));
-  }
-};
+#undef KV_CONTAINER_FORMATTER
+#undef VALUE_CONTAINER_FORMATTER
+#undef EMPTY_PREFIX
 }  // namespace fmt
 
 namespace test {
