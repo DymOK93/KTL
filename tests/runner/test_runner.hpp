@@ -1,13 +1,12 @@
 #pragma once
 #include "container_traits.hpp"
 
-#include <runtime/include/bugcheck.hpp>
-#include <runtime/include/crt_attributes.hpp>
+#include <bugcheck.hpp>
 
-#include <include/array.hpp>
-#include <include/string.hpp>
-#include <include/string_view.hpp>
-#include <include/type_traits.hpp>
+#include <array.hpp>
+#include <string.hpp>
+#include <string_view.hpp>
+#include <type_traits.hpp>
 
 #include <modules/fmt/compile.hpp>
 
@@ -98,8 +97,7 @@ void print(ktl::ansi_string_view format, const Types&... args) {
 
 template <size_t N, class... Types>
 void print(const char (&format)[N], const Types&... args) {
-  const auto msg{ktl::format(FMT_COMPILE(format), args...)};
-  print_impl(msg);
+  print(ktl::ansi_string_view(format), args...);
 }
 }  // namespace details
 
@@ -119,7 +117,7 @@ void check_equal(const Ty& lhs, const U& rhs, ktl::ansi_string_view hint = {}) {
 
 void check(bool cond, ktl::ansi_string_view hint);
 
-class Runner : ktl::non_relocatable {
+class runner : ktl::non_relocatable {
  public:
   template <class TestFunc>
   NTSTATUS execute(TestFunc fn, ktl::ansi_string_view test_name) {
@@ -139,13 +137,13 @@ class Runner : ktl::non_relocatable {
     return status;
   }
 
-  ~Runner() noexcept;
+  ~runner() noexcept;
 
  private:
   ktl::crt::termination_context capture_failure_context() noexcept;
 
  private:
-  size_t m_fail_count{0};
+  uint32_t m_fail_count{0};
 };
 }  // namespace test
 

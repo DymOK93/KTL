@@ -1,15 +1,14 @@
 set(KTL_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_subdirectory(heap)
+add_subdirectory(runner)
+
 wdk_add_driver(
 	ktl_test
 		CUSTOM_ENTRY_POINT KtlDriverEntry
 		EXTENDED_CPP_FEATURES
 		WINVER ${TARGET_WINVER}
-			"container_traits.hpp"
-			"driver.hpp"
 			"driver.cpp"
-			"test_runner.hpp"
-			"test_runner.cpp"
 )
 
 target_compile_definitions(
@@ -41,6 +40,9 @@ target_link_libraries(
 		basic_runtime 
 		cpp_runtime
 		minifilter_runtime
+
+		tests::runner
+		tests::heap
 )
 
 wdk_sign_driver(

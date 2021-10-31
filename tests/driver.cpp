@@ -1,20 +1,20 @@
-#include "driver.hpp"
-#include "test_runner.hpp"
-
 #include <runtime/include/crt_attributes.hpp>
 
 #include <include/chrono.hpp>
 #include <include/string.hpp>
-#include <include/unordered_map.hpp>
-#include <include/unordered_set.hpp>
-#include <include/vector.hpp>
 
 #include <modules/fmt/compile.hpp>
 #include <modules/fmt/xchar.hpp>
 
 #include <ntddk.h>
 
+#include <runner/test_runner.hpp>
+#include <heap/test.hpp>
+
 using namespace ktl;
+
+TIME_FIELDS GetCurrentTime() noexcept;
+void RunTests();
 
 EXTERN_C NTSTATUS
 DriverEntry([[maybe_unused]] DRIVER_OBJECT* driver_object,
@@ -26,6 +26,9 @@ DriverEntry([[maybe_unused]] DRIVER_OBJECT* driver_object,
                time.Day, time.Month, time.Year, time.Hour, time.Minute,
                time.Second, time.Milliseconds, L"KTL Test Driver")};
     DbgPrint("%wZ\n", str.raw_str());
+
+    RunTests();
+
   } catch (const exception& exc) {
     DbgPrint("Unhandled exception caught: %s with code %x\n", exc.what(),
              exc.code());
@@ -42,4 +45,9 @@ TIME_FIELDS GetCurrentTime() noexcept {
   TIME_FIELDS time_fields;
   RtlTimeToTimeFields(addressof(native_time), addressof(time_fields));
   return time_fields;
+}
+
+void RunTests() {
+  test::runner tr;
+  test::heap::run_all(tr);
 }

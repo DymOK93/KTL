@@ -20,7 +20,7 @@ inline constexpr pool_tag_t DEFAULT_HEAP_TAG{'dLTK'};  //!< Reversed 'KTLd'
 inline constexpr pool_tag_t KTL_HEAP_TAG{DEFAULT_HEAP_TAG};  //!< For back compatibility
 
 inline constexpr size_t MEMORY_PAGE_SIZE{PAGE_SIZE};
-inline constexpr size_t CACHE_LINE_SIZE{64};
+inline constexpr size_t CACHE_LINE_SIZE{SYSTEM_CACHE_ALIGNMENT_SIZE};
 
 inline constexpr auto XMM_ALIGNMENT{
     static_cast<std::align_val_t>(alignof(__m128))};
@@ -66,7 +66,7 @@ class heap_request_builder_base {
   }
 
  protected:
-  ConcreteBuilder& get_context() noexcept {
+  constexpr ConcreteBuilder& get_context() noexcept {
     return static_cast<ConcreteBuilder&>(*this);
   }
 

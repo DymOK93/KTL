@@ -14,8 +14,13 @@ using namespace ktl;
 
 namespace test {
 namespace details {
+template <size_t N, typename... Types>
+static void print_to_debug_output(const char (&format)[N], Types... args) {
+  DbgPrintEx(DPFLTR_DEFAULT_ID, LOG_LEVEL, format, args...);
+}
+
 void print_impl(ansi_string_view msg) noexcept {
-  DbgPrintEx(DPFLTR_DEFAULT_ID, LOG_LEVEL, "5Z\n", msg);
+  print_to_debug_output("%Z", msg.raw_str());
 }
 }  // namespace details
 
@@ -23,14 +28,14 @@ void check(bool cond, ansi_string_view hint) {
   check_equal(cond, true, hint);
 }
 
-Runner::~Runner() noexcept {
+runner::~runner() noexcept {
   if (m_fail_count > 0) {
-    // details::print("{} unit tests failed\n", m_fail_count);
+    details::print_to_debug_output("%u unit tests failed\n", m_fail_count);
     EXIT_ON_FAIL(capture_failure_context())
   }
 }
 
-crt::termination_context Runner::capture_failure_context() noexcept {
+crt::termination_context runner::capture_failure_context() noexcept {
   using namespace crt;
   return {BugCheckReason::AssertionFailure,
           reinterpret_cast<bugcheck_arg_t>(this),
