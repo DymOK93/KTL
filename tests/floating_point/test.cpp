@@ -18,7 +18,7 @@ template <class FloatingPoint,
           class ExpectedTy,
           class BinaryOp,
           enable_if_t<is_floating_point_v<FloatingPoint>, int> = 0>
-NOINLINE void arithmetic_checker(FloatingPoint lhs,
+void arithmetic_checker(FloatingPoint lhs,
                                  FloatingPoint rhs,
                                  ExpectedTy expected,
                                  BinaryOp op) {
@@ -29,6 +29,13 @@ NOINLINE void arithmetic_checker(FloatingPoint lhs,
   const FloatingPoint abs_delta{delta >= 0 ? delta : fp_expected - result};
 
   ASSERT_VALUE(abs_delta <= numeric_limits<FloatingPoint>::epsilon())
+}
+
+NOINLINE static void perform_arithmetic_operations_impl() {
+  arithmetic_checker(3.5, -1.5, 2, plus<>{});
+  arithmetic_checker(-33.0, 0.0, -33, plus<>{});
+  arithmetic_checker(3.5, -1.5, 5, minus<>{});
+  arithmetic_checker(-33.0, 0.0, -33, minus<>{});
 }
 }  // namespace details
 
@@ -52,10 +59,7 @@ static void perform_arithmetic_operations() {
       NT_SUCCESS(status), status, "unable to save state of the FP-coprocessor");
 
   __try {
-    details::arithmetic_checker(3.5, -1.5, 2, plus<>{});
-    details::arithmetic_checker(-33.0, 0.0, -33, plus<>{});
-    details::arithmetic_checker(3.5, -1.5, 5, minus<>{});
-    details::arithmetic_checker(-33.0, 0.0, -33, minus<>{});
+    details::perform_arithmetic_operations_impl();
   } __except (EXCEPTION_EXECUTE_HANDLER) {
     status = GetExceptionCode();
   }
