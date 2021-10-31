@@ -1,7 +1,7 @@
-#include <runtime/include/crt_attributes.hpp>
+#include <crt_attributes.hpp>
 
-#include <include/chrono.hpp>
-#include <include/string.hpp>
+#include <chrono.hpp>
+#include <string.hpp>
 
 #include <modules/fmt/compile.hpp>
 #include <modules/fmt/xchar.hpp>
@@ -9,6 +9,8 @@
 #include <ntddk.h>
 
 #include <runner/test_runner.hpp>
+
+#include <floating_point/test.hpp>
 #include <heap/test.hpp>
 
 using namespace ktl;
@@ -50,4 +52,5 @@ TIME_FIELDS GetCurrentTime() noexcept {
 void RunTests() {
   test::runner tr;
   test::heap::run_all(tr);
+  test::floating_point::run_all(tr);
 }
