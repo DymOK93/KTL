@@ -38,8 +38,16 @@ static void validate_fltused() {
 
 static void perform_arithmetic_operations() {
   XSTATE_SAVE state;
+
+  const auto enabled_features{RtlGetEnabledExtendedFeatures(
+      XSTATE_MASK_LEGACY | XSTATE_MASK_AVX | XSTATE_MASK_AVX512)};
+  throw_exception_if_not<runtime_error>(
+      enabled_features & XSTATE_MASK_LEGACY,
+      "floating point operations are unsupported or disallowed by OS");
+
   NTSTATUS status{
-      KeSaveExtendedProcessorState(XSTATE_MASK_LEGACY, addressof(state))};
+      KeSaveExtendedProcessorState(enabled_features, addressof(state))};
+
   throw_exception_if_not<kernel_error>(
       NT_SUCCESS(status), status, "unable to save state of the FP-coprocessor");
 
