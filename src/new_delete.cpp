@@ -21,7 +21,7 @@ static void* operator_new_impl(
     void* const memory{allocate_memory<exc_on_failure_masked>(
         alloc_request_builder{bytes_count, pool_type}
             .set_alignment(alignment)
-            .set_pool_tag(pool_type)
+            .set_pool_tag(crt::DEFAULT_HEAP_TAG)
             .build())};
     if (memory) {
       return memory;
