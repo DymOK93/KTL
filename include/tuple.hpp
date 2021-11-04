@@ -14,12 +14,12 @@ struct count_entries {
 
 template<class Ty, class... Tys>
 struct is_present_once {
-  static constexpr bool value = count_entries<Ty, Tys>::value == 1;
+  static constexpr bool value = count_entries<Ty, Tys...>::value == 1;
 };
 
 template<class Ty, class... Tys>
 struct is_present {
-  static constexpr bool value = count_entries<Ty, Tys>::value > 0;
+  static constexpr bool value = count_entries<Ty, Tys...>::value > 0;
 };
 
 template<size_t Idx, class Ty, class Ty1, class... Tys>
