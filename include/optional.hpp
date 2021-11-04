@@ -356,7 +356,7 @@ class non_trivial_optional_base : public common_optional_base<Ty> {
       typename U = Ty,
       enable_if_t<is_constructible_v<Ty, U> && is_assignable_v<Ty, U>, int> = 0>
   non_trivial_optional_base& operator=(U&& value) {
-    assign_or_emplace(value);
+    assign_or_emplace(ktl::forward<U>(value));
     return *this;
   }
 
