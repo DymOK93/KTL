@@ -102,7 +102,7 @@ class thread_base : non_copyable {
   }
 
   priority_t get_priority() const noexcept;
-  priority_t set_priority(priority_t new_priority) noexcept;
+  priority_t set_priority(priority_t new_priority) const noexcept;
 
   static uint32_t hardware_concurrency() noexcept;
 

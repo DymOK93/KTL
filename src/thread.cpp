@@ -1,6 +1,6 @@
 #include <bugcheck.hpp>
-#include <thread.hpp>
 #include <ktlexcept.hpp>
+#include <thread.hpp>
 #include <utility.hpp>
 
 #include <ntddk.h>
@@ -39,7 +39,8 @@ auto thread_base::get_priority() const noexcept -> priority_t {
   return KeQueryPriorityThread(static_cast<PKTHREAD>(m_thread));
 }
 
-auto thread_base::set_priority(priority_t new_priority) noexcept -> priority_t {
+auto thread_base::set_priority(priority_t new_priority) const noexcept
+    -> priority_t {
   return KeSetPriorityThread(static_cast<PKTHREAD>(m_thread), new_priority);
 }
 
@@ -54,7 +55,7 @@ uint32_t thread_base::hardware_concurrency() noexcept {
 void thread_base::destroy() noexcept {
   if (m_thread) {
     ObDereferenceObject(m_thread);
-    m_thread = nullptr;
+    m_thread = {};
   }
 }
 
