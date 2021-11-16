@@ -600,7 +600,7 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
   unique_lock operator=(const unique_lock& other) = delete;
 
   unique_lock(unique_lock&& other) noexcept {
-    return MyBase::move_construct_from(move(other));
+    MyBase::move_construct_from(move(other));
   }
 
   unique_lock& operator=(unique_lock&& other) noexcept {
