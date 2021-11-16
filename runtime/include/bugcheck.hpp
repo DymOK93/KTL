@@ -1,5 +1,6 @@
 #pragma once
 #include <basic_types.hpp>
+#include <crt_attributes.hpp>
 #include <irql.hpp>
 
 #include <ntddk.h>
@@ -58,13 +59,15 @@ struct termination_context {
 termination_context set_termination_context(
     const termination_context& bsod) noexcept;
 
-void verify_seh(NTSTATUS code, const void* addr, uint32_t flags) noexcept;
+EXTERN_C void verify_seh(NTSTATUS code,
+                         const void* addr,
+                         uint32_t flags) noexcept;
 
-void verify_seh_in_cxx_handler(NTSTATUS code,
-                               const void* addr,
-                               uint32_t flags,
-                               uint32_t unwind_info,
-                               const void* image_base) noexcept;
+EXTERN_C void verify_seh_in_cxx_handler(NTSTATUS code,
+                                        const void* addr,
+                                        uint32_t flags,
+                                        uint32_t unwind_info,
+                                        const void* image_base) noexcept;
 
 namespace details {
 class termination_dispatcher {
