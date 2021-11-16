@@ -363,7 +363,7 @@ struct event_base : sync_primitive_base<KEVENT> {
   }
 
   [[nodiscard]] bool is_signaled() const noexcept;
-  [[nodiscard]] explicit operator bool() const noexcept;
+  explicit operator bool() const noexcept;
 
  private:
   template <class AwaitToken, class Handler>
