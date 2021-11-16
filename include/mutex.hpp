@@ -605,7 +605,8 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
 
   unique_lock& operator=(unique_lock&& other) noexcept {
     reset_if_needed();
-    return MyBase::move_construct_from(move(other));
+    MyBase::move_construct_from(move(other));
+    return *this;
   }
 
   ~unique_lock() { reset_if_needed(); }
@@ -674,7 +675,8 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
 
   shared_lock& operator=(shared_lock&& other) noexcept {
     reset_if_needed();
-    return MyBase::move_construct_from(move(other));
+    MyBase::move_construct_from(move(other));
+    return *this;
   }
 
   ~shared_lock() { reset_if_needed(); }
