@@ -37,7 +37,7 @@ set(
 )
 set(
 	RELEASE_LINK_OPTIONS
-		/OPT:REF							# Eliminate unused code
+		/OPT:REF						# Eliminate unused code
 		/INCLUDE:verify_seh					# Force include symbols erroneously eliminated due to a bug in LTO (MSVC <= 16.29)
 		/INCLUDE:verify_seh_in_cxx_handler
 )
