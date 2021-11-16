@@ -868,7 +868,6 @@ class shared_ptr
       : MyBase(ptr,
                make_ref_counter(
                    unique_ptr{ptr, [&deleter](U* target) { deleter(target); }},
-                   ptr,
                    forward<Dx>(deleter))) {}
 
   template <class U,
@@ -922,12 +921,8 @@ class shared_ptr
   template <class U, class Dx, enable_if_t<is_convertible_v<U*, Ty*>, int> = 0>
   shared_ptr(unique_ptr<U, Dx>&& uptr) {
     auto* ptr{uptr.get()};
-    auto new_ref_counter{
-        make_ref_counter(unique_ptr{ptr, [&deleter = uptr.get_deleter()](
-                                             U* target) { deleter(target); }},
-                         ptr, move(uptr.get_deleter()))};
-    uptr.release();
-    MyBase::construct_from(ptr, new_ref_counter);
+    auto ref_counter{make_ref_counter(move(uptr), move(uptr.get_deleter()))};
+    MyBase::construct_from(ptr, ref_counter);
   }
 
   shared_ptr& operator=(const shared_ptr& other) noexcept {
@@ -1017,30 +1012,28 @@ class shared_ptr
  private:
   template <class U>
   static ref_counter_base* make_default_ref_counter(U* ptr, true_type) {
-    return make_ref_counter(unique_ptr<U[]>{}, ptr,
+    return make_ref_counter(unique_ptr<U[]>{ptr},
                             mm::details::default_delete<U[]>{});
   }
 
   template <class U>
   static ref_counter_base* make_default_ref_counter(U* ptr, false_type) {
-    return make_ref_counter(unique_ptr<U>{}, ptr,
+    return make_ref_counter(unique_ptr<U>{ptr},
                             mm::details::default_delete<U>{});
   }
 
-  template <class Guard, class U, class Deleter>
-  static ref_counter_base* make_ref_counter(Guard&& temporary_guard,
-                                            U* ptr,
+  template <class U, class Dx, class Deleter>
+  static ref_counter_base* make_ref_counter(unique_ptr<U, Dx>&& ptr_guard,
                                             Deleter&& dx) {
     using namespace mm::details;
 
     ref_counter_base* ref_counter{nullptr};
-    if (ptr) {
-      temporary_guard.reset(ptr);
+    if (ptr_guard) {
       ref_counter =
           new ref_counter_with_deleter<U, remove_reference_t<Deleter>,
                                        DestroyObjectWithDeleter, DeleteItself>(
-              ptr, forward<Deleter>(dx));
-      temporary_guard.release();
+              ptr_guard.get(), forward<Deleter>(dx));
+      ptr_guard.release();
     }
     return ref_counter;
   }
