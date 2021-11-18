@@ -54,11 +54,7 @@ target_compile_definitions(
 )		
 target_link_options(
 	${RUNTIME_LIB} PRIVATE
-		$<$<CONFIG:Release>:
-			${RELEASE_LINK_OPTIONS}
-			/INCLUDE:verify_seh					# Force include symbols erroneously eliminated due to a bug in LTO (MSVC <= 16.29)
-			/INCLUDE:verify_seh_in_cxx_handler
-		>
+		$<$<CONFIG:Release>:${RELEASE_LINK_OPTIONS}>
 		$<$<CONFIG:Release>:${LTO_LINK_OPTIONS}>
 )
 target_link_libraries(
