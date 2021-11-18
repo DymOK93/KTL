@@ -17,9 +17,9 @@ endif()
 
 set(
 	BASIC_COMPILE_OPTIONS
-		/MP	# Multiprocessor compilation
-		/W4 # Warnings level
-		/WX # Treat warnings as errors
+		/MP		# Multiprocessor compilation
+		/W4		# Warnings level
+		/WX		# Treat warnings as errors
 )
 set(
 	RELEASE_COMPILE_OPTIONS
@@ -37,7 +37,7 @@ set(
 )
 set(
 	RELEASE_LINK_OPTIONS
-		/OPT:REF			# Eliminate unused code
+		/OPT:REF							# Eliminate unused code
 )
 set(
 	LTO_LINK_OPTIONS
