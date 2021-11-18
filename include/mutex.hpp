@@ -363,7 +363,7 @@ struct event_base : sync_primitive_base<KEVENT> {
   }
 
   [[nodiscard]] bool is_signaled() const noexcept;
-  [[nodiscard]] explicit operator bool() const noexcept;
+  explicit operator bool() const noexcept;
 
  private:
   template <class AwaitToken, class Handler>
@@ -600,12 +600,13 @@ class unique_lock : public th::details::mutex_guard_base<Mutex> {
   unique_lock operator=(const unique_lock& other) = delete;
 
   unique_lock(unique_lock&& other) noexcept {
-    return MyBase::move_construct_from(move(other));
+    MyBase::move_construct_from(move(other));
   }
 
   unique_lock& operator=(unique_lock&& other) noexcept {
     reset_if_needed();
-    return MyBase::move_construct_from(move(other));
+    MyBase::move_construct_from(move(other));
+    return *this;
   }
 
   ~unique_lock() { reset_if_needed(); }
@@ -674,7 +675,8 @@ class shared_lock : public th::details::mutex_guard_base<Mutex> {
 
   shared_lock& operator=(shared_lock&& other) noexcept {
     reset_if_needed();
-    return MyBase::move_construct_from(move(other));
+    MyBase::move_construct_from(move(other));
+    return *this;
   }
 
   ~shared_lock() { reset_if_needed(); }

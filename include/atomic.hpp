@@ -1,8 +1,8 @@
 #pragma once
 #include <basic_types.hpp>
 #include <crt_attributes.hpp>
-#include <irql.hpp>
 #include <intrinsic.hpp>
+#include <irql.hpp>
 #include <limits.hpp>
 #include <type_traits.hpp>
 #include <utility.hpp>
@@ -349,28 +349,20 @@ class interlocked_storage {
   template <memory_order order = memory_order_seq_cst>
   value_type load() const noexcept {
     internal_value_type result{*get_storage()};
-    th::details::make_load_barrier<order>();
+    details::make_load_barrier<order>();
     return reinterpret_cast<value_type&>(result);
-  }
-
-  template <>
-  value_type load<memory_order_seq_cst>() const noexcept {
-    internal_value_type empty{};
-    return InterlockedPolicy::compare_exchange_strong(
-        const_cast<internal_value_type*>(get_storage()), empty, empty);
   }
 
   template <memory_order order = memory_order_seq_cst>
   void store(const value_type value) noexcept {
-    const auto source{atomic_reinterpret_as<internal_value_type>(value)};
-    auto* place{get_storage()};
-    th::details::make_store_barrier<order>();
-    *place = source;
-  }
-
-  template <>
-  void store<memory_order::seq_cst>(const value_type value) noexcept {
-    [[maybe_unused]] auto old_value{exchange(value)};
+    if constexpr (is_same_v<order, memory_order_seq_cst>) {
+      [[maybe_unused]] auto old_value{exchange(value)};
+    } else {
+      const auto source{atomic_reinterpret_as<internal_value_type>(value)};
+      auto* place{get_storage()};
+      details::make_store_barrier<order>();
+      *place = source;
+    }
   }
 
   template <memory_order order = memory_order_seq_cst>

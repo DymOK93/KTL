@@ -606,7 +606,7 @@ inline ktl::basic_winnt_string<typename S::char_type> format(const S&,
   }
   constexpr auto compiled = detail::compile<Args...>(S());
   if constexpr (ktl::is_same<remove_cvref_t<decltype(compiled)>,
-                                    detail::unknown_format>()) {
+                             detail::unknown_format>()) {
     return format(
         static_cast<basic_winnt_string_view<typename S::char_type>>(S()),
         ktl::forward<Args>(args)...);
