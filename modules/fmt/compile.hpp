@@ -592,7 +592,6 @@ template <typename S,
           FMT_ENABLE_IF(detail::is_compiled_string<S>::value)>
 inline ktl::basic_winnt_string<typename S::char_type> format(const S&,
                                                              Args&&... args) {
-  constexpr auto compiled = detail::compile<Args...>(S());
   if constexpr (ktl::is_same<typename S::char_type, char>::value) {
     constexpr auto str = basic_winnt_string_view<typename S::char_type>(S());
     if constexpr (str.size() == 2 && str[0] == '{' && str[1] == '}') {
@@ -604,8 +603,10 @@ inline ktl::basic_winnt_string<typename S::char_type> format(const S&,
         return fmt::to_string(first);
       }
     }
-  } else if constexpr (ktl::is_same<remove_cvref_t<decltype(compiled)>,
-                                    detail::unknown_format>()) {
+  }
+  constexpr auto compiled = detail::compile<Args...>(S());
+  if constexpr (ktl::is_same<remove_cvref_t<decltype(compiled)>,
+                             detail::unknown_format>()) {
     return format(
         static_cast<basic_winnt_string_view<typename S::char_type>>(S()),
         ktl::forward<Args>(args)...);

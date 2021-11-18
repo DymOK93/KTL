@@ -50,11 +50,15 @@ target_compile_definitions(
 	${RUNTIME_LIB} PRIVATE
 		KTL_RUNTIME_DBG
 		KTL_NO_CXX_STANDARD_LIBRARY
-		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
-)
+		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0 # Workround for a bug with shadowing template parameters in old CRT headers 
+)		
 target_link_options(
 	${RUNTIME_LIB} PRIVATE
-		$<$<CONFIG:Release>:${RELEASE_LINK_OPTIONS}>
+		$<$<CONFIG:Release>:
+			${RELEASE_LINK_OPTIONS}
+			/INCLUDE:verify_seh					# Force include symbols erroneously eliminated due to a bug in LTO (MSVC <= 16.29)
+			/INCLUDE:verify_seh_in_cxx_handler
+		>
 		$<$<CONFIG:Release>:${LTO_LINK_OPTIONS}>
 )
 target_link_libraries(
