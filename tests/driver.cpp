@@ -50,11 +50,10 @@ TIME_FIELDS GetCurrentTime() noexcept {
   return time_fields;
 }
 
-#define RUN_ALL(section) test::##section## ::run_all(tr)
-
 void RunTests() {
   test::runner tr;
-  RUN_ALL(heap);
-  RUN_ALL(floating_point);
-  RUN_ALL(irql);
+
+  test::heap::run_all(tr);
+  test::floating_point::run_all(tr);
+  test::irql::run_all(tr);
 }
