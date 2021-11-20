@@ -3,10 +3,7 @@
 #include <crt_attributes.hpp>
 
 #include <ktlexcept.hpp>
-#include <limits.hpp>
 #include <type_traits.hpp>
-
-#include <test_runner.hpp>
 
 using namespace ktl;
 

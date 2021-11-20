@@ -12,6 +12,7 @@
 
 #include <floating_point/test.hpp>
 #include <heap/test.hpp>
+#include <irql/test.hpp>
 
 using namespace ktl;
 
@@ -49,8 +50,11 @@ TIME_FIELDS GetCurrentTime() noexcept {
   return time_fields;
 }
 
+#define RUN_ALL(section) test::##section## ::run_all(tr)
+
 void RunTests() {
   test::runner tr;
-  test::heap::run_all(tr);
-  test::floating_point::run_all(tr);
+  RUN_ALL(heap);
+  RUN_ALL(floating_point);
+  RUN_ALL(irql);
 }

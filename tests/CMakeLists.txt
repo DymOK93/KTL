@@ -3,6 +3,7 @@ set(KTL_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(runner)
 add_subdirectory(heap)
 add_subdirectory(floating_point)
+add_subdirectory(irql)
 
 wdk_add_driver(
 	ktl_test
@@ -45,6 +46,7 @@ target_link_libraries(
 		tests::runner
 		tests::heap
 		tests::floating_point
+		tests::irql
 )
 
 wdk_sign_driver(

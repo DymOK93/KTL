@@ -1,7 +1,5 @@
 #include "test.hpp"
 
-#include <test_runner.hpp>
-
 #include <smart_pointer.hpp>
 
 using namespace ktl;

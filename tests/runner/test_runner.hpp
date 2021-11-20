@@ -90,8 +90,22 @@ namespace details {
 void print_impl(ktl::ansi_string_view msg) noexcept;
 
 template <class... Types>
+ktl::ansi_string_non_paged format_non_paged(ktl::ansi_string_view format,
+                                            const Types&... args) {
+  ktl::ansi_string_non_paged buffer;
+  ktl::format_to(ktl::back_inserter(buffer), format, args...);
+  return buffer;
+}
+
+template <size_t N, class... Types>
+ktl::ansi_string_non_paged format_non_paged(const char (&format)[N],
+                                            const Types&... args) {
+  return format_non_paged(ktl::ansi_string_view(format), args...);
+}
+
+template <class... Types>
 void print(ktl::ansi_string_view format, const Types&... args) {
-  const auto msg{ktl::format(format, args...)};
+  const auto msg{format_non_paged(format, args...)};
   print_impl(msg);
 }
 
@@ -104,7 +118,7 @@ void print(const char (&format)[N], const Types&... args) {
 template <class Ty, class U>
 void check_equal(const Ty& lhs, const U& rhs, ktl::ansi_string_view hint = {}) {
   if (!(lhs == rhs)) {
-    auto msg{ktl::format("Assertion failed: {} != {}", lhs, rhs)};
+    auto msg{details::format_non_paged("Assertion failed: {} != {}", lhs, rhs)};
     if (!hint.empty()) {
       msg.reserve(static_cast<typename decltype(msg)::size_type>(
           ktl::size(msg) + ktl::size(hint)));
@@ -147,18 +161,18 @@ class runner : ktl::non_relocatable {
 };
 }  // namespace test
 
-#define ASSERT_VALUE(x)                                                 \
-  {                                                                     \
-    const auto hint{ktl::format(FMT_COMPILE("{} is false, {}: {}"), #x, \
-                                __FILE__, __LINE__)};                   \
-    test::check((x), hint);                                             \
+#define ASSERT_VALUE(x)                                                        \
+  {                                                                            \
+    const auto hint{test::details::format_non_paged("{} is false, {}: {}", #x, \
+                                                    __FILE__, __LINE__)};      \
+    test::check((x), hint);                                                    \
   }
 
-#define ASSERT_EQ(x, y)                                                  \
-  {                                                                      \
-    const auto hint{ktl::format(FMT_COMPILE("{} != {}, {}: {}"), #x, #y, \
-                                __FILE__, __LINE__)};                    \
-    test::check_equal((x), (y), hint);                                   \
+#define ASSERT_EQ(x, y)                                                       \
+  {                                                                           \
+    const auto hint{test::details::format_non_paged("{} != {}, {}: {}", #x,   \
+                                                    #y, __FILE__, __LINE__)}; \
+    test::check_equal((x), (y), hint);                                        \
   }
 
 #define RUN_TEST(tr, func) tr.execute(func, #func)
