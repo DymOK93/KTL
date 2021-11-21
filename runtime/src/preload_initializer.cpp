@@ -16,7 +16,7 @@ preload_initializer_registry::get_instance() noexcept {
 
 bool preload_initializer_registry::add(preload_initializer& obj) noexcept {
   auto& current_size{m_size};
-  if (m_already_ran || current_size > MAX_INITIALIZER_COUNT) {
+  if (m_already_ran || current_size >= MAX_INITIALIZER_COUNT) {
     return false;
   }
   m_initializers[current_size++] = &obj;
