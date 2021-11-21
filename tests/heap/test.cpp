@@ -4,7 +4,7 @@
 
 using namespace ktl;
 
-namespace test::heap {
+namespace tests::heap {
 namespace details {
 template <size_t BytesCount,
           align_val_t Align,
@@ -86,4 +86,4 @@ void run_all(runner& runner) {
   RUN_TEST(runner, alloc_and_free);
   RUN_TEST(runner, alloc_and_free_noexcept);
 }
-}  // namespace test::heap
+}  // namespace tests::heap

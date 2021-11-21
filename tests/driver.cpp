@@ -10,6 +10,7 @@
 
 #include <runner/test_runner.hpp>
 
+#include <dynamic_init/test.hpp>
 #include <floating_point/test.hpp>
 #include <heap/test.hpp>
 #include <irql/test.hpp>
@@ -51,9 +52,9 @@ TIME_FIELDS GetCurrentTime() noexcept {
 }
 
 void RunTests() {
-  test::runner tr;
-
-  test::heap::run_all(tr);
-  test::floating_point::run_all(tr);
-  test::irql::run_all(tr);
+  tests::runner tr;
+  tests::heap::run_all(tr);
+  tests::floating_point::run_all(tr);
+  tests::irql::run_all(tr);
+  tests::dynamic_init::run_all(tr);
 }

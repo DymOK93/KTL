@@ -12,7 +12,7 @@
 
 #include <ntddk.h>
 
-namespace test::details {
+namespace tests::details {
 struct basic_container_formatter {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx) -> decltype(ktl::begin(ctx)) {
@@ -24,37 +24,37 @@ struct basic_container_formatter {
     return first;
   }
 };
-}  // namespace test::details
+}  // namespace tests::details
 
 namespace fmt {
 #define EMPTY_PREFIX
-#define VALUE_CONTAINER_FORMATTER(char_type, prefix)                        \
-  template <class Container>                                                \
-  struct formatter<Container, char_type,                                    \
-                   ktl::enable_if_t<test::is_value_container_v<Container>>> \
-      : test::details::basic_container_formatter {                          \
-    template <class FormatContext>                                          \
-    auto format(const Container& cont, FormatContext& ctx)                  \
-        -> decltype(ctx.out()) {                                            \
-      auto out{ktl::format_to(ctx.out(), FMT_COMPILE(prefix##"{{"))};       \
-      bool first{true};                                                     \
-      for (const auto& value : cont) {                                      \
-        if (!first) {                                                       \
-          out = ktl::format_to(out, FMT_COMPILE(prefix##", {}"), value);    \
-        } else {                                                            \
-          first = false;                                                    \
-          out = ktl::format_to(out, FMT_COMPILE(prefix##"{}"), value);      \
-        }                                                                   \
-      }                                                                     \
-      return ktl::format_to(out, FMT_COMPILE(prefix##"}}"));                \
-    }                                                                       \
+#define VALUE_CONTAINER_FORMATTER(char_type, prefix)                         \
+  template <class Container>                                                 \
+  struct formatter<Container, char_type,                                     \
+                   ktl::enable_if_t<tests::is_value_container_v<Container>>> \
+      : tests::details::basic_container_formatter {                          \
+    template <class FormatContext>                                           \
+    auto format(const Container& cont, FormatContext& ctx)                   \
+        -> decltype(ctx.out()) {                                             \
+      auto out{ktl::format_to(ctx.out(), FMT_COMPILE(prefix##"{{"))};        \
+      bool first{true};                                                      \
+      for (const auto& value : cont) {                                       \
+        if (!first) {                                                        \
+          out = ktl::format_to(out, FMT_COMPILE(prefix##", {}"), value);     \
+        } else {                                                             \
+          first = false;                                                     \
+          out = ktl::format_to(out, FMT_COMPILE(prefix##"{}"), value);       \
+        }                                                                    \
+      }                                                                      \
+      return ktl::format_to(out, FMT_COMPILE(prefix##"}}"));                 \
+    }                                                                        \
   };
 
 #define KV_CONTAINER_FORMATTER(char_type, prefix)                             \
   template <class Container>                                                  \
   struct formatter<Container, char_type,                                      \
-                   ktl::enable_if_t<test::is_kv_container_v<Container>>>      \
-      : test::details::basic_container_formatter {                            \
+                   ktl::enable_if_t<tests::is_kv_container_v<Container>>>     \
+      : tests::details::basic_container_formatter {                           \
     template <class FormatContext>                                            \
     auto format(const Container& cont, FormatContext& ctx)                    \
         -> decltype(ctx.out()) {                                              \
@@ -85,7 +85,7 @@ KV_CONTAINER_FORMATTER(wchar_t, L)
 #undef EMPTY_PREFIX
 }  // namespace fmt
 
-namespace test {
+namespace tests {
 namespace details {
 void print_impl(ktl::ansi_string_view msg) noexcept;
 
@@ -159,20 +159,20 @@ class runner : ktl::non_relocatable {
  private:
   uint32_t m_fail_count{0};
 };
-}  // namespace test
+}  // namespace tests
 
 #define ASSERT_VALUE(x)                                                        \
   {                                                                            \
-    const auto hint{test::details::format_non_paged("{} is false, {}: {}", #x, \
-                                                    __FILE__, __LINE__)};      \
-    test::check((x), hint);                                                    \
+    const auto hint{tests::details::format_non_paged("{} is false, {}: {}",    \
+                                                     #x, __FILE__, __LINE__)}; \
+    tests::check((x), hint);                                                   \
   }
 
-#define ASSERT_EQ(x, y)                                                       \
-  {                                                                           \
-    const auto hint{test::details::format_non_paged("{} != {}, {}: {}", #x,   \
-                                                    #y, __FILE__, __LINE__)}; \
-    test::check_equal((x), (y), hint);                                        \
+#define ASSERT_EQ(x, y)                                                        \
+  {                                                                            \
+    const auto hint{tests::details::format_non_paged("{} != {}, {}: {}", #x,   \
+                                                     #y, __FILE__, __LINE__)}; \
+    tests::check_equal((x), (y), hint);                                        \
   }
 
 #define RUN_TEST(tr, func) tr.execute(func, #func)

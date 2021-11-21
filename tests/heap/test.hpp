@@ -4,7 +4,7 @@
 
 #include <test_runner.hpp>
 
-namespace test::heap {
+namespace tests::heap {
 static constexpr ktl::crt::pool_tag_t POOL_TAG{'eHeT'};
 
 static_assert(ktl::crt::DEFAULT_HEAP_TAG == ktl::crt::KTL_HEAP_TAG);

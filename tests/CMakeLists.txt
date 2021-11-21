@@ -1,6 +1,7 @@
 set(KTL_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 list(APPEND CMAKE_MODULE_PATH "${KTL_TEST_DIR}/cmake") 
 
+add_subdirectory(dynamic_init)
 add_subdirectory(floating_point)
 add_subdirectory(heap)
 add_subdirectory(irql)
@@ -41,8 +42,9 @@ target_link_libraries(
 		cpp_runtime
 		minifilter_runtime
 
-		tests::heap
+		tests::dynamic_init
 		tests::floating_point
+		tests::heap
 		tests::irql
 		tests::runner
 )

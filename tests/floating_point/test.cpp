@@ -9,7 +9,7 @@ using namespace ktl;
 
 EXTERN_C int _fltused;
 
-namespace test::floating_point {
+namespace tests::floating_point {
 namespace details {
 template <class FloatingPoint,
           class ExpectedTy,
@@ -71,4 +71,4 @@ void run_all(runner& runner) {
   RUN_TEST(runner, validate_fltused);
   RUN_TEST(runner, perform_arithmetic_operations);
 }
-}  // namespace test::floating_point
+}  // namespace tests::floating_point

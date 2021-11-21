@@ -2,7 +2,7 @@
 #include <type_traits.hpp>
 #include <utility.hpp>
 
-namespace test {
+namespace tests {
 template <class Ty, class = void>
 struct is_iterable : ktl::false_type {};
 

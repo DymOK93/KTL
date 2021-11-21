@@ -4,7 +4,7 @@
 
 #include <test_runner.hpp>
 
-namespace test::floating_point {
+namespace tests::floating_point {
 void run_all(runner& runner);
 }
 

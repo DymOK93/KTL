@@ -4,7 +4,7 @@
 
 using namespace ktl;
 
-namespace test::irql {
+namespace tests::irql {
 static void raise_and_lower() {
   const irql_t prev{raise_irql(DISPATCH_LEVEL)};
   ASSERT_EQ(prev, PASSIVE_LEVEL)
@@ -34,4 +34,4 @@ void run_all(runner& runner) {
   RUN_TEST(runner, current);
   RUN_TEST(runner, less_or_equal);
 }
-}  // namespace test::irql
+}  // namespace tests::irql

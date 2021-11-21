@@ -12,7 +12,7 @@ using namespace ktl;
 #define LOG_LEVEL DPFLTR_INFO_LEVEL
 #endif
 
-namespace test {
+namespace tests {
 namespace details {
 template <size_t N, typename... Types>
 static void print_to_debug_output(const char (&format)[N], Types... args) {
