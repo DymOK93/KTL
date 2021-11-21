@@ -20,7 +20,8 @@ driver_context
 EXTERN_C NTSTATUS STDCALL
 KtlDriverEntry(DRIVER_OBJECT* driver_object,
                UNICODE_STRING* registry_path) noexcept {
-  using namespace ktl::crt;
+  using namespace ktl;
+  using namespace crt;
 
   verify_security_cookie();
 

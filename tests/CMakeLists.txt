@@ -5,6 +5,7 @@ add_subdirectory(dynamic_init)
 add_subdirectory(floating_point)
 add_subdirectory(heap)
 add_subdirectory(irql)
+add_subdirectory(placement_new)
 add_subdirectory(preload_init)
 add_subdirectory(runner)
 
@@ -47,6 +48,7 @@ target_link_libraries(
 		tests::floating_point
 		tests::heap
 		tests::irql
+		tests::placement_new
 		tests::preload_init
 		tests::runner
 )

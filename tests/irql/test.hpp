@@ -1,8 +1,9 @@
 #pragma once
-#include <test_runner.hpp>
 
 namespace tests::irql {
-void run_all(runner& runner);
+void raise_and_lower();
+void current();
+void less_or_equal();
 }
 
 

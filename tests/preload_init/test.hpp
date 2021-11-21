@@ -1,6 +1,7 @@
 #pragma once
-#include <test_runner.hpp>
 
 namespace tests::preload_init {
-void run_all(runner& runner);
+inline constexpr size_t INITIALIZERS_COUNT{32};
+
+void verify_initializers();
 }  // namespace tests::heap

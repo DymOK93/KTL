@@ -1,5 +1,7 @@
 #include "test.hpp"
 
+#include <test_runner.hpp>
+
 #include <smart_pointer.hpp>
 
 using namespace ktl;
@@ -22,15 +24,11 @@ namespace details {
 OsVersion os_version[32];
 }  // namespace details
 
-void non_trivial_dynamic_init() {
+void verify_initializers() {
   for (auto& os_version : details::os_version) {
     auto& version_info{os_version.version_info};
     ASSERT_VALUE(version_info.dwOSVersionInfoSize &&
                  version_info.dwMajorVersion)
   }
-}
-
-void run_all(runner& runner) {
-  RUN_TEST(runner, non_trivial_dynamic_init);
 }
 }  // namespace tests::dynamic_init

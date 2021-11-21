@@ -2,6 +2,8 @@
 
 #include <smart_pointer.hpp>
 
+#include <test_runner.hpp>
+
 using namespace ktl;
 
 namespace tests::heap {
@@ -74,16 +76,11 @@ auto make_align_checker() {
                                OnAllocationFailure::##FailurePolicy, true>(  \
       details::make_align_checker<crt::CACHE_LINE_ALLOCATION_ALIGNMENT>());
 
-static void alloc_and_free() {
+void alloc_and_free() {
   CHECK_ALLOC_AND_FREE(ThrowException)
 }
 
-static void alloc_and_free_noexcept() {
+void alloc_and_free_noexcept() {
   CHECK_ALLOC_AND_FREE(DoNothing)
-}
-
-void run_all(runner& runner) {
-  RUN_TEST(runner, alloc_and_free);
-  RUN_TEST(runner, alloc_and_free_noexcept);
 }
 }  // namespace tests::heap

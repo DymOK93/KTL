@@ -2,8 +2,6 @@
 #include <basic_types.hpp>
 #include <heap.hpp>
 
-#include <test_runner.hpp>
-
 namespace tests::heap {
 static constexpr ktl::crt::pool_tag_t POOL_TAG{'eHeT'};
 
@@ -19,7 +17,8 @@ static_assert(static_cast<size_t>(ktl::crt::DEFAULT_ALLOCATION_ALIGNMENT) ==
 static_assert(static_cast<size_t>(ktl::crt::DEFAULT_ALLOCATION_ALIGNMENT) == 8);
 #endif
 
-void run_all(runner& runner);
+void alloc_and_free();
+void alloc_and_free_noexcept();
 }
 
 

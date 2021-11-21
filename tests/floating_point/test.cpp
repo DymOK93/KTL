@@ -1,5 +1,7 @@
 #include "test.hpp"
 
+#include <test_runner.hpp>
+
 #include <crt_attributes.hpp>
 
 #include <ktlexcept.hpp>
@@ -16,9 +18,9 @@ template <class FloatingPoint,
           class BinaryOp,
           enable_if_t<is_floating_point_v<FloatingPoint>, int> = 0>
 void arithmetic_checker(FloatingPoint lhs,
-                                 FloatingPoint rhs,
-                                 ExpectedTy expected,
-                                 BinaryOp op) {
+                        FloatingPoint rhs,
+                        ExpectedTy expected,
+                        BinaryOp op) {
   const FloatingPoint result{op(lhs, rhs)};
 
   const auto fp_expected{static_cast<FloatingPoint>(expected)};
@@ -36,11 +38,11 @@ NOINLINE static void perform_arithmetic_operations_impl() {
 }
 }  // namespace details
 
-static void validate_fltused() {
+void validate_fltused() {
   ASSERT_VALUE(_fltused >= 0);
 }
 
-static void perform_arithmetic_operations() {
+void perform_arithmetic_operations() {
   XSTATE_SAVE state;
 
   const auto enabled_features{RtlGetEnabledExtendedFeatures(
@@ -65,10 +67,5 @@ static void perform_arithmetic_operations() {
   throw_exception_if_not<kernel_error>(
       NT_SUCCESS(status), status,
       "floating point operation failed with SEH exception thrown");
-}
-
-void run_all(runner& runner) {
-  RUN_TEST(runner, validate_fltused);
-  RUN_TEST(runner, perform_arithmetic_operations);
 }
 }  // namespace tests::floating_point
