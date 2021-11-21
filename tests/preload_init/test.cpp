@@ -1,18 +1,21 @@
 #include "test.hpp"
 
-#include <smart_pointer.hpp>
+#include <preload_initializer.hpp>
+#include <string.hpp>
 
 using namespace ktl;
 
-namespace tests::dynamic_init {
-struct OsVersion {
-  OsVersion() noexcept : version_info{sizeof(OSVERSIONINFOW)} {
-    RtlGetVersion(addressof(version_info));
-    version_info_copy = make_unique<RTL_OSVERSIONINFOW>(version_info);
+namespace tests::preload_init {
+struct OsVersion : preload_initializer {
+  NTSTATUS run(DRIVER_OBJECT& driver_object,
+               UNICODE_STRING& registry_path) noexcept {
+    driver_obj = addressof(driver_object);
+    reg_path = registry_path;
+    return STATUS_SUCCESS;
   }
 
-  RTL_OSVERSIONINFOW version_info{};
-  unique_ptr<RTL_OSVERSIONINFOW> version_info_copy;
+  DRIVER_OBJECT* driver_obj{nullptr};
+  unicode_string reg_path;
 };
 
 namespace details {
@@ -22,15 +25,14 @@ namespace details {
 OsVersion os_version[32];
 }  // namespace details
 
-void non_trivial_dynamic_init() {
+void preload_init() {
   for (auto& os_version : details::os_version) {
-    auto& version_info{os_version.version_info};
-    ASSERT_VALUE(version_info.dwOSVersionInfoSize &&
-                 version_info.dwMajorVersion)
+    ASSERT_VALUE(os_version.driver_obj)
+    ASSERT_VALUE(size(os_version.reg_path) && data(os_version.reg_path))
   }
 }
 
 void run_all(runner& runner) {
-  RUN_TEST(runner, non_trivial_dynamic_init);
+  RUN_TEST(runner, preload_init);
 }
-}  // namespace tests::dynamic_init
+}  // namespace tests::preload_init
