@@ -8,7 +8,7 @@ using namespace ktl;
 
 namespace tests::dynamic_init {
 struct OsVersion {
-  OsVersion() noexcept : version_info{sizeof(OSVERSIONINFOW)} {
+  OsVersion() : version_info{sizeof(OSVERSIONINFOW)} {
     RtlGetVersion(addressof(version_info));
     version_info_copy = make_unique<RTL_OSVERSIONINFOW>(version_info);
   }
