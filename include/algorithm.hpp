@@ -58,9 +58,9 @@ constexpr bool equal_impl(LhsRandomAccessIt lhs_first,
                           RhsRandomAccessIt rhs_last,
                           BinaryPredicate pred,
                           true_type) {
-  const auto lhs_length{static_cast<size_t>(lhs_last - lhs_first)},
-      rhs_length{static_cast<size_t>(rhs_last - rhs_first)};
-  if (lhs_length != rhs_length) {
+  if (const auto lhs_length = static_cast<size_t>(lhs_last - lhs_first),
+      rhs_length = static_cast<size_t>(rhs_last - rhs_first);
+      lhs_length != rhs_length) {
     return false;
   }
   return equal(lhs_first, lhs_last, rhs_first, pred);
@@ -157,12 +157,12 @@ constexpr ForwardIt1 find_subrange(ForwardIt1 range_first,
   const auto subrange_length{
       static_cast<size_t>(distance(subrange_first, subrange_last))};
   while (range_length >= subrange_length) {
-    auto [last_maches, matches_count]{algo::details::count_matches_at_begin(
+    auto [last_matches, matches_count]{algo::details::count_matches_at_begin(
         range_first, subrange_first, subrange_last, comp)};
     if (matches_count == subrange_length) {
       return range_first;
     }
-    range_first = next(last_maches);
+    range_first = next(last_matches);
     range_length -= (matches_count + 1);
   }
   return range_last;
@@ -183,6 +183,9 @@ OutBidirectionalIt copy_backward(InBidirectionalIt first,
 namespace algo::details {
 template <class Ty>
 Ty* copy_n_impl(const Ty* first, size_t count, Ty* d_first, true_type) {
+  if (!count) {
+    return d_first;
+  }
   memmove(d_first, first, count * sizeof(Ty));
   return d_first + count;
 }
