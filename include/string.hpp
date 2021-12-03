@@ -724,6 +724,13 @@ class basic_winnt_string {
   template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& insert(
       size_type index,
+      const basic_winnt_string_view<CharT, BufferSize, Traits, ChAlloc> other) {
+    return insert(*other.raw_str());
+  }
+
+  template <size_t BufferSize, class ChAlloc>
+  basic_winnt_string& insert(
+      size_type index,
       const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other,
       size_type other_pos,
       size_type other_count) {
