@@ -1445,7 +1445,8 @@ auto operator+(
     const basic_winnt_string<CharT, LhsBufferSize, LhsChTraits, LhsChAlloc>&
         lhs,
     basic_winnt_string<CharT, RhsBufferSize, RhsChTraits, RhsChAlloc>&& rhs) {
-  return move(rhs += lhs);
+  rhs.insert(0, lhs);
+  return move(rhs);
 }
 
 template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
