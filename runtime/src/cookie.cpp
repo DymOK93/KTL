@@ -14,14 +14,24 @@ static constexpr uintptr_t DEFAULT_SECURITY_COOKIE{0x0BB40E64Eul};
 #endif
 }  // namespace ktl::crt
 
-#pragma data_seg(".KTL_SECURITY")
-CRTALLOC(".KTL_SECURITY")
-EXTERN_C volatile uintptr_t __security_cookie{ktl::crt::DEFAULT_SECURITY_COOKIE};
-#pragma comment(linker, "/merge:.KTL_SECURITY=.data")
+EXTERN_C volatile uintptr_t __security_cookie;
+
+#pragma data_seg(".KTL_SEC")
+EXTERN_C volatile uintptr_t ktl_security_cookie{
+    ktl::crt::DEFAULT_SECURITY_COOKIE};
+#pragma comment(linker, "/merge:.KTL_SEC=.data")
+#pragma comment(linker, "/alternatename:__security_cookie=ktl_security_cookie")
 
 namespace ktl::crt {
+namespace details {
+static bool is_cookie_presented() noexcept {
+  return &__security_cookie != &ktl_security_cookie;
+}
+}  // namespace details
+
 void verify_security_cookie() noexcept {
-  if (__security_cookie == DEFAULT_SECURITY_COOKIE) {
+  if (details::is_cookie_presented() &&
+      __security_cookie == DEFAULT_SECURITY_COOKIE) {
     const termination_context bsod{
         BugCheckReason::BufferSecurityCheckFailure,
         reinterpret_cast<bugcheck_arg_t>(&__security_cookie),
