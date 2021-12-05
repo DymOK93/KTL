@@ -718,14 +718,14 @@ class basic_winnt_string {
   basic_winnt_string& insert(
       size_type index,
       const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other) {
-    return insert(*other.raw_str());
+    return insert(index, *other.raw_str());
   }
 
   template <size_t BufferSize, class ChAlloc>
   basic_winnt_string& insert(
       size_type index,
-      const basic_winnt_string_view<CharT, BufferSize, Traits, ChAlloc> other) {
-    return insert(*other.raw_str());
+      const basic_winnt_string_view<CharT, Traits> other) {
+    return insert(index, *other.raw_str());
   }
 
   template <size_t BufferSize, class ChAlloc>
@@ -1445,7 +1445,8 @@ auto operator+(
     const basic_winnt_string<CharT, LhsBufferSize, LhsChTraits, LhsChAlloc>&
         lhs,
     basic_winnt_string<CharT, RhsBufferSize, RhsChTraits, RhsChAlloc>&& rhs) {
-  return move(rhs += lhs);
+  rhs.insert(0, lhs);
+  return move(rhs);
 }
 
 template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>
