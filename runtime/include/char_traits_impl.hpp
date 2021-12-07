@@ -3,7 +3,7 @@
 #include <type_traits_impl.hpp>
 
 #include <ntddk.h>
-#include <stdio.h>
+#include <stdio.h>  // Defines the EOF
 
 namespace ktl {
 template <typename CharT, typename IntT>
@@ -34,14 +34,14 @@ struct char_traits_base {
     return lhs < rhs;
   }
 
-  static char_type* move(char_type* const dst,
+  static char_type* move(char_type* dst,
                          const char_type* src,
                          size_t count) noexcept {
     return static_cast<char_type*>(
         memmove(dst, src, count * sizeof(char_type)));
   }
 
-  static char_type* copy(char_type* const dst,
+  static char_type* copy(char_type* dst,
                          const char_type* src,
                          size_t count) noexcept {
     return static_cast<char_type*>(memcpy(dst, src, count * sizeof(char_type)));
@@ -105,7 +105,9 @@ struct char_traits_base {
 
 namespace str::details {
 template <typename Elem>
-struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
+struct narrow_char_traits
+    : char_traits_base<Elem, int> {  // 1-byte types: char, char8_t, etc.
+  using MyBase = char_traits_base<Elem, int>;
   using char_type = Elem;
   using int_type = int;
 
@@ -126,40 +128,40 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
   static char_type* move(char_type* dst,
                          const char_type* src,
                          size_t count) noexcept {
-    return static_cast<char_type*>(memmove(dst, src, count));
+    return MyBase::move(dst, src, count);
   }
 
   static char_type* copy(char_type* dst,
                          const char_type* src,
                          size_t count) noexcept {
-    return static_cast<char_type*>(memcpy(dst, src, count));
+    return MyBase::copy(dst, src, count);
   }
 
   static constexpr int compare(const char_type* str1,
                                const char_type* str2,
                                size_t count) noexcept {
-    if constexpr (is_same_v<char_type, char>) {
-      return __builtin_memcmp(str1, str2, count);
-    } else {
-      return char_traits_base<char_type, int_type>::compare(str1, str2, count);
-    }
+    // char8_t is also supported
+    return __builtin_memcmp(str1, str2, count);
   }
 
   static constexpr size_t length(const char_type* str) noexcept {
+    // This check is required for char8_t
     if constexpr (is_same_v<char_type, char>) {
       return __builtin_strlen(str);
     } else {
-      return char_traits_base<char_type, int_type>::length(str);
+      return MyBase::length(str);  // Not an strlen because it isn't constexpr
     }
   }
 
   [[nodiscard]] static constexpr const char_type* find(const char_type* str,
                                                        size_t count,
                                                        char_type ch) noexcept {
+    // This check is required for char8_t
     if constexpr (is_same_v<char_type, char>) {
       return __builtin_char_memchr(str, ch, count);
     } else {
-      return char_traits_base<char_type, int_type>::find(str, count, ch);
+      // Not an memchr because it isn't constexpr
+      return MyBase::find(str, ch, count);
     }
   }
 
@@ -185,9 +187,12 @@ struct narrow_char_traits {  // 1-byte types: char, char8_t, etc.
 };
 
 template <typename Elem>
-struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
+struct wide_char_traits
+    : char_traits_base<Elem, wint_t> {  // 2-byte types: wchar_t,
+                                        // char16_t, etc.
+  using MyBase = char_traits_base<Elem, wint_t>;
   using char_type = Elem;
-  using int_type = unsigned short;
+  using int_type = wint_t;
 
   static char_type* assign(char_type* ptr,
                            size_t count,
@@ -198,7 +203,7 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
       /*
        * memset is almost always implemented as compiler intrinsic,
        * but wmemset in MSVC implemented as a simple loop
-       * and can be optimized into multiple movs or rep stosw
+       * and can be optimized later into multiple movs or rep stosw
        */
       wmemset(ptr, ch, count);
     }
@@ -216,13 +221,13 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
   static char_type* move(char_type* dst,
                          const char_type* src,
                          size_t count) noexcept {
-    return char_traits_base<char_type, int_type>::move(dst, src, count);
+    return MyBase::move(dst, src, count);
   }
 
   static char_type* copy(char_type* dst,
                          const char_type* src,
                          size_t count) noexcept {
-    return char_traits_base<char_type, int_type>::copy(dst, src, count);
+    return MyBase::copy(dst, src, count);
   }
 
   static constexpr int compare(const char_type* str1,
@@ -231,7 +236,8 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
     if constexpr (is_same_v<char_type, wchar_t>) {
       return __builtin_wmemcmp(str1, str2, count);
     } else {
-      return wmemcmp(str1, str2, count);
+      // Not an wmemcmp because it isn't constexpr
+      return MyBase::compare(str1, str2, count);
     }
   }
 
@@ -239,7 +245,8 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
     if constexpr (is_same_v<char_type, wchar_t>) {
       return __builtin_wcslen(str);
     } else {
-      return wcslen(str);
+      // Not an wcslen because it isn't constexpr
+      return MyBase::length(str);
     }
   }
 
@@ -249,7 +256,8 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
     if constexpr (is_same_v<char_type, wchar_t>) {
       return __builtin_wmemchr(str, ch, count);
     } else {
-      return wmemchr(str, ch, count);
+      // Not an wmemchr because it isn't constexpr
+      return MyBase::find(str, ch, count);
     }
   }
 
@@ -268,7 +276,7 @@ struct wide_char_traits {  // 2-byte types: wchar_t, char16_t, etc.
   }
 
   [[nodiscard]] static constexpr int_type eof() noexcept {
-    return static_cast<int_type>(EOF);
+    return WEOF;  // Already cast to the desired type
   }
 
   [[nodiscard]] static constexpr int_type not_eof(int_type meta) noexcept {
@@ -289,5 +297,4 @@ template <>
 struct char_traits<wchar_t> : str::details::wide_char_traits<wchar_t> {};
 template <>
 struct char_traits<char16_t> : str::details::wide_char_traits<char16_t> {};
-
 }  // namespace ktl
