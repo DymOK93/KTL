@@ -378,12 +378,20 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler4(
   return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
 }
 
+EXTERN_C void __GSHandlerCheckCommon(
+    byte* frame_ptr,
+    dispatcher_context* ctx,
+    void* gs_handler_data) noexcept;
+
 EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH4(
     win::exception_record* exception_record,
     byte* frame_ptr,
     [[maybe_unused]] win::x64_cpu_context* cpu_ctx,
     dispatcher_context* ctx) noexcept {
-  // No cookie check :(
+  void* gs_handler_data = reinterpret_cast<uint8_t*>(
+      const_cast<void*>(ctx->extra_data)) + 4;
+  __GSHandlerCheckCommon(frame_ptr, ctx, gs_handler_data);
+
   // We assume that the compiler will use only __GSHandlerCheck_SEH for SEH
   // exceptions and therefore don't check exception_record
   return __CxxFrameHandler4(exception_record, frame_ptr, cpu_ctx, ctx);
