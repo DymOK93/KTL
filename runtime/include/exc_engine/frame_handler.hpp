@@ -1,14 +1,21 @@
 #pragma once
-#include <../basic_types.hpp>
+#include "seh.hpp"
 
-namespace ktl::crt::exc_engine {
+#include <../basic_types.hpp>
+#include <../crt_attributes.hpp>
+
+namespace ktl::crt::exc_engine::x64 {
 struct dispatcher_context;
 
 win::ExceptionDisposition frame_handler3(
-    ktl::byte* frame_ptr,
+    byte* frame_ptr,
     dispatcher_context* dispatcher_context);
 
 win::ExceptionDisposition frame_handler4(
-    ktl::byte* frame_ptr,
+    byte* frame_ptr,
     dispatcher_context* dispatcher_context);
-}  // namespace ktLLcrt::exc_engine
+
+EXTERN_C void __GSHandlerCheckCommon(byte* frame_ptr,
+                                     dispatcher_context* ctx,
+                                     const void* handler_data) noexcept;
+}  // namespace ktl::crt::exc_engine

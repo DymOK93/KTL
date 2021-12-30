@@ -1,4 +1,5 @@
 #include <bugcheck.hpp>
+#include <frame_handler.hpp>
 #include <seh.hpp>
 #include <throw.hpp>
 
@@ -182,20 +183,12 @@ EXTERN_C win::ExceptionDisposition __CxxFrameHandler3(
   return frame_handler(exception_record, frame_ptr, cpu_ctx, dispatcher_ctx);
 }
 
-EXTERN_C void __GSHandlerCheckCommon(
-    byte* frame_ptr,
-    dispatcher_context* ctx,
-    void* gs_handler_data) noexcept;
-
 EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH(
     win::exception_record* exception_record,
     byte* frame_ptr,
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* ctx) noexcept {
-  void* gs_handler_data = reinterpret_cast<uint8_t*>(
-      const_cast<void*>(ctx->extra_data)) + 4;
-  __GSHandlerCheckCommon(frame_ptr, ctx, gs_handler_data);
-
+  __GSHandlerCheckCommon(frame_ptr, ctx, ctx->extra_data);
   return __CxxFrameHandler3(exception_record, frame_ptr, cpu_ctx, ctx);
 }
 }  // namespace ktl::crt::exc_engine::x64
