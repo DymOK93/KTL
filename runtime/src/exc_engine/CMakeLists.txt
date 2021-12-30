@@ -8,7 +8,7 @@ set(KTL_EXC_ENGINE_SOURCE_DIR "${KTL_RUNTIME_SOURCE_DIR}/exc_engine")
 
 set(
 	KTL_EXC_ENGINE_SOURCE_FILES
-		"gs_failure.cpp"
+		"gs_handler.cpp"
 		"member_ptr.cpp"
 		"terminate.cpp"
 )

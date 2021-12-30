@@ -188,7 +188,7 @@ EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH(
     byte* frame_ptr,
     win::x64_cpu_context* cpu_ctx,
     dispatcher_context* ctx) noexcept {
-  __GSHandlerCheckCommon(frame_ptr, ctx, ctx->extra_data);
+  gs_handler(frame_ptr, ctx);
   return __CxxFrameHandler3(exception_record, frame_ptr, cpu_ctx, ctx);
 }
 }  // namespace ktl::crt::exc_engine::x64
