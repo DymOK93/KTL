@@ -16,7 +16,7 @@ preload_initializer_registry::get_instance() noexcept {
 
 bool preload_initializer_registry::add(preload_initializer& obj) noexcept {
   auto& current_size{m_size};
-  if (m_already_ran || current_size >= MAX_INITIALIZER_COUNT) {
+  if (m_fired || current_size >= MAX_INITIALIZER_COUNT) {
     return false;
   }
   m_initializers[current_size++] = &obj;
@@ -26,7 +26,7 @@ bool preload_initializer_registry::add(preload_initializer& obj) noexcept {
 NTSTATUS preload_initializer_registry::run_all(
     DRIVER_OBJECT& driver_object,
     UNICODE_STRING& registry_path) noexcept {
-  m_already_ran = true;
+  m_fired = true;
   for (uint32_t idx = 0; idx < m_size; ++idx) {
     auto* entry{m_initializers[idx]};
     if (const NTSTATUS result = entry->run(driver_object, registry_path);

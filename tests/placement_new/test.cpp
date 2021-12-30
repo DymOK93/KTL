@@ -11,7 +11,8 @@ namespace tests::placement_new {
 static constexpr size_t REFERENCE_STR_LENGTH{21};
 
 // Entity with trivial d-tor
-struct String : non_relocatable {
+struct String  // NOLINT(cppcoreguidelines-special-member-functions)
+    : non_relocatable {
   String(const char* s) noexcept { memcpy(data, s, REFERENCE_STR_LENGTH); }
   ~String() noexcept { memset(data, 0, REFERENCE_STR_LENGTH); }
 
@@ -32,6 +33,8 @@ struct StringInitializer {
 };
 
 const char StringInitializer::REFERENCE_STR[]{"C++ in Windows Kernel"};
+
+// With a terminating null character
 static_assert(size(StringInitializer::REFERENCE_STR) ==
               REFERENCE_STR_LENGTH + 1);
 
@@ -39,13 +42,11 @@ namespace details {
 StringInitializer string_initializer;
 }
 
-// With a terminating null character
-
 void construct_on_buffer() {
   alignas(String) byte buffer[sizeof(String)];
   auto* str_in_buf{new (buffer) String{g_reference_str}};
   unique_ptr str_guard{str_in_buf, [](String* s) { s->~String(); }};
-  ASSERT_EQ(str_in_buf->data, g_reference_str)
+  ASSERT_VALUE(*str_in_buf == g_reference_str)
 }
 
 static bool is_zeroed(const char* buffer, size_t size) noexcept {
@@ -63,7 +64,7 @@ void construct_after_destroying() {
   ASSERT_VALUE(is_zeroed(s.data, REFERENCE_STR_LENGTH))
 
   auto* reconstructed_str{new (addressof(s)) String{g_reference_str}};
-  ASSERT_EQ(reconstructed_str->data, g_reference_str)
+  ASSERT_VALUE(*reconstructed_str == g_reference_str)
 }
 
 struct ValueWithConstMember {

@@ -4,7 +4,8 @@
 #include <ntddk.h>
 
 namespace ktl {
-class preload_initializer : non_relocatable {
+class preload_initializer  // NOLINT(cppcoreguidelines-special-member-functions)
+    : public non_relocatable {
  public:
   preload_initializer() noexcept;
 
@@ -15,7 +16,11 @@ class preload_initializer : non_relocatable {
   virtual ~preload_initializer() = default;
 };
 
-class preload_initializer_registry : non_relocatable {
+// clang-format off
+class preload_initializer_registry  // NOLINT(cppcoreguidelines-special-member-functions)
+    : public non_relocatable {
+  // clang-format on
+
   static constexpr size_t MAX_INITIALIZER_COUNT{32};
 
  public:
@@ -35,6 +40,6 @@ class preload_initializer_registry : non_relocatable {
  private:
   preload_initializer* m_initializers[MAX_INITIALIZER_COUNT]{nullptr};
   size_t m_size{0};
-  bool m_already_ran{false};
+  bool m_fired{false};
 };
 }  // namespace ktl
