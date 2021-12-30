@@ -14,7 +14,7 @@ void CRTCALL construct_array(void* arr_begin,
                              object_handler_t constructor,
                              object_handler_t destructor);
 
-void CRTCALL destroy_array_in_reversed_order(void* arr_end,
+void CRTCALL destroy_array_in_reversed_order(void* arr_begin,
                                              size_t element_size,
                                              size_t count,
                                              object_handler_t destructor);

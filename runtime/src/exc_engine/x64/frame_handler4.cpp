@@ -1,4 +1,5 @@
 #include <bugcheck.hpp>
+#include <frame_handler.hpp>
 #include <seh.hpp>
 #include <throw.hpp>
 
@@ -201,7 +202,7 @@ void destroy_objects(const byte* image_base,
     }
 
     const auto edge_type{
-        static_cast < fh4::unwind_edge::Type>(target_offset_and_type & 3)};
+        static_cast<fh4::unwind_edge::Type>(target_offset_and_type & 3)};
     switch (edge_type) {
       case fh4::unwind_edge::Type::Trivial:
         break;
@@ -383,7 +384,8 @@ EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH4(
     byte* frame_ptr,
     [[maybe_unused]] win::x64_cpu_context* cpu_ctx,
     dispatcher_context* ctx) noexcept {
-  // No cookie check :(
+  __GSHandlerCheckCommon(frame_ptr, ctx, ctx->extra_data);
+
   // We assume that the compiler will use only __GSHandlerCheck_SEH for SEH
   // exceptions and therefore don't check exception_record
   return __CxxFrameHandler4(exception_record, frame_ptr, cpu_ctx, ctx);

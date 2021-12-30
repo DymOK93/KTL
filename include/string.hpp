@@ -99,8 +99,8 @@ class basic_winnt_string {
   basic_winnt_string(
       const basic_winnt_string<CharT, BufferSize, ChTraits, ChAlloc>& other,
       size_type pos)
-      : basic_winnt_string(other, pos, other.size() - pos) {
-  }  // Переполнение беззнакового числа допустимо
+      : basic_winnt_string(other, pos, other.size() - pos) { // It is ok to underflow the unsigned number
+  }
 
   template <size_t BufferSize, class ChTraits, class ChAlloc>
   basic_winnt_string(
@@ -189,7 +189,7 @@ class basic_winnt_string {
 
   basic_winnt_string(basic_winnt_string&& other) noexcept(
       is_nothrow_move_constructible_v<allocator_type>)
-      : m_str{move(other.m_str)} {  // Перемещение аллокатора
+      : m_str{move(other.m_str)} {  // Moving the allocator
     if (other.is_small()) {
       native_string_traits_type::set_buffer(get_native_str(), get_sso_buffer());
       traits_type::copy(data(), other.data(), other.size());
@@ -718,7 +718,14 @@ class basic_winnt_string {
   basic_winnt_string& insert(
       size_type index,
       const basic_winnt_string<CharT, BufferSize, Traits, ChAlloc>& other) {
-    return insert(*other.raw_str());
+    return insert(index, *other.raw_str());
+  }
+
+  template <size_t BufferSize, class ChAlloc>
+  basic_winnt_string& insert(
+      size_type index,
+      const basic_winnt_string_view<CharT, Traits> other) {
+    return insert(index, *other.raw_str());
   }
 
   template <size_t BufferSize, class ChAlloc>
@@ -1438,7 +1445,8 @@ auto operator+(
     const basic_winnt_string<CharT, LhsBufferSize, LhsChTraits, LhsChAlloc>&
         lhs,
     basic_winnt_string<CharT, RhsBufferSize, RhsChTraits, RhsChAlloc>&& rhs) {
-  return move(rhs += lhs);
+  rhs.insert(0, lhs);
+  return move(rhs);
 }
 
 template <typename CharT, size_t BufferSize, class ChTraits, class ChAlloc>

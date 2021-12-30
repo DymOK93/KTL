@@ -7,13 +7,17 @@
 
 namespace ktl::crt {
 namespace details {
-static constexpr unsigned int MAX_DESTRUCTOR_COUNT{128}; // C++ Standard requires 32 or more
+// C++ Standard requires 32 or more
+static constexpr unsigned int MAX_DESTRUCTOR_COUNT{128};  
 static global_handler_t destructor_stack[MAX_DESTRUCTOR_COUNT]{nullptr};
 static uint32_t destructor_count{0};
 }  // namespace details
 
-void CRTCALL invoke_global_constructors() noexcept {  // Calling constructors of global objects during dynamic initialization
-  for (global_handler_t* ctor_ptr = __cxx_ctors_begin__;    // ctor_ptr is always guaranteed to be non-null 
+void CRTCALL invoke_global_constructors() noexcept {  // Calling constructors of
+                                                      // global objects during
+                                                      // dynamic initialization
+  // ctor_ptr is always guaranteed to be non-null
+  for (global_handler_t* ctor_ptr = __cxx_ctors_begin__;
        ctor_ptr < __cxx_ctors_end__; ++ctor_ptr) {
     if (auto& constructor = *ctor_ptr; constructor) {
       constructor();
@@ -44,16 +48,16 @@ void CRTCALL construct_array(void* arr_begin,
       current_obj += element_size;
     }
   } catch (...) {
-    destroy_array_in_reversed_order(current_obj, element_size, idx, destructor);
+    destroy_array_in_reversed_order(arr_begin, element_size, idx, destructor);
     throw;
   }
 }
 
-void CRTCALL destroy_array_in_reversed_order(void* arr_end,
+void CRTCALL destroy_array_in_reversed_order(void* arr_begin,
                                              size_t element_size,
                                              size_t count,
                                              object_handler_t destructor) {
-  auto* current_obj{static_cast<byte*>(arr_end)};
+  auto* current_obj{static_cast<byte*>(arr_begin) + element_size * count};
   while (count-- > 0) {
     current_obj -= element_size;
     destructor(current_obj);
