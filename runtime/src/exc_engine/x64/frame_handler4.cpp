@@ -384,10 +384,11 @@ EXTERN_C win::ExceptionDisposition __GSHandlerCheck_EH4(
     byte* frame_ptr,
     [[maybe_unused]] win::x64_cpu_context* cpu_ctx,
     dispatcher_context* ctx) noexcept {
-  __GSHandlerCheckCommon(frame_ptr, ctx, ctx->extra_data);
-
-  // We assume that the compiler will use only __GSHandlerCheck_SEH for SEH
-  // exceptions and therefore don't check exception_record
+  gs_handler(frame_ptr, ctx);
+  /*
+   * We assume that the compiler will use only __GSHandlerCheck_SEH for SEH
+   * exceptions and therefore don't check exception_record
+   */
   return __CxxFrameHandler4(exception_record, frame_ptr, cpu_ctx, ctx);
 }
 

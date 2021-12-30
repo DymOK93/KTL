@@ -1,10 +1,12 @@
 ﻿/**
  * Licensed under the MIT License <http://opensource.org/licenses/MIT>.
- * Copyright (c) 2019-2021 Martin Vejnár (avakar)
+ * Copyright (c) 2019-2021 Martin Vejnár (avakar) and Dmitry Bolshakov (dym93ok)
+ *
  * */
 #pragma once
-#include <cpu_context.hpp>
-#include <exception_info.hpp>
+#include "cpu_context.hpp"
+#include "exception_info.hpp"
+
 #include <seh.hpp>
 #include <symbol.hpp>
 
