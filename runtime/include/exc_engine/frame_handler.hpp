@@ -14,6 +14,7 @@ win::ExceptionDisposition frame_handler3(
 win::ExceptionDisposition frame_handler4(
     byte* frame_ptr,
     dispatcher_context* dispatcher_context);
-
+  
 void gs_handler(byte* frame_ptr, dispatcher_context* dispatcher_context);
 }  // namespace ktl::crt::exc_engine::x64
+
