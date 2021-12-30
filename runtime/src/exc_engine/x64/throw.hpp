@@ -3,9 +3,9 @@
  * Copyright (c) 2019-2021 Martin Vejnár (avakar)
  */
 #pragma once
+#include "catch.hpp"
+#include "cpu_context.hpp"
 
-#include <catch.hpp>
-#include <cpu_context.hpp>
 #include <symbol.hpp>
 
 namespace ktl::crt::exc_engine::x64 {
