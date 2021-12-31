@@ -43,7 +43,6 @@ target_link_libraries(
 	ktl_test
 		basic_runtime 
 		cpp_runtime
-		minifilter_runtime
 
 		tests::dynamic_init
 		tests::exception_dispatcher

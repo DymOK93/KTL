@@ -18,18 +18,14 @@ set(
 		"floating_point.cpp" 
 		"irql.cpp"
 		"heap.cpp"
+		"minifilter.cpp"
 		"object_management.cpp"
 		"placement_new.cpp"
 		"preload_initializer.cpp"
 		"type_info.cpp"
 )
-set(
-	KTL_MINIFILTER_RUNTIME_SOURCE_FILES
-		"minifilter.cpp"
-)
 
 set(RUNTIME_LIB basic_runtime)
-set(MINIFILTER_LIB minifilter_runtime)
 
 add_subdirectory(exc_engine)
 
@@ -76,32 +72,4 @@ endif()
 target_link_options(
 	${RUNTIME_LIB} 
 		PRIVATE "/WHOLEARCHIVE"
-)
-
-wdk_add_library(
-	${MINIFILTER_LIB} STATIC 
-		WINVER ${TARGET_WINVER}
-		${KTL_RUNTIME_HEADER_FILES}	
-		${KTL_MINIFILTER_RUNTIME_SOURCE_FILES}
-)
-target_compile_options(
-	${MINIFILTER_LIB} PRIVATE
-		${BASIC_COMPILE_OPTIONS}
-		$<$<CONFIG:Release>:${RELEASE_COMPILE_OPTIONS}>
-		$<$<CONFIG:Release>:${LTO_COMPILE_OPTIONS}>
-)
-target_compile_definitions(
-	${MINIFILTER_LIB} PRIVATE
-		$<$<CONFIG:Debug>:KTL_RUNTIME_DBG>
-		KTL_NO_CXX_STANDARD_LIBRARY
-		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
-)
-target_link_options(
-	${MINIFILTER_LIB} PRIVATE
-		$<$<CONFIG:Release>:${RELEASE_LINK_OPTIONS}>
-		$<$<CONFIG:Release>:${LTO_LINK_OPTIONS}>
-)
-target_link_libraries(
-	${MINIFILTER_LIB} 
-		PUBLIC minifilter_runtime_interface
 )

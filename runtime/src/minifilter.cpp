@@ -7,7 +7,7 @@ namespace ktl::crt {
 namespace details {
 extern driver_context driver_ctx;
 static filter_context filter_ctx{};
-}
+}  // namespace details
 }  // namespace ktl::crt
 
 EXTERN_C NTSTATUS STDCALL
@@ -18,10 +18,10 @@ KtlRegisterFilter(DRIVER_OBJECT* driver_object,
   drv_unload = &KtlDriverUnload;
 
   auto& filter{ktl::crt::details::filter_ctx.object};
-  const NTSTATUS status{FltRegisterFilter(driver_object, &flt_registration, &filter)};
+  const NTSTATUS status{
+      FltRegisterFilter(driver_object, &flt_registration, &filter)};
   if (!NT_SUCCESS(status)) {
     filter = nullptr;
-    KdPrint(("Minifilter registration failed with status %#x", status));
   }
   return status;
 }

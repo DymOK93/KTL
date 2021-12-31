@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(KTL_RUNTIME_INCLUDE_DIR "${KTL_RUNTIME_DIR}/include")
-set(KTL_MINIFILTER_RUNTIME_INCLUDE_DIR ${KTL_RUNTIME_INCLUDE_DIR})
 
 set(
 	KTL_RUNTIME_HEADER_FILES
@@ -26,6 +25,7 @@ set(
 		"irql.hpp"
 		"limits_impl.hpp"
 		"memory_type_traits_impl.hpp"
+		"minifilter.hpp"
 		"object_management.hpp"
 		"placement_new.hpp"
 		"preload_initializer.hpp"
@@ -34,13 +34,7 @@ set(
 		"utility_impl.hpp"
 )
 
-set(
-	KTL_MINIFILTER_RUNTIME_HEADER_FILES
-		"minifilter.hpp"
-)
-
 set(RUNTIME_LIB basic_runtime_interface)
-set(MINIFILTER_LIB minifilter_runtime_interface)
 
 add_subdirectory(exc_engine)
 
@@ -57,10 +51,4 @@ target_compile_definitions(
 	${RUNTIME_LIB} INTERFACE 
 		KTL_ENABLE_EXTENDED_ALIGNED_STORAGE
 		_CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES=0  # Для исправления ошибки с затемнением параметров шаблона в старых хедерах CRT
-)
-
-add_library(${MINIFILTER_LIB} INTERFACE)
-target_include_directories(
-	${MINIFILTER_LIB} 
-		INTERFACE ${KTL_MINIFILTER_RUNTIME_INCLUDE_DIR}
 )
