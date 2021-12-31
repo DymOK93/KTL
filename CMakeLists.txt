@@ -5,16 +5,24 @@ cmake_policy(SET CMP0074 NEW) # Use ${WDK_ROOT} if it's already set
  
 set(KTL_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/sys")
 
-list(APPEND CMAKE_MODULE_PATH ${KTL_DIR}/FindWDK/cmake)
+list(APPEND CMAKE_MODULE_PATH "${KTL_DIR}/FindWDK/cmake")
 find_package(WDK REQUIRED)
 
 if (NOT DEFINED TARGET_WINVER)
 	set(TARGET_WINVER 0x602)
 endif()
 
+set(
+	FMT_COMPILE_DEFINITIONS
+		FMT_HEADER_ONLY
+		FMT_EXCEPTIONS
+		FMT_STATIC_THOUSANDS_SEPARATOR
+		FMT_USE_NONTYPE_TEMPLATE_PARAMETERS=0	# For old MSVC versions (<= 16.28)
+)  
 set(
 	BASIC_COMPILE_OPTIONS
 		/MP		# Multiprocessor compilation
@@ -47,8 +55,8 @@ set(
 		/LTCG:INCREMENTAL	# Force fast link timecode generation
 )
 
-add_subdirectory(runtime)
 add_subdirectory(include)
 add_subdirectory(modules)
+add_subdirectory(runtime)
 add_subdirectory(src)
-
+add_subdirectory(tests)

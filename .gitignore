@@ -1,15 +1,17 @@
 # Not-for-production files and directories
 archive/
 testing/
-lib/
 
+# CMake devmachine-specific config
+CMakeSettings.json
 
 # Build system temporary files and directories
 Build/
 out/
 .vs/
 
-# CMake devmachine-specific config
-CMakeSettings.json
+# Binaries
+lib/
+sys/
 
 

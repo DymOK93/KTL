@@ -1,19 +1,26 @@
 #pragma once
+#include <type_traits_impl.hpp>
+
 #include <ntddk.h>
 
 namespace ktl {
-namespace crt {
-class preload_initializer {
+class preload_initializer  // NOLINT(cppcoreguidelines-special-member-functions)
+    : public non_relocatable {
  public:
   preload_initializer() noexcept;
-  virtual NTSTATUS run(
-      DRIVER_OBJECT& driver_object,
-      UNICODE_STRING& registry_path) noexcept = 0;  // TODO: int purecall()
+
+  virtual NTSTATUS run(DRIVER_OBJECT& driver_object,
+                       UNICODE_STRING& registry_path) noexcept = 0;
+
  protected:
   virtual ~preload_initializer() = default;
 };
 
-class preload_initializer_registry {
+// clang-format off
+class preload_initializer_registry  // NOLINT(cppcoreguidelines-special-member-functions)
+    : public non_relocatable {
+  // clang-format on
+
   static constexpr size_t MAX_INITIALIZER_COUNT{32};
 
  public:
@@ -33,7 +40,6 @@ class preload_initializer_registry {
  private:
   preload_initializer* m_initializers[MAX_INITIALIZER_COUNT]{nullptr};
   size_t m_size{0};
+  bool m_fired{false};
 };
-}  // namespace crt
-using preload_initializer = crt::preload_initializer;
 }  // namespace ktl
