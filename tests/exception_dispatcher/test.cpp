@@ -10,19 +10,34 @@
 using namespace ktl;
 
 namespace tests::exception_dispatcher {
-template <size_t N, class Exc, enable_if_t<N != 0, int> = 0>
-struct ThrowAfter  // NOLINT(cppcoreguidelines-special-member-functions)
-    : non_relocatable {
-  static inline size_t INSTANCE_COUNT{0};
+namespace details {
+static size_t g_object_count{0};
+}
 
+struct TestObject  // NOLINT(cppcoreguidelines-special-member-functions)
+    : non_relocatable {
+  TestObject() { ++details::g_object_count; }
+  ~TestObject() noexcept { --details::g_object_count; }
+};
+
+template <size_t N, class Exc>
+class ThrowAfter  // NOLINT(cppcoreguidelines-special-member-functions)
+    : public non_relocatable {
+ public:
   template <class... Types>
   ThrowAfter(Types&&... exc_args) {
-    if (++INSTANCE_COUNT == N) {
+    if (details::g_object_count >= N) {
       throw_exception<Exc>(forward<Types>(exc_args)...);
     }
+    ++details::g_object_count;
   }
 
-  ~ThrowAfter() noexcept { --INSTANCE_COUNT; }
+  ~ThrowAfter() noexcept {
+    -- details::g_object_count;
+  }
+
+ private:
+  TestObject m_payload;
 };
 
 struct TestException : runtime_error {
@@ -40,9 +55,9 @@ void throw_directly() {
 
   size_t instance_count{(numeric_limits<size_t>::max)()};
   try {
-    [[maybe_unused]] const target_t obj;
+    [[maybe_unused]] const target_t obj1, obj2;
   } catch ([[maybe_unused]] const exception& exc) {
-    instance_count = target_t::INSTANCE_COUNT;
+    instance_count = details::g_object_count;
   }
   ASSERT_EQ(instance_count, 0);
 }
@@ -68,30 +83,36 @@ void do_call(size_t counter) {
 
 void throw_in_nested_call() {
   static constexpr size_t RECURSION_DEPTH{10};
-  using target_t = ThrowAfter<RECURSION_DEPTH, exception>;
+  using target_t = ThrowAfter<RECURSION_DEPTH - 1, exception>;
 
   size_t instance_count{(numeric_limits<size_t>::max)()};
   try {
     details::do_call<target_t>(RECURSION_DEPTH);
   } catch ([[maybe_unused]] const exception& exc) {
-    instance_count = target_t::INSTANCE_COUNT;
+    instance_count = details::g_object_count;
   }
   ASSERT_EQ(instance_count, 0);
 }
 
+#define MAKE_MESSAGE(Idx) /* NOLINT(cppcoreguidelines-macro-usage)*/ \
+  CONCAT(__FUNCTION__, #Idx)
+
 void throw_on_array_init() {
   static constexpr size_t OBJECT_COUNT{5};
-  using target_t = ThrowAfter<OBJECT_COUNT, TestException>;
+  using target_t = ThrowAfter<OBJECT_COUNT - 1, TestException>;
 
   size_t instance_count{(numeric_limits<size_t>::max)()};
   try {
     // The number of initializers is less than the number of objects
-    array<target_t, OBJECT_COUNT> arr{"1", "2", "3", "4"};
+    array<target_t, OBJECT_COUNT> arr{MAKE_MESSAGE(1), MAKE_MESSAGE(2),
+                                      MAKE_MESSAGE(3), MAKE_MESSAGE(4)};
   } catch ([[maybe_unused]] const exception& exc) {
-    instance_count = target_t::INSTANCE_COUNT;
+    instance_count = details::g_object_count;
   }
   ASSERT_EQ(instance_count, 0);
 }
+
+#undef MAKE_MESSAGE
 
 void throw_in_new_expression() {
   using target_t = ThrowAfter<1, exception>;
@@ -100,7 +121,7 @@ void throw_in_new_expression() {
   try {
     [[maybe_unused]] const target_t* obj_ptr{new target_t};
   } catch ([[maybe_unused]] const exception& exc) {
-    instance_count = target_t::INSTANCE_COUNT;
+    instance_count = details::g_object_count;
   }
   ASSERT_EQ(instance_count, 0);
 }
@@ -115,7 +136,8 @@ void throw_at_high_irql() {
     const irql_guard irql{current_irql};
     const target_t obj;
   } catch ([[maybe_unused]] const exception& exc) {
-    instance_count = target_t::INSTANCE_COUNT;
+    instance_count = details::g_object_count;
+    current_irql = get_current_irql();
   }
   ASSERT_EQ(instance_count, 0);
   ASSERT_EQ(current_irql, prev_irql);
@@ -124,23 +146,35 @@ void throw_at_high_irql() {
 enum class CatchBlockType { Expected, Unexpected, Ellipsis, Unknown };
 
 namespace details {
+template <class Exc>
+NTSTATUS get_code(Exc exc) {
+  if constexpr (!is_pointer_v<Exc>) {
+    return exc.code();
+  } else {
+    return exc->code();
+  }
+}
+
+template <class Exc>
+const char* get_what(Exc exc) {
+  if constexpr (!is_pointer_v<Exc>) {
+    return exc.what();
+  } else {
+    return exc->what();
+  }
+}
+
 template <class Exc, class ExpectedTy, class... Types>
 CatchBlockType catch_impl(const Types&... exc_args) {
   using target_t = ThrowAfter<1, Exc>;
-
-  constexpr auto get_code{[](auto&& exc) {
-    if constexpr (!is_pointer_v<remove_cvref_t<decltype(exc)>>) {
-      return exc.code();
-    } else {
-      return exc->code();
-    }
-  }};
 
   auto catch_block{CatchBlockType::Unknown};
   try {
     [[maybe_unused]] const target_t obj{exc_args...};
   } catch (ExpectedTy exc) {
-    if (get_code(exc) == get_code(Exc{exc_args...})) {
+    if (const auto expected = Exc{exc_args...};
+        get_code<ExpectedTy>(exc) == get_code<Exc>(expected) &&
+        strcmp(get_what<ExpectedTy>(exc), get_what<Exc>(expected)) == 0) {
       catch_block = CatchBlockType::Expected;
     } else {
       catch_block = CatchBlockType::Unexpected;
@@ -153,27 +187,33 @@ CatchBlockType catch_impl(const Types&... exc_args) {
 }  // namespace details
 
 // clang-format off
+#define PREPARE_CATCH_BY /* NOLINT(cppcoreguidelines-macro-usage)*/ \
+  CatchBlockType catch_block_type
+
 #define CHECK_CATCH_BY_EX(exc, expected, ...) /* NOLINT(cppcoreguidelines-macro-usage)*/ \
-  ASSERT_EQ((details::catch_impl<exc, expected>(__VA_ARGS__)),     \
-            CatchBlockType::Expected);
+  catch_block_type = (details::catch_impl<exc, expected>(__VA_ARGS__));                  \
+  ASSERT_EQ(catch_block_type, CatchBlockType::Expected)
 
 #define CHECK_CATCH_BY(expected) /* NOLINT(cppcoreguidelines-macro-usage)*/ \
-  CHECK_CATCH_BY_EX(runtime_error,expected, __FUNCTION__)
+  CHECK_CATCH_BY_EX(runtime_error, expected, __FUNCTION__)
 // clang-format on
 
 void catch_by_value() {
+  PREPARE_CATCH_BY;
   CHECK_CATCH_BY(exception);
   CHECK_CATCH_BY(const exception);
 }
 
 void catch_by_base_ref() {
+  PREPARE_CATCH_BY;
   CHECK_CATCH_BY(exception&);
   CHECK_CATCH_BY(const exception&);
 }
 
 void catch_by_base_ptr() {
   const unique_ptr exc_guard{new runtime_error{"catch_by_base_ptr"}};
-  CHECK_CATCH_BY_EX(runtime_error*, exception*, exc_guard.get())
-  CHECK_CATCH_BY_EX(runtime_error*, const exception*, exc_guard.get())
+  PREPARE_CATCH_BY;
+  CHECK_CATCH_BY_EX(runtime_error*, exception*, exc_guard.get());
+  CHECK_CATCH_BY_EX(runtime_error*, const exception*, exc_guard.get());
 }
 }  // namespace tests::exception_dispatcher
