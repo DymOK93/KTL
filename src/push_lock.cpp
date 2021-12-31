@@ -40,19 +40,23 @@ push_lock::push_lock() noexcept : MyBase() {
 push_lock::~push_lock() noexcept = default;
 
 void push_lock::lock() {
+  KeEnterCriticalRegion();
   ExAcquirePushLockExclusive(native_handle());
 }
 
 void push_lock::lock_shared() {
+  KeEnterCriticalRegion();
   ExAcquirePushLockShared(native_handle());
 }
 
 void push_lock::unlock() {
   ExReleasePushLockExclusive(native_handle());
+  KeLeaveCriticalRegion();
 }
 
 void push_lock::unlock_shared() {
   ExReleasePushLockShared(native_handle());
+  KeLeaveCriticalRegion();
 }
 #endif
 }
