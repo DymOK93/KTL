@@ -1,21 +1,20 @@
-#include <crt_attributes.hpp>
-
-#include <chrono.hpp>
-#include <string.hpp>
+#include "dynamic_init/test.hpp"
+#include "exception_dispatcher/test.hpp"
+#include "floating_point/test.hpp"
+#include "heap/test.hpp"
+#include "irql/test.hpp"
+#include "placement_new/test.hpp"
+#include "preload_init/test.hpp"
+#include "runner/test_runner.hpp"
 
 #include <modules/fmt/compile.hpp>
 #include <modules/fmt/xchar.hpp>
 
+#include <chrono.hpp>
+#include <crt_attributes.hpp>
+#include <string.hpp>
+
 #include <ntddk.h>
-
-#include <runner/test_runner.hpp>
-
-#include <dynamic_init/test.hpp>
-#include <floating_point/test.hpp>
-#include <heap/test.hpp>
-#include <irql/test.hpp>
-#include <placement_new/test.hpp>
-#include <preload_init/test.hpp>
 
 using namespace ktl;
 
@@ -72,4 +71,13 @@ void RunTests() {
   RUN_TEST(tr, tests::irql::current);
   RUN_TEST(tr, tests::irql::raise_and_lower);
   RUN_TEST(tr, tests::irql::less_or_equal);
+
+  RUN_TEST(tr, tests::exception_dispatcher::throw_directly);
+  RUN_TEST(tr, tests::exception_dispatcher::throw_in_nested_call);
+  RUN_TEST(tr, tests::exception_dispatcher::throw_on_array_init);
+  RUN_TEST(tr, tests::exception_dispatcher::throw_in_new_expression);
+  RUN_TEST(tr, tests::exception_dispatcher::throw_at_high_irql);
+  RUN_TEST(tr, tests::exception_dispatcher::catch_by_value);
+  RUN_TEST(tr, tests::exception_dispatcher::catch_by_base_ref);
+  RUN_TEST(tr, tests::exception_dispatcher::catch_by_base_ptr);
 }

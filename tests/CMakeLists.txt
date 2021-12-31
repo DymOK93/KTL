@@ -2,6 +2,7 @@ set(KTL_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 list(APPEND CMAKE_MODULE_PATH "${KTL_TEST_DIR}/cmake") 
 
 add_subdirectory(dynamic_init)
+add_subdirectory(exception_dispatcher)
 add_subdirectory(floating_point)
 add_subdirectory(heap)
 add_subdirectory(irql)
@@ -45,6 +46,7 @@ target_link_libraries(
 		minifilter_runtime
 
 		tests::dynamic_init
+		tests::exception_dispatcher
 		tests::floating_point
 		tests::heap
 		tests::irql
