@@ -59,6 +59,6 @@ wdk_sign_driver(
 	ktl_test
 		${CERTIFICATE_NAME}
 		CERTIFICATE_PATH ${CERTIFICATE_PATH}
-		TIMESTAMP_SERVER http://timestamp.comodoca.com/authenticode
+		TIMESTAMP_SERVER ${TIMESTAMP_SERVER}
 )
 
