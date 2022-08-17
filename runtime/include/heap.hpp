@@ -5,10 +5,8 @@
 #include <ntddk.h>
 #include <xmmintrin.h>
 
-#ifdef TARGET_WINVER
-#if TARGET_WINVER >= _WIN32_WINNT_WIN8
-#define POOL_NX_OPTIN 1
-#endif
+#if WINVER >= _WIN32_WINNT_WIN8
+#define POOL_NX_OPTIN 1  // NOLINT(cppcoreguidelines-macro-usage)
 #endif
 
 namespace ktl {
@@ -16,27 +14,20 @@ namespace crt {
 using pool_tag_t = uint32_t;
 using pool_type_t = POOL_TYPE;
 
+// clang-format off
+// NOLINTNEXTLINE(clang-diagnostic-four-char-constants)
 inline constexpr pool_tag_t DEFAULT_HEAP_TAG{'dLTK'};  //!< Reversed 'KTLd'
 inline constexpr pool_tag_t KTL_HEAP_TAG{DEFAULT_HEAP_TAG};  //!< For back compatibility
 
 inline constexpr size_t MEMORY_PAGE_SIZE{PAGE_SIZE};
 inline constexpr size_t CACHE_LINE_SIZE{SYSTEM_CACHE_ALIGNMENT_SIZE};
 
-inline constexpr auto XMM_ALIGNMENT{
-    static_cast<std::align_val_t>(alignof(__m128))};
-
-inline constexpr auto DEFAULT_ALLOCATION_ALIGNMENT{
-    static_cast<std::align_val_t>(2 *
-                                  sizeof(size_t))};  //!< 8 on x86, 16 on x64
-
-inline constexpr auto CACHE_LINE_ALLOCATION_ALIGNMENT{
-    static_cast<std::align_val_t>(CACHE_LINE_SIZE)};  //!< cache line
-
-inline constexpr auto EXTENDED_ALLOCATION_ALIGNMENT{
-    CACHE_LINE_ALLOCATION_ALIGNMENT};  //!< For back compatibility
-
-inline constexpr auto MAX_ALLOCATION_ALIGNMENT{
-    static_cast<std::align_val_t>(MEMORY_PAGE_SIZE)};
+inline constexpr auto XMM_ALIGNMENT{static_cast<align_val_t>(alignof(__m128))};
+inline constexpr auto DEFAULT_ALLOCATION_ALIGNMENT{static_cast<align_val_t>(2 * sizeof(size_t))};  //!< 8 on x86, 16 on x64
+inline constexpr auto CACHE_LINE_ALLOCATION_ALIGNMENT{static_cast<align_val_t>(CACHE_LINE_SIZE)};  //!< cache line
+inline constexpr auto EXTENDED_ALLOCATION_ALIGNMENT{CACHE_LINE_ALLOCATION_ALIGNMENT};  //!< For backward compatibility
+inline constexpr auto MAX_ALLOCATION_ALIGNMENT{static_cast<align_val_t>(MEMORY_PAGE_SIZE)};
+// clang-format on
 
 void initialize_heap() noexcept;
 }  // namespace crt
@@ -117,10 +108,7 @@ enum class OnAllocationFailure { DoNothing, ThrowException };
 
 template <OnAllocationFailure OnFailure = OnAllocationFailure::DoNothing>
 void* allocate_memory(alloc_request) noexcept(
-    OnFailure != OnAllocationFailure::ThrowException) {
-  static_assert(always_false_v<>, "unrecognized OnFailure mode");
-  return nullptr;
-}
+    OnFailure != OnAllocationFailure::ThrowException);
 
 extern template void* allocate_memory<OnAllocationFailure::DoNothing>(
     alloc_request request) noexcept;
