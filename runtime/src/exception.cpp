@@ -9,16 +9,20 @@
 namespace ktl {
 namespace crt {
 exception_allocator::~exception_allocator() noexcept {
-  if (m_buffer) {
-    MmFreeNonCachedMemory(m_buffer, RESERVED_BYTES_COUNT);
-  }
+  deallocate_memory(free_request_builder{m_buffer, RESERVED_BYTES_COUNT}
+                        .set_alignment(SLOT_ALIGNMENT)
+                        .set_pool_tag(ALLOCATION_TAG)
+                        .build());
 }
 
 NTSTATUS exception_allocator::run(
     [[maybe_unused]] DRIVER_OBJECT& driver_object,
     [[maybe_unused]] UNICODE_STRING& registry_path) noexcept {
-  m_buffer = static_cast<byte*>(
-      MmAllocateNonCachedMemory(RESERVED_BYTES_COUNT));
+  m_buffer = static_cast<byte*>(allocate_memory<OnAllocationFailure::DoNothing>(
+      alloc_request_builder{RESERVED_BYTES_COUNT, NonPagedPool}
+          .set_alignment(SLOT_ALIGNMENT)
+          .set_pool_tag(ALLOCATION_TAG)
+          .build()));
   if (!m_buffer) {
     return STATUS_NO_MEMORY;
   }
