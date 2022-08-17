@@ -23,10 +23,6 @@ static const volatile IntegralTy* atomic_address_as(const Ty& value) noexcept {
 }
 
 namespace th::details {
-inline void make_compiler_barrier() noexcept {
-  _ReadWriteBarrier();
-}
-
 class universal_lock : non_relocatable {
  public:
   universal_lock() noexcept {
@@ -86,41 +82,31 @@ inline constexpr memory_order memory_order_seq_cst = memory_order::seq_cst;
 
 template <memory_order order>
 void atomic_thread_fence() noexcept {
-  th::details::make_compiler_barrier();
+  KeMemoryBarrier();
 }
 
 template <>
 inline void atomic_thread_fence<memory_order_relaxed>() noexcept {}
 
-namespace th::details {
-inline void increment_dummy_variable() noexcept {
+template <>
+inline void atomic_thread_fence<memory_order_seq_cst>() noexcept {
   volatile long guard;  // Not initialized to avoid an unnecessary operation;
   [[maybe_unused]] auto value{
       InterlockedIncrement(atomic_address_as<long>(guard))};
 }
-}  // namespace th::details
-
-template <>
-inline void atomic_thread_fence<memory_order_seq_cst>() noexcept {
-  th::details::make_compiler_barrier();
-  th::details::increment_dummy_variable();
-  th::details::make_compiler_barrier();
-}
 
 EXTERN_C inline void atomic_thread_fence(const memory_order order) noexcept {
   if (order != memory_order_relaxed) {
-    return;
-  }
-  th::details::make_compiler_barrier();
-  if (order == memory_order_seq_cst) {
-    th::details::increment_dummy_variable();
-    th::details::make_compiler_barrier();
+    KeMemoryBarrierWithoutFence();
+    if (order == memory_order_seq_cst) {
+      atomic_thread_fence<memory_order_seq_cst>();
+    }
   }
 }
 
 template <memory_order order>
 void atomic_signal_fence() noexcept {
-  th::details::make_compiler_barrier();
+  KeMemoryBarrierWithoutFence();
 }
 
 template <>
@@ -128,7 +114,7 @@ inline void atomic_signal_fence<memory_order_relaxed>() noexcept {}
 
 EXTERN_C inline void atomic_signal_fence(const memory_order order) noexcept {
   if (order != memory_order_relaxed) {
-    th::details::make_compiler_barrier();
+    KeMemoryBarrierWithoutFence();
   }
 }
 
@@ -223,7 +209,7 @@ template <memory_order order>
 void make_load_barrier() noexcept {
   load_memory_order_checker<order> mem_order_checker{};
   if constexpr (order != memory_order::relaxed) {
-    make_compiler_barrier();
+    KeMemoryBarrierWithoutFence();
   }
 }
 
@@ -231,7 +217,7 @@ template <memory_order order>
 void make_store_barrier() noexcept {
   store_memory_order_checker<order> mem_order_checker{};
   if constexpr (order != memory_order::relaxed) {
-    make_compiler_barrier();
+    KeMemoryBarrierWithoutFence();
   }
 }
 
