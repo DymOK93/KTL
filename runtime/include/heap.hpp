@@ -23,7 +23,7 @@ inline constexpr size_t MEMORY_PAGE_SIZE{PAGE_SIZE};
 inline constexpr size_t CACHE_LINE_SIZE{SYSTEM_CACHE_ALIGNMENT_SIZE};
 
 inline constexpr auto XMM_ALIGNMENT{static_cast<align_val_t>(alignof(__m128))};
-inline constexpr auto DEFAULT_ALLOCATION_ALIGNMENT{static_cast<align_val_t>(2 * sizeof(size_t))};  //!< 8 on x86, 16 on x64
+inline constexpr auto DEFAULT_ALLOCATION_ALIGNMENT{MEMORY_ALLOCATION_ALIGNMENT}; 
 inline constexpr auto CACHE_LINE_ALLOCATION_ALIGNMENT{static_cast<align_val_t>(CACHE_LINE_SIZE)};  //!< cache line
 inline constexpr auto EXTENDED_ALLOCATION_ALIGNMENT{CACHE_LINE_ALLOCATION_ALIGNMENT};  //!< For backward compatibility
 inline constexpr auto MAX_ALLOCATION_ALIGNMENT{static_cast<align_val_t>(MEMORY_PAGE_SIZE)};
