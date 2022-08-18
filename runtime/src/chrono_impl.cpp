@@ -26,23 +26,35 @@ intmax_t query_system_time() {
   KeQuerySystemTimePrecise(&system_time);
   return system_time.QuadPart;
 }
-#else
-#if BITNESS == 32
+#elif BITNESS == 32
 static constexpr uintptr_t KI_USER_SHARED_DATA{0xFFDF0000};
-#elif BITNESS == 64
-static constexpr uintptr_t KI_USER_SHARED_DATA{0xFFFFF780'00000000};
-#else
-#error Unsupported platform
-#endif
+
 intmax_t query_system_time() {
   const auto user_shared_data{
       reinterpret_cast<const KUSER_SHARED_DATA*>(KI_USER_SHARED_DATA)};
   const auto& system_time{user_shared_data->SystemTime};
-  const auto low_part{system_time.LowPart};
-  return static_cast<intmax_t>(system_time.High1Time)
-             << sizeof(ULONG) * CHAR_BIT |
+  const uint32_t low_part{ReadNoFence(
+      reinterpret_cast<const volatile LONG*>(&system_time.LowPart))};
+  return static_cast<intmax_t>(ReadNoFence(&system_time.High1Time))
+             << sizeof(uint32_t) * CHAR_BIT |
          low_part;
 }
+#elif BITNESS == 64
+static constexpr uintptr_t KI_USER_SHARED_DATA{0xFFFFF780'00000000};
+
+intmax_t query_system_time() {
+  const auto user_shared_data{
+      reinterpret_cast<const KUSER_SHARED_DATA*>(KI_USER_SHARED_DATA)};
+  const auto raw_system_time{
+      reinterpret_cast<const volatile LONG64*>(&user_shared_data->SystemTime)};
+  /*
+   * KSYSTEM_TIME has no padding between LowPart and High1Time so can be read as
+   * a single 64-bit value
+   */
+  return ReadNoFence64(raw_system_time);
+}
+#else
+#error Unsupported platform
 #endif
 
 intmax_t query_performance_counter() {

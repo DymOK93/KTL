@@ -331,8 +331,10 @@ struct event_base : sync_primitive_base<KEVENT> {
   template <class Rep, class Period>
   cv_status wait_for(
       const chrono::duration<Rep, Period>& wait_duration) noexcept {
-    // Behavior closer to std::condition_variable instead of typical
-    // KeWaitForSingleObject(event, ..., &zero_timeout)
+    /**
+     * Behavior closer to std::condition_variable instead of typical
+     * KeWaitForSingleObject(event, ..., &zero_timeout)
+     */
     const auto await_status{wait_for_impl<ZeroWaitPolicy::Cancel>(
         wait_duration, [event = native_handle()](LARGE_INTEGER* interval) {
           return wait_impl(event, interval);
@@ -361,8 +363,10 @@ struct event_base : sync_primitive_base<KEVENT> {
   template <class Clock, class Duration>
   cv_status wait_until(
       const chrono::time_point<Clock, Duration>& awake_time) noexcept {
-    // Behavior closer to std::condition_variable instead of typical
-    // KeWaitForSingleObject(event, ..., &zero_timeout)
+    /**
+     * Behavior closer to std::condition_variable instead of typical
+     * KeWaitForSingleObject(event, ..., &zero_timeout)
+     */
     const auto await_status{wait_until_impl<ZeroWaitPolicy::Cancel>(
         awake_time, [event = native_handle()](LARGE_INTEGER* interval) {
           return wait_impl(event, interval);
