@@ -63,22 +63,26 @@ struct timed_recursive_mutex : recursive_mutex {  // Locking with timeout
 
   template <class Rep, class Period>
   void lock_for(const chrono::duration<Rep, Period>& wait_duration) {
-    const auto await_status{th::details::wait_for_impl(
-        wait_duration, [mtx = native_handle()](LARGE_INTEGER* interval) {
-          wait_impl(mtx, interval);
-        })};
-    if (await_status == STATUS_CANCELLED) {
+    using namespace th::details;
+    if (const auto await_status = wait_for_impl<ZeroWaitPolicy::Cancel>(
+            wait_duration,
+            [mtx = native_handle()](LARGE_INTEGER* interval) {
+              wait_impl(mtx, interval);
+            });
+        await_status == STATUS_CANCELLED) {
       lock();
     }
   }
 
   template <class Clock, class Duration>
   void lock_until(const chrono::time_point<Clock, Duration>& awake_time) {
-    const auto await_status{th::details::wait_until_impl(
-        awake_time, [mtx = native_handle()](LARGE_INTEGER* interval) {
-          wait_impl(mtx, interval);
-        })};
-    if (await_status == STATUS_CANCELLED) {
+    using namespace th::details;
+    if (const auto await_status = wait_until_impl<ZeroWaitPolicy::Cancel>(
+            awake_time,
+            [mtx = native_handle()](LARGE_INTEGER* interval) {
+              wait_impl(mtx, interval);
+            });
+        await_status == STATUS_CANCELLED) {
       lock();
     }
   }
@@ -327,7 +331,9 @@ struct event_base : sync_primitive_base<KEVENT> {
   template <class Rep, class Period>
   cv_status wait_for(
       const chrono::duration<Rep, Period>& wait_duration) noexcept {
-    const auto await_status{wait_for_impl(
+    // Behavior closer to std::condition_variable instead of typical
+    // KeWaitForSingleObject(event, ..., &zero_timeout)
+    const auto await_status{wait_for_impl<ZeroWaitPolicy::Cancel>(
         wait_duration, [event = native_handle()](LARGE_INTEGER* interval) {
           return wait_impl(event, interval);
         })};
@@ -355,7 +361,9 @@ struct event_base : sync_primitive_base<KEVENT> {
   template <class Clock, class Duration>
   cv_status wait_until(
       const chrono::time_point<Clock, Duration>& awake_time) noexcept {
-    const auto await_status{wait_for_impl(
+    // Behavior closer to std::condition_variable instead of typical
+    // KeWaitForSingleObject(event, ..., &zero_timeout)
+    const auto await_status{wait_until_impl<ZeroWaitPolicy::Cancel>(
         awake_time, [event = native_handle()](LARGE_INTEGER* interval) {
           return wait_impl(event, interval);
         })};
