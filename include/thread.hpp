@@ -12,11 +12,15 @@ namespace ktl {
 using thread_id_t = uint32_t;
 
 namespace th::details {
-template <class Rep, class Period, class AwaitHandler>
+enum class ZeroWaitPolicy { Cancel, Yield };
+
+template <ZeroWaitPolicy Policy, class Rep, class Period, class AwaitHandler>
 constexpr NTSTATUS wait_for_impl(
     const chrono::duration<Rep, Period>& wait_duration,
     AwaitHandler await_handler) noexcept {
-  if (wait_duration <= chrono::duration<Rep, Period>::zero()) {
+  if (constexpr auto zero = chrono::duration<Rep, Period>::zero();
+      wait_duration < zero ||
+      Policy == ZeroWaitPolicy::Cancel && wait_duration == zero) {
     return STATUS_CANCELLED;
   }
 
@@ -30,11 +34,14 @@ constexpr NTSTATUS wait_for_impl(
   return await_handler(addressof(interval));
 }
 
-template <class Clock, class Duration, class AwaitHandler>
+template <ZeroWaitPolicy Policy,
+          class Clock,
+          class Duration,
+          class AwaitHandler>
 constexpr NTSTATUS wait_until_impl(
     const chrono::time_point<Clock, Duration>& awake_time,
     AwaitHandler await_handler) noexcept {
-  return wait_for_impl(awake_time - Clock::now(), await_handler);
+  return wait_for_impl<Policy>(awake_time - Clock::now(), await_handler);
 }
 }  // namespace th::details
 
@@ -45,9 +52,11 @@ void yield() noexcept;
 
 template <class Rep, class Period>
 void sleep_for(const chrono::duration<Rep, Period>& sleep_duration) {
-  th::details::wait_for_impl(sleep_duration, [](LARGE_INTEGER* interval) {
-    return KeDelayExecutionThread(KernelMode, false, interval);
-  });
+  using namespace th::details;
+  wait_for_impl<ZeroWaitPolicy::Yield>(
+      sleep_duration, [](LARGE_INTEGER* interval) {
+        return KeDelayExecutionThread(KernelMode, false, interval);
+      });
 }
 
 template <class Clock, class Duration>
@@ -63,10 +72,9 @@ void stall_for(const chrono::duration<Rep, Period>& stall_duration) {
   assert_with_msg(us_to_wait <= 50,
                   "wait duration in stall_for must not exceed 50 us");
 
-  if (us_to_wait < 0) {
+  if (us_to_wait >= 0) {
     return;
   }
-
   KeStallExecutionProcessor(static_cast<unsigned long>(us_to_wait));
 }
 

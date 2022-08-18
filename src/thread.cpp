@@ -5,8 +5,6 @@
 
 #include <ntddk.h>
 
-EXTERN_C NTSTATUS NTAPI NTAPI ZwYieldExecution();
-
 namespace ktl {
 namespace this_thread {
 thread_id_t get_id() {
@@ -14,7 +12,7 @@ thread_id_t get_id() {
 }
 
 void yield() noexcept {
-  ZwYieldExecution();
+  sleep_for(0_s);
 }
 }  // namespace this_thread
 
